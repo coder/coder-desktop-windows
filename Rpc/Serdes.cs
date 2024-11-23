@@ -30,15 +30,13 @@ internal class RaiiSemaphoreSlim(int initialCount, int maxCount)
 /// <summary>
 ///     Serdes provides serialization and deserialization of messages read from a Stream.
 /// </summary>
-public class Serdes<TSi, TS, TRi, TR>
-    where TSi : IMessage<TSi>
-    where TS : RpcMessage<TSi>
-    where TRi : class, IMessage<TRi>, new()
-    where TR : RpcMessage<TRi>
+public class Serdes<TS, TR>
+    where TS : RpcMessage<TS>, IMessage<TS>
+    where TR : RpcMessage<TR>, IMessage<TR>, new()
 {
     private const int MaxMessageSize = 0x1000000; // 16MiB
 
-    private readonly MessageParser<TRi> _parser = new(() => new TRi());
+    private readonly MessageParser<TR> _parser = new(() => new TR());
 
     private readonly RaiiSemaphoreSlim _readLock = new(1, 1);
     private readonly RaiiSemaphoreSlim _writeLock = new(1, 1);
@@ -54,7 +52,7 @@ public class Serdes<TSi, TS, TRi, TR>
     {
         using var _ = await _writeLock.LockAsync(ct);
 
-        var mb = message.Message.ToByteArray();
+        var mb = message.ToByteArray();
         if (mb.Length > MaxMessageSize)
             throw new ArgumentException($"Marshalled message size {mb.Length} exceeds maximum {MaxMessageSize}");
 
@@ -87,7 +85,6 @@ public class Serdes<TSi, TS, TRi, TR>
 
         var msg = _parser.ParseFrom(msgBytes);
         if (msg == null) throw new IOException("Failed to parse message");
-
-        return msg.ToRpcMessage() as TR ?? throw new InvalidOperationException("Failed to cast message");
+        return msg;
     }
 }

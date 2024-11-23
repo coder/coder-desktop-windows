@@ -9,63 +9,36 @@ namespace Coder.Desktop.Rpc.Proto;
 public abstract class RpcMessage<T> where T : IMessage<T>
 {
     /// <summary>
-    ///     The inner RPC component of the message.
+    ///     The inner RPC component of the message. This is a separate field as the C# compiler does not allow the existing Rpc
+    ///     field to be overridden or implement this abstract property.
     /// </summary>
-    public abstract RPC Rpc { get; set; }
+    public abstract RPC RpcField { get; set; }
 
     /// <summary>
-    ///     The actual full message.
+    ///     The inner message component of the message. This exists so values of type RpcMessage can easily get message
+    ///     contents.
     /// </summary>
-    public abstract T Message { get; set; }
+    public abstract T Message { get; }
 }
 
-/// <summary>
-///     Wraps a protobuf <c>ManagerMessage</c> to implement <c>RpcMessage</c>.
-/// </summary>
-public class ManagerMessageWrapper(ManagerMessage message) : RpcMessage<ManagerMessage>
+public partial class ManagerMessage : RpcMessage<ManagerMessage>
 {
-    public override RPC Rpc
+    public override RPC RpcField
     {
-        get => Message.Rpc;
-        set => Message.Rpc = value;
+        get => Rpc;
+        set => Rpc = value;
     }
 
-    public override ManagerMessage Message { get; set; } = message;
+    public override ManagerMessage Message => this;
 }
 
-/// <summary>
-///     Wraps a protobuf <c>TunnelMessage</c> to implement <c>RpcMessage</c>.
-/// </summary>
-public class TunnelMessageWrapper(TunnelMessage message) : RpcMessage<TunnelMessage>
+public partial class TunnelMessage : RpcMessage<TunnelMessage>
 {
-    public override RPC Rpc
+    public override RPC RpcField
     {
-        get => Message.Rpc;
-        set => Message.Rpc = value;
+        get => Rpc;
+        set => Rpc = value;
     }
 
-    public override TunnelMessage Message { get; set; } = message;
-}
-
-/// <summary>
-///     Provides extension methods for Protobuf messages.
-/// </summary>
-public static class ProtoWrappers
-{
-    /// <summary>
-    ///     Attempts to convert a Protobuf message to an <c>RpcMessage</c>.
-    /// </summary>
-    /// <param name="message">Protobuf message</param>
-    /// <typeparam name="T">Protobuf message type</typeparam>
-    /// <returns>A wrapped message</returns>
-    /// <exception cref="ArgumentException">Unknown message type</exception>
-    public static RpcMessage<T> ToRpcMessage<T>(this IMessage<T> message) where T : IMessage<T>
-    {
-        return message switch
-        {
-            TunnelMessage tunnelMessage => (RpcMessage<T>)(object)new TunnelMessageWrapper(tunnelMessage),
-            ManagerMessage managerMessage => (RpcMessage<T>)(object)new ManagerMessageWrapper(managerMessage),
-            _ => throw new ArgumentException($"Unknown message type {message.GetType()}"),
-        };
-    }
+    public override TunnelMessage Message => this;
 }

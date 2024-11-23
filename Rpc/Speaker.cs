@@ -112,23 +112,17 @@ public class SpeakerHeader(SpeakerRole role, ApiVersion version)
 /// </summary>
 /// <param name="speaker">Speaker to use for sending reply</param>
 /// <param name="message">Original received message</param>
-public class ReplyableRpcMessage<TSi, TS, TRi, TR>(Speaker<TSi, TS, TRi, TR> speaker, TR message) : RpcMessage<TRi>
-    where TSi : IMessage<TSi>
-    where TS : RpcMessage<TSi>
-    where TRi : class, IMessage<TRi>, new()
-    where TR : RpcMessage<TRi>
+public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : RpcMessage<TR>
+    where TS : RpcMessage<TS>, IMessage<TS>
+    where TR : RpcMessage<TR>, IMessage<TR>, new()
 {
-    public override RPC Rpc
+    public override RPC RpcField
     {
-        get => message.Rpc;
-        set => message.Rpc = value;
+        get => message.RpcField;
+        set => message.RpcField = value;
     }
 
-    public override TRi Message
-    {
-        get => message.Message;
-        set => message.Message = value;
-    }
+    public override TR Message => message;
 
     /// <summary>
     ///     Sends a reply to the original message.
@@ -144,20 +138,15 @@ public class ReplyableRpcMessage<TSi, TS, TRi, TR>(Speaker<TSi, TS, TRi, TR> spe
 /// <summary>
 ///     Manages an RPC connection between two peers, allowing messages to be sent and received.
 /// </summary>
-/// <typeparam name="TSi">The inner message type for sent messages</typeparam>
 /// <typeparam name="TS">The wrapped message type for sent messages</typeparam>
-/// <typeparam name="TRi">The inner message type for received messages</typeparam>
 /// <typeparam name="TR">The wrapped message type for received messages</typeparam>
-public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
-// TODO: it would be nice if this could just be the inner or wrapped types instead
-    where TSi : IMessage<TSi>
-    where TS : RpcMessage<TSi>
-    where TRi : class, IMessage<TRi>, new()
-    where TR : RpcMessage<TRi>
+public class Speaker<TS, TR> : IDisposable, IAsyncDisposable
+    where TS : RpcMessage<TS>, IMessage<TS>
+    where TR : RpcMessage<TR>, IMessage<TR>, new()
 {
     public delegate void OnErrorDelegate(Exception e);
 
-    public delegate void OnReceiveDelegate(ReplyableRpcMessage<TSi, TS, TRi, TR> message);
+    public delegate void OnReceiveDelegate(ReplyableRpcMessage<TS, TR> message);
 
     private readonly Stream _conn;
 
@@ -168,7 +157,7 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
 
     private readonly ConcurrentDictionary<ulong, TaskCompletionSource<TR>> _pendingReplies = new();
     private readonly Task _receiveTask;
-    private readonly Serdes<TSi, TS, TRi, TR> _serdes = new();
+    private readonly Serdes<TS, TR> _serdes = new();
     private readonly SpeakerRole _them;
 
     // _lastMessageId is incremented using an atomic operation, and as such the
@@ -282,15 +271,15 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
             while (!ct.IsCancellationRequested)
             {
                 var message = await _serdes.ReadMessage(_conn, ct);
-                if (message.Rpc.ResponseTo != 0)
+                if (message.RpcField.ResponseTo != 0)
                     // Look up the TaskCompletionSource for the message ID and
                     // complete it with the message.
-                    if (_pendingReplies.TryRemove(message.Rpc.ResponseTo, out var tcs))
+                    if (_pendingReplies.TryRemove(message.RpcField.ResponseTo, out var tcs))
                         tcs.SetResult(message);
 
                 // TODO: we should log unknown replies
                 // Start a new task in the background to handle the message.
-                _ = Task.Run(() => Receive.Invoke(new ReplyableRpcMessage<TSi, TS, TRi, TR>(this, message)), ct);
+                _ = Task.Run(() => Receive.Invoke(new ReplyableRpcMessage<TS, TR>(this, message)), ct);
             }
         }
         catch (OperationCanceledException)
@@ -310,7 +299,7 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
     /// <param name="ct">Optional cancellation token</param>
     public async Task SendMessage(TS message, CancellationToken ct = default)
     {
-        message.Rpc = new RPC
+        message.RpcField = new RPC
         {
             MsgId = Interlocked.Add(ref _lastMessageId, 1),
             ResponseTo = 0,
@@ -327,7 +316,7 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
     /// <returns>Received reply</returns>
     public async ValueTask<TR> SendMessageAwaitReply(TS message, CancellationToken ct = default)
     {
-        message.Rpc = new RPC
+        message.RpcField = new RPC
         {
             MsgId = Interlocked.Add(ref _lastMessageId, 1),
             ResponseTo = 0,
@@ -336,7 +325,7 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
         // Configure a TaskCompletionSource to complete when the reply is
         // received.
         var tcs = new TaskCompletionSource<TR>();
-        _pendingReplies[message.Rpc.MsgId] = tcs;
+        _pendingReplies[message.RpcField.MsgId] = tcs;
         try
         {
             await _serdes.WriteMessage(_conn, message, ct);
@@ -347,7 +336,7 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
         {
             // Clean up the pending reply if it was not received before
             // cancellation.
-            _pendingReplies.TryRemove(message.Rpc.MsgId, out _);
+            _pendingReplies.TryRemove(message.RpcField.MsgId, out _);
         }
     }
 
@@ -359,10 +348,10 @@ public class Speaker<TSi, TS, TRi, TR> : IDisposable, IAsyncDisposable
     /// <param name="ct">Optional cancellation token</param>
     public async Task SendReply(TR originalMessage, TS reply, CancellationToken ct = default)
     {
-        reply.Rpc = new RPC
+        reply.RpcField = new RPC
         {
             MsgId = Interlocked.Add(ref _lastMessageId, 1),
-            ResponseTo = originalMessage.Rpc.MsgId,
+            ResponseTo = originalMessage.RpcField.MsgId,
         };
         await _serdes.WriteMessage(_conn, reply, ct);
     }

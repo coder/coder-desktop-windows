@@ -81,27 +81,25 @@ public class SpeakerTest
         var (stream1, stream2) = BidirectionalPipe.New();
 
         var speaker1Ch = Channel
-            .CreateUnbounded<ReplyableRpcMessage<ManagerMessage, ManagerMessageWrapper, TunnelMessage,
-                TunnelMessageWrapper>>();
+            .CreateUnbounded<ReplyableRpcMessage<ManagerMessage, TunnelMessage>>();
         var speaker2Ch = Channel
-            .CreateUnbounded<ReplyableRpcMessage<TunnelMessage, TunnelMessageWrapper, ManagerMessage,
-                ManagerMessageWrapper>>();
+            .CreateUnbounded<ReplyableRpcMessage<TunnelMessage, ManagerMessage>>();
 
         // Start two speakers asynchronously as startup is blocking.
         var speaker1Task = Task.Run(() =>
-            new Speaker<ManagerMessage, ManagerMessageWrapper, TunnelMessage, TunnelMessageWrapper>(stream1,
+            new Speaker<ManagerMessage, TunnelMessage>(stream1,
                 SpeakerRole.Manager, SpeakerRole.Tunnel,
                 tri =>
                 {
-                    Console.WriteLine($"speaker1 received message: {tri.Rpc.MsgId}");
+                    Console.WriteLine($"speaker1 received message: {tri.RpcField.MsgId}");
                     Assert.That(speaker1Ch.Writer.TryWrite(tri), Is.True);
                 }, ex => { Assert.Fail($"speaker1 error: {ex}"); }));
         var speaker2Task = Task.Run(() =>
-            new Speaker<TunnelMessage, TunnelMessageWrapper, ManagerMessage, ManagerMessageWrapper>(stream2,
+            new Speaker<TunnelMessage, ManagerMessage>(stream2,
                 SpeakerRole.Tunnel, SpeakerRole.Manager,
                 tri =>
                 {
-                    Console.WriteLine($"speaker2 received message: {tri.Rpc.MsgId}");
+                    Console.WriteLine($"speaker2 received message: {tri.RpcField.MsgId}");
                     Assert.That(speaker2Ch.Writer.TryWrite(tri), Is.True);
                 }, ex => { Assert.Fail($"speaker2 error: {ex}"); }));
 
@@ -109,24 +107,24 @@ public class SpeakerTest
         await using var speaker1 = await speaker1Task;
         await using var speaker2 = await speaker2Task;
 
-        var sendTask = speaker1.SendMessageAwaitReply(new ManagerMessageWrapper(new ManagerMessage
+        var sendTask = speaker1.SendMessageAwaitReply(new ManagerMessage
         {
             Start = new StartRequest
             {
                 ApiToken = "test",
                 CoderUrl = "test",
             },
-        }));
+        });
 
         var message = await speaker2Ch.Reader.ReadAsync();
         Assert.That(message.Message.Start.ApiToken, Is.EqualTo("test"));
-        await message.SendReply(new TunnelMessageWrapper(new TunnelMessage
+        await message.SendReply(new TunnelMessage
         {
             Start = new StartResponse
             {
                 Success = true,
             },
-        }));
+        });
 
         var reply = await sendTask;
         Assert.That(reply.Message.Start.Success, Is.True);
