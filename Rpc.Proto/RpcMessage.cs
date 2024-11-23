@@ -1,6 +1,13 @@
-﻿using Google.Protobuf;
+﻿using System.Reflection;
+using Google.Protobuf;
 
 namespace Coder.Desktop.Rpc.Proto;
+
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public class RpcRoleAttribute(string role) : Attribute
+{
+    public RpcRole Role { get; } = new(role);
+}
 
 /// <summary>
 ///     Represents an actual over-the-wire message type.
@@ -19,8 +26,22 @@ public abstract class RpcMessage<T> where T : IMessage<T>
     ///     contents.
     /// </summary>
     public abstract T Message { get; }
+
+    /// <summary>
+    ///     Gets the RpcRole of the message type from it's RpcRole attribute.
+    /// </summary>
+    /// <returns></returns>
+    /// <exception cref="ArgumentException">The message type does not have an RpcRoleAttribute</exception>
+    public static RpcRole GetRole()
+    {
+        var type = typeof(T);
+        var attr = type.GetCustomAttribute<RpcRoleAttribute>();
+        if (attr is null) throw new ArgumentException($"Message type {type} does not have a RpcRoleAttribute");
+        return attr.Role;
+    }
 }
 
+[RpcRole(RpcRole.Manager)]
 public partial class ManagerMessage : RpcMessage<ManagerMessage>
 {
     public override RPC RpcField
@@ -32,6 +53,7 @@ public partial class ManagerMessage : RpcMessage<ManagerMessage>
     public override ManagerMessage Message => this;
 }
 
+[RpcRole(RpcRole.Tunnel)]
 public partial class TunnelMessage : RpcMessage<TunnelMessage>
 {
     public override RPC RpcField

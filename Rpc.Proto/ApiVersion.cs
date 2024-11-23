@@ -1,4 +1,4 @@
-﻿namespace Coder.Desktop.Rpc;
+﻿namespace Coder.Desktop.Rpc.Proto;
 
 /// <summary>
 ///     Thrown when the two peers are incompatible with each other.
@@ -16,9 +16,9 @@ public class ApiVersion(int major, int minor, params int[] additionalMajors)
 {
     public static readonly ApiVersion Current = new(1, 0);
 
-    public int Major { get; } = major;
-    public int Minor { get; } = minor;
-    public int[] AdditionalMajors { get; } = additionalMajors;
+    private int Major { get; } = major;
+    private int Minor { get; } = minor;
+    private int[] AdditionalMajors { get; } = additionalMajors;
 
     /// <summary>
     ///     Parse a string in the format "major.minor" into an ApiVersion.

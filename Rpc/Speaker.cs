@@ -6,108 +6,6 @@ using Google.Protobuf;
 namespace Coder.Desktop.Rpc;
 
 /// <summary>
-///     Represents a role that either side of the connection can fulfil.
-/// </summary>
-public class SpeakerRole
-{
-    private const string ManagerString = "manager";
-    private const string TunnelString = "tunnel";
-
-    public static readonly SpeakerRole Manager = new(ManagerString);
-    public static readonly SpeakerRole Tunnel = new(TunnelString);
-
-    // TODO: it would be nice if we could expose this on the RpcMessage types instead
-    public SpeakerRole(string role)
-    {
-        if (role != ManagerString && role != TunnelString) throw new ArgumentException($"Unknown role '{role}'");
-
-        Role = role;
-    }
-
-    public string Role { get; }
-
-    public override string ToString()
-    {
-        return Role;
-    }
-
-    #region SpeakerRole equality
-
-    public static bool operator ==(SpeakerRole a, SpeakerRole b)
-    {
-        return a.Equals(b);
-    }
-
-    public static bool operator !=(SpeakerRole a, SpeakerRole b)
-    {
-        return !a.Equals(b);
-    }
-
-    private bool Equals(SpeakerRole other)
-    {
-        return Role == other.Role;
-    }
-
-    public override bool Equals(object? obj)
-    {
-        if (obj is null) return false;
-        if (ReferenceEquals(this, obj)) return true;
-        if (obj.GetType() != GetType()) return false;
-        return Equals((SpeakerRole)obj);
-    }
-
-    public override int GetHashCode()
-    {
-        return Role.GetHashCode();
-    }
-
-    #endregion
-}
-
-/// <summary>
-///     A header to write or read from a stream to identify the speaker's role and version.
-/// </summary>
-/// <param name="role">Role of the speaker</param>
-/// <param name="version">Version of the speaker</param>
-public class SpeakerHeader(SpeakerRole role, ApiVersion version)
-{
-    public const string Preamble = "codervpn";
-
-    public SpeakerRole Role { get; } = role;
-    public ApiVersion Version { get; } = version;
-
-    /// <summary>
-    ///     Parse a header string into a <c>SpeakerHeader</c>.
-    /// </summary>
-    /// <param name="header">Raw header string without trailing newline</param>
-    /// <returns>Parsed header</returns>
-    /// <exception cref="ArgumentException">Invalid header string</exception>
-    public static SpeakerHeader Parse(string header)
-    {
-        var parts = header.Split(' ');
-        if (parts.Length != 3) throw new ArgumentException($"Wrong number of parts in header string '{header}'");
-        if (parts[0] != Preamble) throw new ArgumentException($"Invalid preamble in header string '{header}'");
-
-        var version = ApiVersion.ParseString(parts[1]);
-        var role = new SpeakerRole(parts[2]);
-        return new SpeakerHeader(role, version);
-    }
-
-    /// <summary>
-    ///     Construct a header string from the role and version with a trailing newline.
-    /// </summary>
-    public override string ToString()
-    {
-        return $"{Preamble} {Version} {Role}\n";
-    }
-
-    public ReadOnlyMemory<byte> ToBytes()
-    {
-        return Encoding.UTF8.GetBytes(ToString());
-    }
-}
-
-/// <summary>
 ///     Wraps a <c>RpcMessage</c> to allow easily sending a reply via the <c>Speaker</c>.
 /// </summary>
 /// <param name="speaker">Speaker to use for sending reply</param>
@@ -138,9 +36,9 @@ public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : 
 /// <summary>
 ///     Manages an RPC connection between two peers, allowing messages to be sent and received.
 /// </summary>
-/// <typeparam name="TS">The wrapped message type for sent messages</typeparam>
-/// <typeparam name="TR">The wrapped message type for received messages</typeparam>
-public class Speaker<TS, TR> : IDisposable, IAsyncDisposable
+/// <typeparam name="TS">The message type for sent messages</typeparam>
+/// <typeparam name="TR">The message type for received messages</typeparam>
+public class Speaker<TS, TR> : IAsyncDisposable
     where TS : RpcMessage<TS>, IMessage<TS>
     where TR : RpcMessage<TR>, IMessage<TR>, new()
 {
@@ -153,78 +51,53 @@ public class Speaker<TS, TR> : IDisposable, IAsyncDisposable
     // _cts is cancelled when Dispose is called and will cause all ongoing I/O
     // operations to be cancelled.
     private readonly CancellationTokenSource _cts = new();
-    private readonly SpeakerRole _me;
-
     private readonly ConcurrentDictionary<ulong, TaskCompletionSource<TR>> _pendingReplies = new();
-    private readonly Task _receiveTask;
     private readonly Serdes<TS, TR> _serdes = new();
-    private readonly SpeakerRole _them;
 
     // _lastMessageId is incremented using an atomic operation, and as such the
     // first message ID will actually be 1.
     private ulong _lastMessageId;
+    private Task? _receiveTask;
 
     /// <summary>
-    ///     Instantiates a speaker, performs a handshake with the peer, and starts receiving messages.
+    ///     Instantiates a speaker. The speaker will not perform any I/O until <c>StartAsync</c> is called.
     /// </summary>
-    /// <param name="conn">Stream to use for I/O - will be automatically closed on ctor failure or Dispose</param>
-    /// <param name="me">The local role</param>
-    /// <param name="them">The remote role</param>
-    /// <param name="onReceive">Callback to fire on received messages (except replies)</param>
-    /// <param name="onError">Callback to fire on fatal receive errors</param>
-    /// <exception cref="TimeoutException">Could not complete handshake within 5s</exception>
-    /// <exception cref="AggregateException">Handshake failed</exception>
-    public Speaker(Stream conn, SpeakerRole me, SpeakerRole them, OnReceiveDelegate onReceive, OnErrorDelegate onError)
+    /// <param name="conn">Stream to use for I/O</param>
+    public Speaker(Stream conn)
     {
         _conn = conn;
-        _me = me;
-        _them = them;
-        Receive += onReceive;
-        Error += onError;
-
-        // Handshake with a hard timeout of 5s.
-        var handshakeTask = PerformHandshake();
-        handshakeTask.Wait(TimeSpan.FromSeconds(5));
-        if (!handshakeTask.IsCompleted)
-        {
-            _conn.Dispose();
-            throw new TimeoutException("RPC handshake timed out");
-        }
-
-        if (handshakeTask.IsFaulted)
-        {
-            _conn.Dispose();
-            throw handshakeTask.Exception!;
-        }
-
-        _receiveTask = ReceiveLoop(_cts.Token);
-        _receiveTask.ContinueWith(t =>
-        {
-            if (t.IsFaulted) Error.Invoke(t.Exception!);
-        });
     }
 
     public async ValueTask DisposeAsync()
     {
         await _cts.CancelAsync();
-        await _receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
+        if (_receiveTask is not null) await _receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
         await _conn.DisposeAsync();
         GC.SuppressFinalize(this);
     }
 
-    public void Dispose()
-    {
-        _cts.Cancel();
-        // Wait up to 5s for _receiveTask to finish, we don't really care about
-        // the result.
-        _receiveTask.Wait(TimeSpan.FromSeconds(5));
-        _conn.Dispose();
-        GC.SuppressFinalize(this);
-    }
-
     // TODO: do we want to do events API or channels API?
-    private event OnReceiveDelegate Receive;
-    private event OnErrorDelegate Error;
+    public event OnReceiveDelegate? Receive;
+    public event OnErrorDelegate? Error;
+
+    /// <summary>
+    ///     Performs a handshake with the peer and starts the async receive loop. The caller should attach it's Receive and
+    ///     Error event handlers before calling this method.
+    /// </summary>
+    public async Task StartAsync(CancellationToken ct = default)
+    {
+        // Handshakes should always finish quickly, so enforce a 5s timeout.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromSeconds(5));
+        await PerformHandshake(ct);
+
+        // Start ReceiveLoop in the background.
+        _receiveTask = ReceiveLoop(_cts.Token);
+        _ = _receiveTask.ContinueWith(t =>
+        {
+            if (t.IsFaulted) Error?.Invoke(t.Exception!);
+        }, CancellationToken.None);
+    }
 
     private async Task PerformHandshake(CancellationToken ct = default)
     {
@@ -234,15 +107,17 @@ public class Speaker<TS, TR> : IDisposable, IAsyncDisposable
         var readTask = ReadHeader(ct);
         await Task.WhenAll(writeTask, readTask);
 
-        var header = SpeakerHeader.Parse(await readTask);
-        if (header.Role != _them) throw new ArgumentException($"Expected peer role '{_them}' but got '{header.Role}'");
+        var header = RpcHeader.Parse(await readTask);
+        var expectedRole = RpcMessage<TR>.GetRole();
+        if (header.Role != expectedRole)
+            throw new ArgumentException($"Expected peer role '{expectedRole}' but got '{header.Role}'");
 
         header.Version.Validate(ApiVersion.Current);
     }
 
     private async Task WriteHeader(CancellationToken ct = default)
     {
-        var header = new SpeakerHeader(_me, ApiVersion.Current);
+        var header = new RpcHeader(RpcMessage<TS>.GetRole(), ApiVersion.Current);
         await _conn.WriteAsync(header.ToBytes(), ct);
     }
 
@@ -279,7 +154,7 @@ public class Speaker<TS, TR> : IDisposable, IAsyncDisposable
 
                 // TODO: we should log unknown replies
                 // Start a new task in the background to handle the message.
-                _ = Task.Run(() => Receive.Invoke(new ReplyableRpcMessage<TS, TR>(this, message)), ct);
+                _ = Task.Run(() => Receive?.Invoke(new ReplyableRpcMessage<TS, TR>(this, message)), ct);
             }
         }
         catch (OperationCanceledException)
@@ -288,7 +163,7 @@ public class Speaker<TS, TR> : IDisposable, IAsyncDisposable
         }
         catch (Exception e)
         {
-            if (!ct.IsCancellationRequested) Error.Invoke(e);
+            if (!ct.IsCancellationRequested) Error?.Invoke(e);
         }
     }
 

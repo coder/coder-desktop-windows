@@ -80,32 +80,28 @@ public class SpeakerTest
     {
         var (stream1, stream2) = BidirectionalPipe.New();
 
+        var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         var speaker1Ch = Channel
             .CreateUnbounded<ReplyableRpcMessage<ManagerMessage, TunnelMessage>>();
+        speaker1.Receive += msg =>
+        {
+            Console.WriteLine($"speaker1 received message: {msg.RpcField.MsgId}");
+            Assert.That(speaker1Ch.Writer.TryWrite(msg), Is.True);
+        };
+        speaker1.Error += ex => { Assert.Fail($"speaker1 error: {ex}"); };
+
+        var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         var speaker2Ch = Channel
             .CreateUnbounded<ReplyableRpcMessage<TunnelMessage, ManagerMessage>>();
+        speaker2.Receive += msg =>
+        {
+            Console.WriteLine($"speaker2 received message: {msg.RpcField.MsgId}");
+            Assert.That(speaker2Ch.Writer.TryWrite(msg), Is.True);
+        };
+        speaker2.Error += ex => { Assert.Fail($"speaker2 error: {ex}"); };
 
-        // Start two speakers asynchronously as startup is blocking.
-        var speaker1Task = Task.Run(() =>
-            new Speaker<ManagerMessage, TunnelMessage>(stream1,
-                SpeakerRole.Manager, SpeakerRole.Tunnel,
-                tri =>
-                {
-                    Console.WriteLine($"speaker1 received message: {tri.RpcField.MsgId}");
-                    Assert.That(speaker1Ch.Writer.TryWrite(tri), Is.True);
-                }, ex => { Assert.Fail($"speaker1 error: {ex}"); }));
-        var speaker2Task = Task.Run(() =>
-            new Speaker<TunnelMessage, ManagerMessage>(stream2,
-                SpeakerRole.Tunnel, SpeakerRole.Manager,
-                tri =>
-                {
-                    Console.WriteLine($"speaker2 received message: {tri.RpcField.MsgId}");
-                    Assert.That(speaker2Ch.Writer.TryWrite(tri), Is.True);
-                }, ex => { Assert.Fail($"speaker2 error: {ex}"); }));
-
-        Task.WaitAll(speaker1Task, speaker2Task);
-        await using var speaker1 = await speaker1Task;
-        await using var speaker2 = await speaker2Task;
+        // Start both speakers simultaneously
+        Task.WaitAll(speaker1.StartAsync(), speaker2.StartAsync());
 
         var sendTask = speaker1.SendMessageAwaitReply(new ManagerMessage
         {
