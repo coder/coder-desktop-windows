@@ -26,7 +26,7 @@ public class RpcHeader(RpcRole role, ApiVersion version)
         if (parts.Length != 3) throw new ArgumentException($"Wrong number of parts in header string '{header}'");
         if (parts[0] != Preamble) throw new ArgumentException($"Invalid preamble in header string '{header}'");
 
-        var version = ApiVersion.ParseString(parts[1]);
+        var version = ApiVersion.Parse(parts[1]);
         var role = new RpcRole(parts[2]);
         return new RpcHeader(role, version);
     }

@@ -36,7 +36,7 @@ public abstract class RpcMessage<T> where T : IMessage<T>
     {
         var type = typeof(T);
         var attr = type.GetCustomAttribute<RpcRoleAttribute>();
-        if (attr is null) throw new ArgumentException($"Message type {type} does not have a RpcRoleAttribute");
+        if (attr is null) throw new ArgumentException($"Message type '{type}' does not have a RpcRoleAttribute");
         return attr.Role;
     }
 }

@@ -1,6 +1,5 @@
 ﻿syntax = "proto3";
 option go_package = "github.com/coder/coder/v2/vpn";
-// TODO: add this upstream
 option csharp_namespace = "Coder.Desktop.Rpc.Proto";
 
 import "google/protobuf/timestamp.proto";

@@ -6,6 +6,8 @@ using Coder.Desktop.Rpc.Proto;
 
 namespace Coder.Desktop.Tests.Rpc;
 
+#region BidrectionalPipe
+
 internal class BidirectionalPipe(PipeReader reader, PipeWriter writer) : Stream
 {
     public override bool CanRead => true;
@@ -73,14 +75,18 @@ internal class BidirectionalPipe(PipeReader reader, PipeWriter writer) : Stream
     }
 }
 
+#endregion
+
+[TestFixture]
 public class SpeakerTest
 {
-    [Test]
-    public async Task Ok()
+    [Test(Description = "Send a message from speaker1 to speaker2, receive it, and send a reply back")]
+    [Timeout(30_000)]
+    public async Task SendReceiveReplyReceive()
     {
         var (stream1, stream2) = BidirectionalPipe.New();
 
-        var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
+        await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         var speaker1Ch = Channel
             .CreateUnbounded<ReplyableRpcMessage<ManagerMessage, TunnelMessage>>();
         speaker1.Receive += msg =>
@@ -90,7 +96,7 @@ public class SpeakerTest
         };
         speaker1.Error += ex => { Assert.Fail($"speaker1 error: {ex}"); };
 
-        var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
+        await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         var speaker2Ch = Channel
             .CreateUnbounded<ReplyableRpcMessage<TunnelMessage, ManagerMessage>>();
         speaker2.Receive += msg =>
@@ -103,6 +109,7 @@ public class SpeakerTest
         // Start both speakers simultaneously
         Task.WaitAll(speaker1.StartAsync(), speaker2.StartAsync());
 
+        // Send a message from speaker1 to speaker2 in the background
         var sendTask = speaker1.SendMessageAwaitReply(new ManagerMessage
         {
             Start = new StartRequest
@@ -112,8 +119,11 @@ public class SpeakerTest
             },
         });
 
+        // Receive the message in speaker2
         var message = await speaker2Ch.Reader.ReadAsync();
         Assert.That(message.Message.Start.ApiToken, Is.EqualTo("test"));
+
+        // Send a reply back to speaker1
         await message.SendReply(new TunnelMessage
         {
             Start = new StartResponse
@@ -122,6 +132,7 @@ public class SpeakerTest
             },
         });
 
+        // Receive the reply in speaker1 by awaiting sendTask
         var reply = await sendTask;
         Assert.That(reply.Message.Start.Success, Is.True);
     }

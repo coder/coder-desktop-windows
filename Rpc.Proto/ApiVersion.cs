@@ -26,7 +26,7 @@ public class ApiVersion(int major, int minor, params int[] additionalMajors)
     /// <param name="versionString">Version string to parse</param>
     /// <returns>Parsed ApiVersion</returns>
     /// <exception cref="ArgumentException">The version string is invalid</exception>
-    public static ApiVersion ParseString(string versionString)
+    public static ApiVersion Parse(string versionString)
     {
         var parts = versionString.Split('.');
         if (parts.Length != 2) throw new ArgumentException($"Invalid version string '{versionString}'");
@@ -68,4 +68,36 @@ public class ApiVersion(int major, int minor, params int[] additionalMajors)
         if (AdditionalMajors.Any(major => other.Major == major)) return;
         throw new ApiCompatibilityException(this, other, "Version is no longer supported");
     }
+
+    #region ApiVersion Equality
+
+    public static bool operator ==(ApiVersion a, ApiVersion b)
+    {
+        return a.Equals(b);
+    }
+
+    public static bool operator !=(ApiVersion a, ApiVersion b)
+    {
+        return !a.Equals(b);
+    }
+
+    private bool Equals(ApiVersion other)
+    {
+        return Major == other.Major && Minor == other.Minor && AdditionalMajors.SequenceEqual(other.AdditionalMajors);
+    }
+
+    public override bool Equals(object? obj)
+    {
+        if (obj is null) return false;
+        if (ReferenceEquals(this, obj)) return true;
+        if (obj.GetType() != GetType()) return false;
+        return Equals((ApiVersion)obj);
+    }
+
+    public override int GetHashCode()
+    {
+        return HashCode.Combine(Major, Minor, AdditionalMajors);
+    }
+
+    #endregion
 }

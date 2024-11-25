@@ -5,8 +5,8 @@ namespace Coder.Desktop.Rpc.Proto;
 /// </summary>
 public sealed class RpcRole
 {
-    internal const string Manager = "manager";
-    internal const string Tunnel = "tunnel";
+    public const string Manager = "manager";
+    public const string Tunnel = "tunnel";
 
     public RpcRole(string role)
     {

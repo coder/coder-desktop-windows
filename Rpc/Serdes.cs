@@ -69,7 +69,6 @@ public class Serdes<TS, TR>
     /// <param name="ct">Optional cancellation token</param>
     /// <returns>Decoded message</returns>
     /// <exception cref="IOException">Could not decode the message</exception>
-    /// <exception cref="InvalidOperationException">Could not cast the received message to the expected type</exception>
     public async Task<TR> ReadMessage(Stream conn, CancellationToken ct = default)
     {
         using var _ = await _readLock.LockAsync(ct);
@@ -83,8 +82,16 @@ public class Serdes<TS, TR>
         var msgBytes = new byte[len];
         await conn.ReadExactlyAsync(msgBytes, ct);
 
-        var msg = _parser.ParseFrom(msgBytes);
-        if (msg == null) throw new IOException("Failed to parse message");
-        return msg;
+        try
+        {
+            var msg = _parser.ParseFrom(msgBytes);
+            if (msg?.RpcField is null)
+                throw new IOException("Parsed message is empty or invalid");
+            return msg;
+        }
+        catch (Exception e)
+        {
+            throw new IOException("Failed to parse message", e);
+        }
     }
 }

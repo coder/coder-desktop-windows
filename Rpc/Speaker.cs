@@ -46,6 +46,17 @@ public class Speaker<TS, TR> : IAsyncDisposable
 
     public delegate void OnReceiveDelegate(ReplyableRpcMessage<TS, TR> message);
 
+    /// <summary>
+    ///     Event that is triggered when a message is received.
+    /// </summary>
+    public event OnReceiveDelegate? Receive;
+
+    /// <summary>
+    ///     Event that is triggered when an error occurs. The handling code should dispose the Speaker after this event is
+    ///     triggered.
+    /// </summary>
+    public event OnErrorDelegate? Error;
+
     private readonly Stream _conn;
 
     // _cts is cancelled when Dispose is called and will cause all ongoing I/O
@@ -70,15 +81,12 @@ public class Speaker<TS, TR> : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Error = null;
         await _cts.CancelAsync();
         if (_receiveTask is not null) await _receiveTask.WaitAsync(TimeSpan.FromSeconds(5));
         await _conn.DisposeAsync();
         GC.SuppressFinalize(this);
     }
-
-    // TODO: do we want to do events API or channels API?
-    public event OnReceiveDelegate? Receive;
-    public event OnErrorDelegate? Error;
 
     /// <summary>
     ///     Performs a handshake with the peer and starts the async receive loop. The caller should attach it's Receive and
@@ -87,7 +95,7 @@ public class Speaker<TS, TR> : IAsyncDisposable
     public async Task StartAsync(CancellationToken ct = default)
     {
         // Handshakes should always finish quickly, so enforce a 5s timeout.
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
         await PerformHandshake(ct);
 
@@ -174,23 +182,25 @@ public class Speaker<TS, TR> : IAsyncDisposable
     /// <param name="ct">Optional cancellation token</param>
     public async Task SendMessage(TS message, CancellationToken ct = default)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         message.RpcField = new RPC
         {
             MsgId = Interlocked.Add(ref _lastMessageId, 1),
             ResponseTo = 0,
         };
-        await _serdes.WriteMessage(_conn, message, ct);
+        await _serdes.WriteMessage(_conn, message, cts.Token);
     }
 
     /// <summary>
     ///     Send a message and wait for a reply. The reply will be returned and the callback will not be invoked as long as the
     ///     reply is received before cancellation.
     /// </summary>
-    /// <param name="message">Message to send</param>
+    /// <param name="message">Message to send - the Rpc field will be overwritten</param>
     /// <param name="ct">Optional cancellation token</param>
     /// <returns>Received reply</returns>
     public async ValueTask<TR> SendMessageAwaitReply(TS message, CancellationToken ct = default)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         message.RpcField = new RPC
         {
             MsgId = Interlocked.Add(ref _lastMessageId, 1),
@@ -203,31 +213,32 @@ public class Speaker<TS, TR> : IAsyncDisposable
         _pendingReplies[message.RpcField.MsgId] = tcs;
         try
         {
-            await _serdes.WriteMessage(_conn, message, ct);
+            await _serdes.WriteMessage(_conn, message, cts.Token);
             // Wait for the reply to be received.
-            return await tcs.Task.WaitAsync(ct);
+            return await tcs.Task.WaitAsync(cts.Token);
         }
         finally
         {
             // Clean up the pending reply if it was not received before
-            // cancellation.
+            // cancellation or another exception occurred.
             _pendingReplies.TryRemove(message.RpcField.MsgId, out _);
         }
     }
 
     /// <summary>
-    ///     Sends a reply to a received request.
+    ///     Sends a reply to a received message.
     /// </summary>
-    /// <param name="originalMessage">Message to reply to</param>
+    /// <param name="originalMessage">Message to reply to - the Rpc field will be overwritten</param>
     /// <param name="reply">Reply message</param>
     /// <param name="ct">Optional cancellation token</param>
     public async Task SendReply(TR originalMessage, TS reply, CancellationToken ct = default)
     {
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         reply.RpcField = new RPC
         {
             MsgId = Interlocked.Add(ref _lastMessageId, 1),
             ResponseTo = originalMessage.RpcField.MsgId,
         };
-        await _serdes.WriteMessage(_conn, reply, ct);
+        await _serdes.WriteMessage(_conn, reply, cts.Token);
     }
 }
