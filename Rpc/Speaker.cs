@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
 using Coder.Desktop.Rpc.Proto;
+using Coder.Desktop.Rpc.Utilities;
 using Google.Protobuf;
 
 namespace Coder.Desktop.Rpc;
@@ -46,17 +47,6 @@ public class Speaker<TS, TR> : IAsyncDisposable
 
     public delegate void OnReceiveDelegate(ReplyableRpcMessage<TS, TR> message);
 
-    /// <summary>
-    ///     Event that is triggered when a message is received.
-    /// </summary>
-    public event OnReceiveDelegate? Receive;
-
-    /// <summary>
-    ///     Event that is triggered when an error occurs. The handling code should dispose the Speaker after this event is
-    ///     triggered.
-    /// </summary>
-    public event OnErrorDelegate? Error;
-
     private readonly Stream _conn;
 
     // _cts is cancelled when Dispose is called and will cause all ongoing I/O
@@ -69,6 +59,17 @@ public class Speaker<TS, TR> : IAsyncDisposable
     // first message ID will actually be 1.
     private ulong _lastMessageId;
     private Task? _receiveTask;
+
+    /// <summary>
+    ///     Event that is triggered when an error occurs. The handling code should dispose the Speaker after this event is
+    ///     triggered.
+    /// </summary>
+    public event OnErrorDelegate? Error;
+
+    /// <summary>
+    ///     Event that is triggered when a message is received.
+    /// </summary>
+    public event OnReceiveDelegate? Receive;
 
     /// <summary>
     ///     Instantiates a speaker. The speaker will not perform any I/O until <c>StartAsync</c> is called.
@@ -111,9 +112,10 @@ public class Speaker<TS, TR> : IAsyncDisposable
     {
         // Simultaneously write the header string and read the header string in
         // case the conn is not buffered.
-        var writeTask = WriteHeader(ct);
-        var readTask = ReadHeader(ct);
-        await Task.WhenAll(writeTask, readTask);
+        var headerCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
+        var writeTask = WriteHeader(headerCts.Token);
+        var readTask = ReadHeader(headerCts.Token);
+        await TaskUtilities.CancellableWhenAll(headerCts, writeTask, readTask);
 
         var header = RpcHeader.Parse(await readTask);
         var expectedRole = RpcMessage<TR>.GetRole();
