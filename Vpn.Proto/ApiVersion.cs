@@ -1,4 +1,4 @@
-﻿namespace Coder.Desktop.Rpc.Proto;
+﻿namespace Coder.Desktop.Vpn.Proto;
 
 /// <summary>
 ///     Thrown when the two peers are incompatible with each other.

@@ -1,4 +1,4 @@
-namespace Coder.Desktop.Rpc.Utilities;
+namespace Coder.Desktop.Vpn.Utilities;
 
 internal static class TaskUtilities
 {

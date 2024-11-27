@@ -1,14 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <RootNamespace>Coder.Desktop.Rpc</RootNamespace>
+        <RootNamespace>Coder.Desktop.Vpn</RootNamespace>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Rpc.Proto\Rpc.Proto.csproj"/>
+        <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj"/>
     </ItemGroup>
 
 </Project>

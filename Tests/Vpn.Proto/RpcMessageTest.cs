@@ -1,6 +1,6 @@
-using Coder.Desktop.Rpc.Proto;
+using Coder.Desktop.Vpn.Proto;
 
-namespace Coder.Desktop.Tests.Rpc.Proto;
+namespace Coder.Desktop.Tests.Vpn.Proto;
 
 [TestFixture]
 public class RpcRoleAttributeTest
@@ -31,7 +31,7 @@ public class RpcMessageTest
         // RpcRoleAttribute
         var ex = Assert.Throws<ArgumentException>(() => _ = RpcMessage<RPC>.GetRole());
         Assert.That(ex.Message,
-            Does.Contain("Message type 'Coder.Desktop.Rpc.Proto.RPC' does not have a RpcRoleAttribute"));
+            Does.Contain("Message type 'Coder.Desktop.Vpn.Proto.RPC' does not have a RpcRoleAttribute"));
 
         Assert.That(ManagerMessage.GetRole().ToString(), Is.EqualTo(RpcRole.Manager));
         Assert.That(TunnelMessage.GetRole().ToString(), Is.EqualTo(RpcRole.Tunnel));

@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Coder.Desktop.Rpc.Proto;
+namespace Coder.Desktop.Vpn.Proto;
 
 /// <summary>
 ///     A header to write or read from a stream to identify the speaker's role and version.

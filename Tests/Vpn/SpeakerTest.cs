@@ -2,10 +2,10 @@ using System.Buffers;
 using System.IO.Pipelines;
 using System.Reflection;
 using System.Threading.Channels;
-using Coder.Desktop.Rpc;
-using Coder.Desktop.Rpc.Proto;
+using Coder.Desktop.Vpn;
+using Coder.Desktop.Vpn.Proto;
 
-namespace Coder.Desktop.Tests.Rpc;
+namespace Coder.Desktop.Tests.Vpn;
 
 #region BidrectionalPipe
 

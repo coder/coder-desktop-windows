@@ -1,8 +1,8 @@
 ﻿using System.Buffers.Binary;
-using Coder.Desktop.Rpc.Proto;
+using Coder.Desktop.Vpn.Proto;
 using Google.Protobuf;
 
-namespace Coder.Desktop.Rpc;
+namespace Coder.Desktop.Vpn;
 
 /// <summary>
 ///     RaiiSemaphoreSlim is a wrapper around SemaphoreSlim that provides RAII-style locking.
@@ -54,12 +54,12 @@ public class Serdes<TS, TR>
         using var _ = await _writeLock.LockAsync(ct);
 
         var mb = message.ToByteArray();
-        if (mb.Length == 0)
+        if (mb == null || mb.Length == 0)
             throw new ArgumentException("Marshalled message is empty");
         if (mb.Length > MaxMessageSize)
             throw new ArgumentException($"Marshalled message size {mb.Length} exceeds maximum {MaxMessageSize}");
 
-        var lenBytes = new byte[4];
+        var lenBytes = new byte[sizeof(uint)];
         BinaryPrimitives.WriteUInt32BigEndian(lenBytes, (uint)mb.Length);
         await conn.WriteAsync(lenBytes, ct);
         await conn.WriteAsync(mb, ct);

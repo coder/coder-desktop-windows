@@ -1,4 +1,4 @@
-namespace Coder.Desktop.Rpc.Proto;
+namespace Coder.Desktop.Vpn.Proto;
 
 /// <summary>
 ///     Represents a role that either side of the connection can fulfil.

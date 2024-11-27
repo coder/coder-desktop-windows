@@ -24,7 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Rpc\Rpc.csproj"/>
+        <ProjectReference Include="..\Vpn\Vpn.csproj"/>
     </ItemGroup>
 
 </Project>

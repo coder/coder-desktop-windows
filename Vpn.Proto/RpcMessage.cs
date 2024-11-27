@@ -1,7 +1,7 @@
 ﻿using System.Reflection;
 using Google.Protobuf;
 
-namespace Coder.Desktop.Rpc.Proto;
+namespace Coder.Desktop.Vpn.Proto;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public class RpcRoleAttribute(string role) : Attribute

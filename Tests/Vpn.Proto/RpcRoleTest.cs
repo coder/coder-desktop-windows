@@ -1,6 +1,6 @@
-using Coder.Desktop.Rpc.Proto;
+using Coder.Desktop.Vpn.Proto;
 
-namespace Coder.Desktop.Tests.Rpc.Proto;
+namespace Coder.Desktop.Tests.Vpn.Proto;
 
 [TestFixture]
 public class RpcRoleTest

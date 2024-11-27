@@ -1,10 +1,10 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
-using Coder.Desktop.Rpc.Proto;
-using Coder.Desktop.Rpc.Utilities;
+using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.Vpn.Utilities;
 using Google.Protobuf;
 
-namespace Coder.Desktop.Rpc;
+namespace Coder.Desktop.Vpn;
 
 /// <summary>
 ///     Wraps a <c>RpcMessage</c> to allow easily sending a reply via the <c>Speaker</c>.
