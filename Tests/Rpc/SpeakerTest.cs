@@ -179,28 +179,29 @@ public class SpeakerTest
         await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         var speaker1Ch = Channel
             .CreateUnbounded<ReplyableRpcMessage<ManagerMessage, TunnelMessage>>();
-        speaker1.Receive += msg =>
-        {
-            Console.WriteLine($"speaker1 received message: {msg.RpcField.MsgId}");
-            Assert.That(speaker1Ch.Writer.TryWrite(msg), Is.True);
-        };
+        speaker1.Receive += msg => { Assert.That(speaker1Ch.Writer.TryWrite(msg), Is.True); };
         speaker1.Error += ex => { Assert.Fail($"speaker1 error: {ex}"); };
 
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         var speaker2Ch = Channel
             .CreateUnbounded<ReplyableRpcMessage<TunnelMessage, ManagerMessage>>();
-        speaker2.Receive += msg =>
-        {
-            Console.WriteLine($"speaker2 received message: {msg.RpcField.MsgId}");
-            Assert.That(speaker2Ch.Writer.TryWrite(msg), Is.True);
-        };
+        speaker2.Receive += msg => { Assert.That(speaker2Ch.Writer.TryWrite(msg), Is.True); };
         speaker2.Error += ex => { Assert.Fail($"speaker2 error: {ex}"); };
 
         // Start both speakers simultaneously
         Task.WaitAll(speaker1.StartAsync(), speaker2.StartAsync());
 
+        // Send a normal message from speaker2 to speaker1
+        await speaker2.SendMessage(new TunnelMessage
+        {
+            PeerUpdate = new PeerUpdate(),
+        });
+        var receivedMessage = await speaker1Ch.Reader.ReadAsync();
+        Assert.That(receivedMessage.RpcField, Is.Null); // not a request
+        Assert.That(receivedMessage.Message.PeerUpdate, Is.Not.Null);
+
         // Send a message from speaker1 to speaker2 in the background
-        var sendTask = speaker1.SendMessageAwaitReply(new ManagerMessage
+        var sendTask = speaker1.SendRequestAwaitReply(new ManagerMessage
         {
             Start = new StartRequest
             {
@@ -211,6 +212,9 @@ public class SpeakerTest
 
         // Receive the message in speaker2
         var message = await speaker2Ch.Reader.ReadAsync();
+        Assert.That(message.RpcField, Is.Not.Null);
+        Assert.That(message.RpcField!.MsgId, Is.Not.EqualTo(0));
+        Assert.That(message.RpcField!.ResponseTo, Is.EqualTo(0));
         Assert.That(message.Message.Start.ApiToken, Is.EqualTo("test"));
 
         // Send a reply back to speaker1
@@ -224,6 +228,9 @@ public class SpeakerTest
 
         // Receive the reply in speaker1 by awaiting sendTask
         var reply = await sendTask;
+        Assert.That(message.RpcField, Is.Not.Null);
+        Assert.That(reply.RpcField!.MsgId, Is.EqualTo(0));
+        Assert.That(reply.RpcField!.ResponseTo, Is.EqualTo(message.RpcField!.MsgId));
         Assert.That(reply.Message.Start.Success, Is.True);
     }
 
@@ -288,7 +295,10 @@ public class SpeakerTest
         var writeEx = new IOException("Test write error");
         failStream.SetWriteException(writeEx);
 
-        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.SendMessage(new ManagerMessage()));
+        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.SendMessage(new ManagerMessage
+        {
+            Start = new StartRequest(),
+        }));
         Assert.That(gotEx, Is.EqualTo(writeEx));
     }
 
@@ -367,7 +377,10 @@ public class SpeakerTest
         await Task.WhenAll(speaker1.StartAsync(), speaker2.StartAsync());
 
         // Send a message from speaker1 to speaker2
-        var sendTask = speaker1.SendMessageAwaitReply(new ManagerMessage());
+        var sendTask = speaker1.SendRequestAwaitReply(new ManagerMessage
+        {
+            Start = new StartRequest(),
+        });
 
         // Dispose speaker1
         await speaker1.DisposeAsync();

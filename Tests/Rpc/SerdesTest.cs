@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Coder.Desktop.Rpc;
 using Coder.Desktop.Rpc.Proto;
+using Google.Protobuf;
 
 namespace Coder.Desktop.Tests.Rpc;
 
@@ -16,10 +17,7 @@ public class SerdesTest
 
         var msg = new ManagerMessage
         {
-            Rpc = new RPC
-            {
-                MsgId = 1,
-            },
+            Start = new StartRequest(),
         };
         await serdes.WriteMessage(stream1, msg);
         var got = await serdes.ReadMessage(stream2);
@@ -35,10 +33,6 @@ public class SerdesTest
 
         var msg = new ManagerMessage
         {
-            Rpc = new RPC
-            {
-                MsgId = 1,
-            },
             Start = new StartRequest
             {
                 ApiToken = new string('a', 0x1000001),
@@ -75,8 +69,7 @@ public class SerdesTest
         BinaryPrimitives.WriteUInt32BigEndian(lenBytes, 0);
         await stream1.WriteAsync(lenBytes);
         var ex = Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2));
-        Assert.That(ex.InnerException, Is.Not.Null);
-        Assert.That(ex.InnerException?.Message, Does.Contain("Parsed message is empty or invalid"));
+        Assert.That(ex.Message, Does.Contain("Received message size 0"));
     }
 
     [Test(Description = "Read an invalid/corrupt message from the stream")]
@@ -91,6 +84,6 @@ public class SerdesTest
         await stream1.WriteAsync(lenBytes);
         await stream1.WriteAsync(new byte[1]);
         var ex = Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2));
-        Assert.That(ex.Message, Does.Not.Contain("Parsed message is empty or invalid"));
+        Assert.That(ex.InnerException, Is.TypeOf(typeof(InvalidProtocolBufferException)));
     }
 }

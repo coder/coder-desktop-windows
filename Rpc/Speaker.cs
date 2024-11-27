@@ -15,13 +15,18 @@ public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : 
     where TS : RpcMessage<TS>, IMessage<TS>
     where TR : RpcMessage<TR>, IMessage<TR>, new()
 {
-    public override RPC RpcField
+    public override RPC? RpcField
     {
         get => message.RpcField;
         set => message.RpcField = value;
     }
 
     public override TR Message => message;
+
+    public override void Validate()
+    {
+        message.Validate();
+    }
 
     /// <summary>
     ///     Sends a reply to the original message.
@@ -55,9 +60,9 @@ public class Speaker<TS, TR> : IAsyncDisposable
     private readonly ConcurrentDictionary<ulong, TaskCompletionSource<TR>> _pendingReplies = new();
     private readonly Serdes<TS, TR> _serdes = new();
 
-    // _lastMessageId is incremented using an atomic operation, and as such the
-    // first message ID will actually be 1.
-    private ulong _lastMessageId;
+    // _lastRequestId is incremented using an atomic operation, and as such the
+    // first request ID will actually be 1.
+    private ulong _lastRequestId;
     private Task? _receiveTask;
 
     /// <summary>
@@ -156,13 +161,17 @@ public class Speaker<TS, TR> : IAsyncDisposable
             while (!ct.IsCancellationRequested)
             {
                 var message = await _serdes.ReadMessage(_conn, ct);
-                if (message.RpcField.ResponseTo != 0)
+                if (message is { RpcField.ResponseTo : not 0 })
+                {
                     // Look up the TaskCompletionSource for the message ID and
                     // complete it with the message.
                     if (_pendingReplies.TryRemove(message.RpcField.ResponseTo, out var tcs))
                         tcs.SetResult(message);
+                    else
+                        // TODO: we should log unknown replies
+                        continue;
+                }
 
-                // TODO: we should log unknown replies
                 // Start a new task in the background to handle the message.
                 _ = Task.Run(() => Receive?.Invoke(new ReplyableRpcMessage<TS, TR>(this, message)), ct);
             }
@@ -178,18 +187,14 @@ public class Speaker<TS, TR> : IAsyncDisposable
     }
 
     /// <summary>
-    ///     Send a message without waiting for a reply. If a reply is received it will be handled by the callback.
+    ///     Send a message that does not expect a reply.
     /// </summary>
     /// <param name="message">Message to send</param>
     /// <param name="ct">Optional cancellation token</param>
     public async Task SendMessage(TS message, CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
-        message.RpcField = new RPC
-        {
-            MsgId = Interlocked.Add(ref _lastMessageId, 1),
-            ResponseTo = 0,
-        };
+        message.RpcField = null;
         await _serdes.WriteMessage(_conn, message, cts.Token);
     }
 
@@ -200,12 +205,12 @@ public class Speaker<TS, TR> : IAsyncDisposable
     /// <param name="message">Message to send - the Rpc field will be overwritten</param>
     /// <param name="ct">Optional cancellation token</param>
     /// <returns>Received reply</returns>
-    public async ValueTask<TR> SendMessageAwaitReply(TS message, CancellationToken ct = default)
+    public async ValueTask<TR> SendRequestAwaitReply(TS message, CancellationToken ct = default)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         message.RpcField = new RPC
         {
-            MsgId = Interlocked.Add(ref _lastMessageId, 1),
+            MsgId = Interlocked.Add(ref _lastRequestId, 1),
             ResponseTo = 0,
         };
 
@@ -233,12 +238,16 @@ public class Speaker<TS, TR> : IAsyncDisposable
     /// <param name="originalMessage">Message to reply to - the Rpc field will be overwritten</param>
     /// <param name="reply">Reply message</param>
     /// <param name="ct">Optional cancellation token</param>
+    /// <exception cref="ArgumentException">The original message is not a request and cannot be replied to</exception>
     public async Task SendReply(TR originalMessage, TS reply, CancellationToken ct = default)
     {
+        if (originalMessage.RpcField == null || originalMessage.RpcField.MsgId == 0)
+            throw new ArgumentException("Original message is not a request");
+
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         reply.RpcField = new RPC
         {
-            MsgId = Interlocked.Add(ref _lastMessageId, 1),
+            MsgId = 0,
             ResponseTo = originalMessage.RpcField.MsgId,
         };
         await _serdes.WriteMessage(_conn, reply, cts.Token);
