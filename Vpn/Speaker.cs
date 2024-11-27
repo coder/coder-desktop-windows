@@ -167,9 +167,8 @@ public class Speaker<TS, TR> : IAsyncDisposable
                     // complete it with the message.
                     if (_pendingReplies.TryRemove(message.RpcField.ResponseTo, out var tcs))
                         tcs.SetResult(message);
-                    else
-                        // TODO: we should log unknown replies
-                        continue;
+                    // TODO: we should log unknown replies
+                    continue;
                 }
 
                 // Start a new task in the background to handle the message.
