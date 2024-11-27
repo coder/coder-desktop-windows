@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+#
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Vpn", "Vpn\Vpn.csproj", "{B342F896-C721-4AA5-A0F6-0BFA8EBAFACB}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Vpn.Proto", "Vpn.Proto\Vpn.Proto.csproj", "{318E78BB-E6AD-410F-8F3F-B680F6880293}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Tests", "Tests\Tests.csproj", "{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B342F896-C721-4AA5-A0F6-0BFA8EBAFACB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B342F896-C721-4AA5-A0F6-0BFA8EBAFACB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B342F896-C721-4AA5-A0F6-0BFA8EBAFACB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B342F896-C721-4AA5-A0F6-0BFA8EBAFACB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
