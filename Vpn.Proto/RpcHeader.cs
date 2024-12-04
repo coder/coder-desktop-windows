@@ -6,13 +6,13 @@ namespace Coder.Desktop.Vpn.Proto;
 ///     A header to write or read from a stream to identify the speaker's role and version.
 /// </summary>
 /// <param name="role">Role of the speaker</param>
-/// <param name="version">Version of the speaker</param>
-public class RpcHeader(RpcRole role, ApiVersion version)
+/// <param name="versionList">Version of the speaker</param>
+public class RpcHeader(RpcRole role, RpcVersionList versionList)
 {
     private const string Preamble = "codervpn";
 
     public RpcRole Role { get; } = role;
-    public ApiVersion Version { get; } = version;
+    public RpcVersionList VersionList { get; } = versionList;
 
     /// <summary>
     ///     Parse a header string into a <c>SpeakerHeader</c>.
@@ -26,9 +26,9 @@ public class RpcHeader(RpcRole role, ApiVersion version)
         if (parts.Length != 3) throw new ArgumentException($"Wrong number of parts in header string '{header}'");
         if (parts[0] != Preamble) throw new ArgumentException($"Invalid preamble in header string '{header}'");
 
-        var version = ApiVersion.Parse(parts[1]);
-        var role = new RpcRole(parts[2]);
-        return new RpcHeader(role, version);
+        var role = new RpcRole(parts[1]);
+        var versionList = RpcVersionList.Parse(parts[2]);
+        return new RpcHeader(role, versionList);
     }
 
     /// <summary>
@@ -36,7 +36,7 @@ public class RpcHeader(RpcRole role, ApiVersion version)
     /// </summary>
     public override string ToString()
     {
-        return $"{Preamble} {Version} {Role}\n";
+        return $"{Preamble} {Role} {VersionList}\n";
     }
 
     public ReadOnlyMemory<byte> ToBytes()
