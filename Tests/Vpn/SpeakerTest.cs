@@ -1,6 +1,7 @@
 using System.Buffers;
 using System.IO.Pipelines;
 using System.Reflection;
+using System.Text;
 using System.Threading.Channels;
 using Coder.Desktop.Vpn;
 using Coder.Desktop.Vpn.Proto;
@@ -275,6 +276,45 @@ public class SpeakerTest
 
         var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.StartAsync());
         Assert.That(gotEx.Message, Does.Contain("Header malformed or too large"));
+    }
+
+    [Test(Description = "Receive an invalid header")]
+    [Timeout(30_000)]
+    public async Task ReceiveInvalidHeader()
+    {
+        var cases = new Dictionary<string, (string, string?)>
+        {
+            { "invalid\n", ("Failed to parse peer header", "Wrong number of parts in header string") },
+            { "cats tunnel 1.0\n", ("Failed to parse peer header", "Invalid preamble in header string") },
+            { "codervpn cats 1.0\n", ("Failed to parse peer header", "Unknown role 'cats'") },
+            { "codervpn manager 1.0\n", ("Expected peer role 'tunnel' but got 'manager'", null) },
+            {
+                "codervpn tunnel 1000.1\n",
+                ($"No RPC versions are compatible: local={RpcVersionList.Current}, remote=1000.1", null)
+            },
+            { "codervpn tunnel 0.1\n", ("Failed to parse peer header", "Invalid version list '0.1'") },
+            { "codervpn tunnel 1.0,1.2\n", ("Failed to parse peer header", "Invalid version list '1.0,1.2'") },
+            { "codervpn tunnel 2.0,3.1,1.2\n", ("Failed to parse peer header", "Invalid version list '2.0,3.1,1.2'") },
+        };
+
+        foreach (var (header, (expectedOuter, expectedInner)) in cases)
+        {
+            var (stream1, stream2) = BidirectionalPipe.New();
+            await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
+
+            await stream2.WriteAsync(Encoding.UTF8.GetBytes(header));
+
+            var gotEx = Assert.CatchAsync(() => speaker1.StartAsync(), $"header: '{header}'");
+            Assert.That(gotEx.Message, Does.Contain(expectedOuter), $"header: '{header}'");
+            if (expectedInner is null)
+            {
+                Assert.That(gotEx.InnerException, Is.Null, $"header: '{header}'");
+                continue;
+            }
+
+            Assert.That(gotEx.InnerException, Is.Not.Null, $"header: '{header}'");
+            Assert.That(gotEx.InnerException!.Message, Does.Contain(expectedInner), $"header: '{header}'");
+        }
     }
 
     [Test(Description = "Encounter a write error during message send")]

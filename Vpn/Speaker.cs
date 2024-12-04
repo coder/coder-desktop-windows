@@ -7,6 +7,12 @@ using Google.Protobuf;
 namespace Coder.Desktop.Vpn;
 
 /// <summary>
+///     Thrown when the two peers are incompatible with each other.
+/// </summary>
+public class RpcVersionCompatibilityException(RpcVersionList localVersion, RpcVersionList remoteVersion)
+    : Exception($"No RPC versions are compatible: local={localVersion}, remote={remoteVersion}");
+
+/// <summary>
 ///     Wraps a <c>RpcMessage</c> to allow easily sending a reply via the <c>Speaker</c>.
 /// </summary>
 /// <param name="speaker">Speaker to use for sending reply</param>
@@ -122,18 +128,32 @@ public class Speaker<TS, TR> : IAsyncDisposable
         var readTask = ReadHeader(headerCts.Token);
         await TaskUtilities.CancellableWhenAll(headerCts, writeTask, readTask);
 
-        var header = RpcHeader.Parse(await readTask);
+        var headerStr = await readTask;
+        RpcHeader header;
+        try
+        {
+            header = RpcHeader.Parse(headerStr);
+        }
+        catch (Exception e)
+        {
+            throw new ArgumentException($"Failed to parse peer header '{headerStr}'", e);
+        }
+
         var expectedRole = RpcMessage<TR>.GetRole();
         if (header.Role != expectedRole)
             throw new ArgumentException($"Expected peer role '{expectedRole}' but got '{header.Role}'");
 
-        header.Version.Validate(ApiVersion.Current);
+        if (header.VersionList.IsCompatibleWith(RpcVersionList.Current) is null)
+            throw new RpcVersionCompatibilityException(RpcVersionList.Current, header.VersionList);
     }
 
     private async Task WriteHeader(CancellationToken ct = default)
     {
-        var header = new RpcHeader(RpcMessage<TS>.GetRole(), ApiVersion.Current);
-        await _conn.WriteAsync(header.ToBytes(), ct);
+        var header = new RpcHeader(RpcMessage<TS>.GetRole(), RpcVersionList.Current);
+        var bytes = header.ToBytes();
+        if (bytes.Length > 255)
+            throw new ArgumentException($"Outgoing header too large: '{header}'");
+        await _conn.WriteAsync(bytes, ct);
     }
 
     private async Task<string> ReadHeader(CancellationToken ct = default)

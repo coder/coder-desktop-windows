@@ -9,17 +9,17 @@ public class RpcHeaderTest
     [Test(Description = "Parse and use some valid header strings")]
     public void Valid()
     {
-        var headerStr = "codervpn 2.1 manager";
+        var headerStr = "codervpn manager 1.3,2.1";
         var header = RpcHeader.Parse(headerStr);
         Assert.That(header.Role.ToString(), Is.EqualTo(RpcRole.Manager));
-        Assert.That(header.Version, Is.EqualTo(new ApiVersion(2, 1)));
+        Assert.That(header.VersionList, Is.EqualTo(new RpcVersionList(new RpcVersion(1, 3), new RpcVersion(2, 1))));
         Assert.That(header.ToString(), Is.EqualTo(headerStr + "\n"));
         Assert.That(header.ToBytes().ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes(headerStr + "\n")));
 
-        headerStr = "codervpn 1.0 tunnel";
+        headerStr = "codervpn tunnel 1.0";
         header = RpcHeader.Parse(headerStr);
         Assert.That(header.Role.ToString(), Is.EqualTo(RpcRole.Tunnel));
-        Assert.That(header.Version, Is.EqualTo(new ApiVersion(1, 0)));
+        Assert.That(header.VersionList, Is.EqualTo(new RpcVersionList(new RpcVersion(1, 0))));
         Assert.That(header.ToString(), Is.EqualTo(headerStr + "\n"));
         Assert.That(header.ToBytes().ToArray(), Is.EqualTo(Encoding.UTF8.GetBytes(headerStr + "\n")));
     }
@@ -29,13 +29,13 @@ public class RpcHeaderTest
     {
         var ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("codervpn"));
         Assert.That(ex.Message, Does.Contain("Wrong number of parts"));
-        ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("codervpn 1.0 manager cats"));
+        ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("codervpn manager cats 1.0"));
         Assert.That(ex.Message, Does.Contain("Wrong number of parts"));
         ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("codervpn 1.0"));
         Assert.That(ex.Message, Does.Contain("Wrong number of parts"));
-        ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("cats 1.0 manager"));
+        ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("cats manager 1.0"));
         Assert.That(ex.Message, Does.Contain("Invalid preamble"));
-        ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("codervpn 1.0 cats"));
+        ex = Assert.Throws<ArgumentException>(() => RpcHeader.Parse("codervpn cats 1.0"));
         Assert.That(ex.Message, Does.Contain("Unknown role 'cats'"));
     }
 }
