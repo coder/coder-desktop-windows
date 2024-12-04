@@ -101,10 +101,6 @@ public class RpcVersionList : List<RpcVersion>
     {
     }
 
-    public RpcVersionList(string versions) : base(versions.Split(',').Select(RpcVersion.Parse))
-    {
-    }
-
     public static RpcVersionList Parse(string versions)
     {
         try
