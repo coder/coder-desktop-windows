@@ -9,8 +9,8 @@ namespace Coder.Desktop.Tests.Vpn;
 public class SerdesTest
 {
     [Test(Description = "Tests that writing and reading a message works")]
-    [Timeout(5_000)]
-    public async Task WriteReadMessage()
+    [CancelAfter(30_000)]
+    public async Task WriteReadMessage(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
@@ -19,14 +19,14 @@ public class SerdesTest
         {
             Start = new StartRequest(),
         };
-        await serdes.WriteMessage(stream1, msg);
-        var got = await serdes.ReadMessage(stream2);
+        await serdes.WriteMessage(stream1, msg, ct);
+        var got = await serdes.ReadMessage(stream2, ct);
         Assert.That(msg, Is.EqualTo(got));
     }
 
     [Test(Description = "Tests that writing a message larger than 16 MiB throws an exception")]
-    [Timeout(5_000)]
-    public void WriteMessageTooLarge()
+    [CancelAfter(30_000)]
+    public void WriteMessageTooLarge(CancellationToken ct)
     {
         var (stream1, _) = BidirectionalPipe.New();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
@@ -39,12 +39,12 @@ public class SerdesTest
                 CoderUrl = "test",
             },
         };
-        Assert.ThrowsAsync<ArgumentException>(() => serdes.WriteMessage(stream1, msg));
+        Assert.ThrowsAsync<ArgumentException>(() => serdes.WriteMessage(stream1, msg, ct));
     }
 
     [Test(Description = "Tests that attempting to read a message larger than 16 MiB throws an exception")]
-    [Timeout(5_000)]
-    public async Task ReadMessageTooLarge()
+    [CancelAfter(30_000)]
+    public async Task ReadMessageTooLarge(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
@@ -53,13 +53,13 @@ public class SerdesTest
         // bail out immediately after reading the message length
         var lenBytes = new byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(lenBytes, 0x1000001);
-        await stream1.WriteAsync(lenBytes);
-        Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2));
+        await stream1.WriteAsync(lenBytes, ct);
+        Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2, ct));
     }
 
     [Test(Description = "Read an empty (size 0) message from the stream")]
-    [Timeout(5_000)]
-    public async Task ReadEmptyMessage()
+    [CancelAfter(30_000)]
+    public async Task ReadEmptyMessage(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
@@ -67,23 +67,23 @@ public class SerdesTest
         // Write an empty message.
         var lenBytes = new byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(lenBytes, 0);
-        await stream1.WriteAsync(lenBytes);
-        var ex = Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2));
+        await stream1.WriteAsync(lenBytes, ct);
+        var ex = Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2, ct));
         Assert.That(ex.Message, Does.Contain("Received message size 0"));
     }
 
     [Test(Description = "Read an invalid/corrupt message from the stream")]
-    [Timeout(5_000)]
-    public async Task ReadInvalidMessage()
+    [CancelAfter(30_000)]
+    public async Task ReadInvalidMessage(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
 
         var lenBytes = new byte[4];
         BinaryPrimitives.WriteUInt32BigEndian(lenBytes, 1);
-        await stream1.WriteAsync(lenBytes);
-        await stream1.WriteAsync(new byte[1]);
-        var ex = Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2));
+        await stream1.WriteAsync(lenBytes, ct);
+        await stream1.WriteAsync(new byte[1], ct);
+        var ex = Assert.ThrowsAsync<IOException>(() => serdes.ReadMessage(stream2, ct));
         Assert.That(ex.InnerException, Is.TypeOf(typeof(InvalidProtocolBufferException)));
     }
 }

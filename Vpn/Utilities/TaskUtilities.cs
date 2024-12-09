@@ -1,6 +1,6 @@
 namespace Coder.Desktop.Vpn.Utilities;
 
-internal static class TaskUtilities
+public static class TaskUtilities
 {
     /// <summary>
     ///     Waits for all tasks to complete, but cancels the provided <c>CancellationTokenSource</c> if any task is canceled or
