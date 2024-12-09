@@ -8,14 +8,14 @@ public sealed class RpcRole
     public const string Manager = "manager";
     public const string Tunnel = "tunnel";
 
+    private string Role { get; }
+
     public RpcRole(string role)
     {
         if (role != Manager && role != Tunnel) throw new ArgumentException($"Unknown role '{role}'");
 
         Role = role;
     }
-
-    private string Role { get; }
 
     public override string ToString()
     {

@@ -88,13 +88,6 @@ internal class FailableStream : Stream
 
     private readonly TaskCompletionSource _writeTcs = new();
 
-    public FailableStream(Stream inner, Exception? writeException, Exception? readException)
-    {
-        _inner = inner;
-        if (writeException != null) _writeTcs.SetException(writeException);
-        if (readException != null) _readTcs.SetException(readException);
-    }
-
     public override bool CanRead => _inner.CanRead;
     public override bool CanSeek => _inner.CanSeek;
     public override bool CanWrite => _inner.CanWrite;
@@ -104,6 +97,13 @@ internal class FailableStream : Stream
     {
         get => _inner.Position;
         set => _inner.Position = value;
+    }
+
+    public FailableStream(Stream inner, Exception? writeException, Exception? readException)
+    {
+        _inner = inner;
+        if (writeException != null) _writeTcs.SetException(writeException);
+        if (readException != null) _readTcs.SetException(readException);
     }
 
     public void SetWriteException(Exception ex)
@@ -172,8 +172,8 @@ internal class FailableStream : Stream
 public class SpeakerTest
 {
     [Test(Description = "Send a message from speaker1 to speaker2, receive it, and send a reply back")]
-    [Timeout(30_000)]
-    public async Task SendReceiveReplyReceive()
+    [CancelAfter(30_000)]
+    public async Task SendReceiveReplyReceive(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
 
@@ -190,14 +190,14 @@ public class SpeakerTest
         speaker2.Error += ex => { Assert.Fail($"speaker2 error: {ex}"); };
 
         // Start both speakers simultaneously
-        Task.WaitAll(speaker1.StartAsync(), speaker2.StartAsync());
+        await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         // Send a normal message from speaker2 to speaker1
         await speaker2.SendMessage(new TunnelMessage
         {
             PeerUpdate = new PeerUpdate(),
-        });
-        var receivedMessage = await speaker1Ch.Reader.ReadAsync();
+        }, ct);
+        var receivedMessage = await speaker1Ch.Reader.ReadAsync(ct);
         Assert.That(receivedMessage.RpcField, Is.Null); // not a request
         Assert.That(receivedMessage.Message.PeerUpdate, Is.Not.Null);
 
@@ -209,10 +209,10 @@ public class SpeakerTest
                 ApiToken = "test",
                 CoderUrl = "test",
             },
-        });
+        }, ct);
 
         // Receive the message in speaker2
-        var message = await speaker2Ch.Reader.ReadAsync();
+        var message = await speaker2Ch.Reader.ReadAsync(ct);
         Assert.That(message.RpcField, Is.Not.Null);
         Assert.That(message.RpcField!.MsgId, Is.Not.EqualTo(0));
         Assert.That(message.RpcField!.ResponseTo, Is.EqualTo(0));
@@ -225,7 +225,7 @@ public class SpeakerTest
             {
                 Success = true,
             },
-        });
+        }, ct);
 
         // Receive the reply in speaker1 by awaiting sendTask
         var reply = await sendTask;
@@ -236,8 +236,8 @@ public class SpeakerTest
     }
 
     [Test(Description = "Encounter a write error during handshake")]
-    [Timeout(30_000)]
-    public async Task WriteError()
+    [CancelAfter(30_000)]
+    public async Task WriteError(CancellationToken ct)
     {
         var (stream1, _) = BidirectionalPipe.New();
         var writeEx = new IOException("Test write error");
@@ -245,13 +245,13 @@ public class SpeakerTest
 
         await using var speaker = new Speaker<ManagerMessage, TunnelMessage>(failStream);
 
-        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker.StartAsync());
+        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker.StartAsync(ct));
         Assert.That(gotEx, Is.EqualTo(writeEx));
     }
 
     [Test(Description = "Encounter a read error during handshake")]
-    [Timeout(30_000)]
-    public async Task ReadError()
+    [CancelAfter(30_000)]
+    public async Task ReadError(CancellationToken ct)
     {
         var (stream1, _) = BidirectionalPipe.New();
         var readEx = new IOException("Test read error");
@@ -259,28 +259,28 @@ public class SpeakerTest
 
         await using var speaker = new Speaker<ManagerMessage, TunnelMessage>(failStream);
 
-        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker.StartAsync());
+        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker.StartAsync(ct));
         Assert.That(gotEx, Is.EqualTo(readEx));
     }
 
     [Test(Description = "Receive a header that exceeds 256 bytes")]
-    [Timeout(30_000)]
-    public async Task ReadLargeHeader()
+    [CancelAfter(30_000)]
+    public async Task ReadLargeHeader(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
 
         var header = new byte[257];
         for (var i = 0; i < header.Length; i++) header[i] = (byte)'a';
-        await stream2.WriteAsync(header);
+        await stream2.WriteAsync(header, ct);
 
-        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.StartAsync());
+        var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.StartAsync(ct));
         Assert.That(gotEx.Message, Does.Contain("Header malformed or too large"));
     }
 
     [Test(Description = "Receive an invalid header")]
-    [Timeout(30_000)]
-    public async Task ReceiveInvalidHeader()
+    [CancelAfter(30_000)]
+    public async Task ReceiveInvalidHeader(CancellationToken ct)
     {
         var cases = new Dictionary<string, (string, string?)>
         {
@@ -302,9 +302,9 @@ public class SpeakerTest
             var (stream1, stream2) = BidirectionalPipe.New();
             await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
 
-            await stream2.WriteAsync(Encoding.UTF8.GetBytes(header));
+            await stream2.WriteAsync(Encoding.UTF8.GetBytes(header), ct);
 
-            var gotEx = Assert.CatchAsync(() => speaker1.StartAsync(), $"header: '{header}'");
+            var gotEx = Assert.CatchAsync(() => speaker1.StartAsync(ct), $"header: '{header}'");
             Assert.That(gotEx.Message, Does.Contain(expectedOuter), $"header: '{header}'");
             if (expectedInner is null)
             {
@@ -318,8 +318,8 @@ public class SpeakerTest
     }
 
     [Test(Description = "Encounter a write error during message send")]
-    [Timeout(30_000)]
-    public async Task SendMessageWriteError()
+    [CancelAfter(30_000)]
+    public async Task SendMessageWriteError(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var failStream = new FailableStream(stream1, null, null);
@@ -330,7 +330,7 @@ public class SpeakerTest
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         speaker2.Receive += msg => Assert.Fail($"speaker2 received message: {msg}");
         speaker2.Error += ex => Assert.Fail($"speaker2 error: {ex}");
-        await Task.WhenAll(speaker1.StartAsync(), speaker2.StartAsync());
+        await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         var writeEx = new IOException("Test write error");
         failStream.SetWriteException(writeEx);
@@ -338,13 +338,13 @@ public class SpeakerTest
         var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.SendMessage(new ManagerMessage
         {
             Start = new StartRequest(),
-        }));
+        }, ct));
         Assert.That(gotEx, Is.EqualTo(writeEx));
     }
 
     [Test(Description = "Encounter a read error during message receive")]
-    [Timeout(30_000)]
-    public async Task ReceiveMessageReadError()
+    [CancelAfter(30_000)]
+    public async Task ReceiveMessageReadError(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var failStream = new FailableStream(stream1, null, null);
@@ -359,13 +359,13 @@ public class SpeakerTest
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         speaker2.Receive += msg => Assert.Fail($"speaker2 received message: {msg}");
         speaker2.Error += ex => Assert.Fail($"speaker2 error: {ex}");
-        await Task.WhenAll(speaker1.StartAsync(), speaker2.StartAsync());
+        await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         // Now the handshake is complete, cause all reads to fail
         var readEx = new IOException("Test write error");
         failStream.SetReadException(readEx);
 
-        var gotEx = await errorCh.Reader.ReadAsync();
+        var gotEx = await errorCh.Reader.ReadAsync(ct);
         Assert.That(gotEx, Is.EqualTo(readEx));
 
         // The receive loop should be stopped within a timely fashion.
@@ -377,24 +377,24 @@ public class SpeakerTest
         }
         else
         {
-            var delayTask = Task.Delay(TimeSpan.FromSeconds(5));
+            var delayTask = Task.Delay(TimeSpan.FromSeconds(5), ct);
             await Task.WhenAny(receiveLoopTask, delayTask);
             Assert.That(receiveLoopTask.IsCompleted, Is.True);
         }
     }
 
     [Test(Description = "Handle dispose while receive loop is running")]
-    [Timeout(30_000)]
-    public async Task DisposeWhileReceiveLoopRunning()
+    [CancelAfter(30_000)]
+    public async Task DisposeWhileReceiveLoopRunning(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
-        await Task.WhenAll(speaker1.StartAsync(), speaker2.StartAsync());
+        await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         // Dispose should happen in a timely fashion
         var disposeTask = speaker1.DisposeAsync();
-        var delayTask = Task.Delay(TimeSpan.FromSeconds(5));
+        var delayTask = Task.Delay(TimeSpan.FromSeconds(5), ct);
         await Task.WhenAny(disposeTask.AsTask(), delayTask);
         Assert.That(disposeTask.IsCompleted, Is.True);
 
@@ -408,19 +408,19 @@ public class SpeakerTest
     }
 
     [Test(Description = "Handle dispose while a message is awaiting a reply")]
-    [Timeout(30_000)]
-    public async Task DisposeWhileAwaitingReply()
+    [CancelAfter(30_000)]
+    public async Task DisposeWhileAwaitingReply(CancellationToken ct)
     {
         var (stream1, stream2) = BidirectionalPipe.New();
         var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
-        await Task.WhenAll(speaker1.StartAsync(), speaker2.StartAsync());
+        await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         // Send a message from speaker1 to speaker2
         var sendTask = speaker1.SendRequestAwaitReply(new ManagerMessage
         {
             Start = new StartRequest(),
-        });
+        }, ct);
 
         // Dispose speaker1
         await speaker1.DisposeAsync();
