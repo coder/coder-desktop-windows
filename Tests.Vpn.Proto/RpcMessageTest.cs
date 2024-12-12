@@ -6,18 +6,16 @@ namespace Coder.Desktop.Tests.Vpn.Proto;
 public class RpcRoleAttributeTest
 {
     [Test]
-    public void Valid()
+    public void Ok()
     {
-        var role = new RpcRoleAttribute(RpcRole.Manager);
-        Assert.That(role.Role.ToString(), Is.EqualTo(RpcRole.Manager));
-        role = new RpcRoleAttribute(RpcRole.Tunnel);
-        Assert.That(role.Role.ToString(), Is.EqualTo(RpcRole.Tunnel));
-    }
-
-    [Test]
-    public void Invalid()
-    {
-        Assert.Throws<ArgumentException>(() => _ = new RpcRoleAttribute("cats"));
+        var role = new RpcRoleAttribute("manager");
+        Assert.That(role.Role, Is.EqualTo("manager"));
+        role = new RpcRoleAttribute("tunnel");
+        Assert.That(role.Role, Is.EqualTo("tunnel"));
+        role = new RpcRoleAttribute("service");
+        Assert.That(role.Role, Is.EqualTo("service"));
+        role = new RpcRoleAttribute("client");
+        Assert.That(role.Role, Is.EqualTo("client"));
     }
 }
 
@@ -33,7 +31,9 @@ public class RpcMessageTest
         Assert.That(ex.Message,
             Does.Contain("Message type 'Coder.Desktop.Vpn.Proto.RPC' does not have a RpcRoleAttribute"));
 
-        Assert.That(ManagerMessage.GetRole().ToString(), Is.EqualTo(RpcRole.Manager));
-        Assert.That(TunnelMessage.GetRole().ToString(), Is.EqualTo(RpcRole.Tunnel));
+        Assert.That(ManagerMessage.GetRole(), Is.EqualTo("manager"));
+        Assert.That(TunnelMessage.GetRole(), Is.EqualTo("tunnel"));
+        Assert.That(ServiceMessage.GetRole(), Is.EqualTo("service"));
+        Assert.That(ClientMessage.GetRole(), Is.EqualTo("client"));
     }
 }

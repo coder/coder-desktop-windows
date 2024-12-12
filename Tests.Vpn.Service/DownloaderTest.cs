@@ -58,6 +58,59 @@ public class AuthenticodeDownloadValidatorTest
 }
 
 [TestFixture]
+public class AssemblyVersionDownloadValidatorTest
+{
+    [Test(Description = "No version on binary")]
+    [CancelAfter(30_000)]
+    public void NoVersion(CancellationToken ct)
+    {
+        // TODO: this
+    }
+
+    [Test(Description = "Version mismatch")]
+    [CancelAfter(30_000)]
+    public void VersionMismatch(CancellationToken ct)
+    {
+        // TODO: this
+    }
+
+    [Test(Description = "Version match")]
+    [CancelAfter(30_000)]
+    public async Task VersionMatch(CancellationToken ct)
+    {
+        // TODO: this
+        await Task.CompletedTask;
+    }
+}
+
+[TestFixture]
+public class CombinationDownloadValidatorTest
+{
+    [Test(Description = "All validators pass")]
+    [CancelAfter(30_000)]
+    public async Task AllPass(CancellationToken ct)
+    {
+        var validator = new CombinationDownloadValidator(
+            NullDownloadValidator.Instance,
+            NullDownloadValidator.Instance
+        );
+        await validator.ValidateAsync("test", ct);
+    }
+
+    [Test(Description = "A validator fails")]
+    [CancelAfter(30_000)]
+    public void Fail(CancellationToken ct)
+    {
+        var validator = new CombinationDownloadValidator(
+            NullDownloadValidator.Instance,
+            new TestDownloadValidator(new Exception("test exception"))
+        );
+        var ex = Assert.ThrowsAsync<Exception>(() => validator.ValidateAsync("test", ct));
+        Assert.That(ex.Message, Is.EqualTo("test exception"));
+    }
+}
+
+[TestFixture]
 public class DownloaderTest
 {
     // FYI, SetUp and TearDown get called before and after each test.

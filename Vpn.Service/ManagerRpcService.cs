@@ -3,6 +3,7 @@ using System.IO.Pipes;
 using Coder.Desktop.Vpn.Proto;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Coder.Desktop.Vpn.Service;
 
@@ -11,18 +12,16 @@ namespace Coder.Desktop.Vpn.Service;
 /// </summary>
 public class ManagerRpcService : BackgroundService, IAsyncDisposable
 {
-    // TODO: make configurable with registry?
-    private const string PipeName = "Coder.Desktop.Vpn";
     private readonly ConcurrentDictionary<int, Task> _activeClientTasks = new();
-
+    private readonly ManagerConfig _config;
     private readonly CancellationTokenSource _cts = new();
-
     private readonly ILogger<ManagerRpcService> _logger;
     private readonly IManager _manager;
 
     // ReSharper disable once ConvertToPrimaryConstructor
-    public ManagerRpcService(ILogger<ManagerRpcService> logger, IManager manager)
+    public ManagerRpcService(IOptions<ManagerConfig> config, ILogger<ManagerRpcService> logger, IManager manager)
     {
+        _config = config.Value;
         _logger = logger;
         _manager = manager;
     }
@@ -46,19 +45,19 @@ public class ManagerRpcService : BackgroundService, IAsyncDisposable
     /// </summary>
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation(@"Starting continuous named pipe RPC server at \\.\pipe\{PipeName}", PipeName);
+        _logger.LogInformation(@"Starting continuous named pipe RPC server at \\.\pipe\{PipeName}",
+            _config.ServiceRpcPipeName);
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _cts.Token);
         while (!linkedCts.IsCancellationRequested)
         {
-            _logger.LogDebug($"Creating named pipe server {PipeName}");
-            var pipeServer = new NamedPipeServerStream(PipeName, PipeDirection.InOut,
+            var pipeServer = new NamedPipeServerStream(_config.ServiceRpcPipeName, PipeDirection.InOut,
                 NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
 
             try
             {
                 try
                 {
-                    _logger.LogDebug("Waiting for named pipe client connection");
+                    _logger.LogDebug("Waiting for new named pipe client connection");
                     await pipeServer.WaitForConnectionAsync(linkedCts.Token);
                 }
                 finally
@@ -87,8 +86,7 @@ public class ManagerRpcService : BackgroundService, IAsyncDisposable
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         await using (pipeServer)
         {
-            // TODO: use ClientMessage once it's ready
-            await using var speaker = new Speaker<ManagerMessage, ManagerMessage>(pipeServer);
+            await using var speaker = new Speaker<ServiceMessage, ClientMessage>(pipeServer);
 
             var tcs = new TaskCompletionSource();
             var activeTasks = new ConcurrentDictionary<int, Task>();
@@ -122,7 +120,7 @@ public class ManagerRpcService : BackgroundService, IAsyncDisposable
         _activeClientTasks.TryRemove(task.Id, out _);
     }
 
-    private async Task HandleRpcMessageAsync(ReplyableRpcMessage<ManagerMessage, ManagerMessage> message,
+    private async Task HandleRpcMessageAsync(ReplyableRpcMessage<ServiceMessage, ClientMessage> message,
         CancellationToken ct)
     {
         _logger.LogInformation("Received RPC message: {Message}", message.Message);

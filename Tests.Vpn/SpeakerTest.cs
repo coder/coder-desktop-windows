@@ -1,83 +1,11 @@
-using System.Buffers;
-using System.IO.Pipelines;
 using System.Reflection;
 using System.Text;
 using System.Threading.Channels;
 using Coder.Desktop.Vpn;
 using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.Vpn.Utilities;
 
 namespace Coder.Desktop.Tests.Vpn;
-
-#region BidrectionalPipe
-
-internal class BidirectionalPipe(PipeReader reader, PipeWriter writer) : Stream
-{
-    public override bool CanRead => true;
-    public override bool CanSeek => false;
-    public override bool CanWrite => true;
-    public override long Length => -1;
-
-    public override long Position
-    {
-        get => -1;
-        set => throw new NotImplementedException("BidirectionalPipe does not support setting position");
-    }
-
-    public static (BidirectionalPipe, BidirectionalPipe) New()
-    {
-        var pipe1 = new Pipe();
-        var pipe2 = new Pipe();
-        return (new BidirectionalPipe(pipe1.Reader, pipe2.Writer), new BidirectionalPipe(pipe2.Reader, pipe1.Writer));
-    }
-
-    public override void Flush()
-    {
-    }
-
-    public override int Read(byte[] buffer, int offset, int count)
-    {
-        return ReadAsync(buffer, offset, count).GetAwaiter().GetResult();
-    }
-
-    public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken ct)
-    {
-        var result = await reader.ReadAtLeastAsync(1, ct);
-        var n = Math.Min((int)result.Buffer.Length, count);
-        // Copy result.Buffer[0:n] to buffer[offset:offset+n]
-        result.Buffer.Slice(0, n).CopyTo(buffer.AsMemory(offset, n).Span);
-        if (!result.IsCompleted) reader.AdvanceTo(result.Buffer.GetPosition(n));
-        return n;
-    }
-
-    public override long Seek(long offset, SeekOrigin origin)
-    {
-        throw new NotImplementedException("BidirectionalPipe does not support seeking");
-    }
-
-    public override void SetLength(long value)
-    {
-        throw new NotImplementedException("BidirectionalPipe does not support setting length");
-    }
-
-    public override void Write(byte[] buffer, int offset, int count)
-    {
-        WriteAsync(buffer, offset, count).GetAwaiter().GetResult();
-    }
-
-    public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken ct)
-    {
-        await writer.WriteAsync(buffer.AsMemory(offset, count), ct);
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        base.Dispose(disposing);
-        writer.Complete();
-        reader.Complete();
-    }
-}
-
-#endregion
 
 #region FailableStream
 
@@ -175,7 +103,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task SendReceiveReplyReceive(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
 
         await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         var speaker1Ch = Channel
@@ -239,7 +167,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task WriteError(CancellationToken ct)
     {
-        var (stream1, _) = BidirectionalPipe.New();
+        var (stream1, _) = BidirectionalPipe.NewInMemory();
         var writeEx = new IOException("Test write error");
         var failStream = new FailableStream(stream1, writeEx, null);
 
@@ -253,7 +181,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task ReadError(CancellationToken ct)
     {
-        var (stream1, _) = BidirectionalPipe.New();
+        var (stream1, _) = BidirectionalPipe.NewInMemory();
         var readEx = new IOException("Test read error");
         var failStream = new FailableStream(stream1, null, readEx);
 
@@ -267,7 +195,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task ReadLargeHeader(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
 
         var header = new byte[257];
@@ -286,7 +214,8 @@ public class SpeakerTest
         {
             { "invalid\n", ("Failed to parse peer header", "Wrong number of parts in header string") },
             { "cats tunnel 1.0\n", ("Failed to parse peer header", "Invalid preamble in header string") },
-            { "codervpn cats 1.0\n", ("Failed to parse peer header", "Unknown role 'cats'") },
+            { "codervpn  1.0\n", ("Failed to parse peer header", "Invalid role in header string") },
+            { "codervpn cats 1.0\n", ("Expected peer role 'tunnel' but got 'cats'", null) },
             { "codervpn manager 1.0\n", ("Expected peer role 'tunnel' but got 'manager'", null) },
             {
                 "codervpn tunnel 1000.1\n",
@@ -299,7 +228,7 @@ public class SpeakerTest
 
         foreach (var (header, (expectedOuter, expectedInner)) in cases)
         {
-            var (stream1, stream2) = BidirectionalPipe.New();
+            var (stream1, stream2) = BidirectionalPipe.NewInMemory();
             await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
 
             await stream2.WriteAsync(Encoding.UTF8.GetBytes(header), ct);
@@ -321,7 +250,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task SendMessageWriteError(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var failStream = new FailableStream(stream1, null, null);
 
         await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(failStream);
@@ -346,7 +275,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task ReceiveMessageReadError(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var failStream = new FailableStream(stream1, null, null);
 
         // Speaker1 is bound to failStream and will write an error to errorCh
@@ -387,7 +316,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task DisposeWhileReceiveLoopRunning(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
@@ -411,7 +340,7 @@ public class SpeakerTest
     [CancelAfter(30_000)]
     public async Task DisposeWhileAwaitingReply(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));

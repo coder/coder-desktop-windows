@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Coder.Desktop.Vpn.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Security.Extensions;
 
@@ -33,18 +35,12 @@ public class NullDownloadValidator : IDownloadValidator
     }
 }
 
-public class AuthenticodeDownloadValidator : IDownloadValidator
+/// <summary>
+///     Ensures the downloaded binary is signed by the expected authenticode organization.
+/// </summary>
+public class AuthenticodeDownloadValidator(string expectedName) : IDownloadValidator
 {
-    private readonly string _expectedName;
-
     public static AuthenticodeDownloadValidator Coder => new("Coder Technologies Inc.");
-
-    public AuthenticodeDownloadValidator(string expectedName)
-    {
-        if (string.IsNullOrWhiteSpace(expectedName))
-            throw new ArgumentException("Expected name must not be empty", nameof(expectedName));
-        _expectedName = expectedName;
-    }
 
     public async Task ValidateAsync(string path, CancellationToken ct = default)
     {
@@ -63,10 +59,39 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
         if (fileSigInfo.Kind != SignatureKind.Embedded)
             throw new Exception($"File is not signed with an embedded Authenticode signature: Kind={fileSigInfo.Kind}");
 
+        // TODO: check that it's an extended validation certificate
+
         var actualName = fileSigInfo.SigningCertificate.GetNameInfo(X509NameType.SimpleName, false);
-        if (actualName != _expectedName)
+        if (actualName != expectedName)
             throw new Exception(
-                $"File is signed by an unexpected certificate: ExpectedName='{_expectedName}', ActualName='{actualName}'");
+                $"File is signed by an unexpected certificate: ExpectedName='{expectedName}', ActualName='{actualName}'");
+    }
+}
+
+public class AssemblyVersionDownloadValidator(string expectedAssemblyVersion) : IDownloadValidator
+{
+    public Task ValidateAsync(string path, CancellationToken ct = default)
+    {
+        var info = FileVersionInfo.GetVersionInfo(path);
+        if (string.IsNullOrEmpty(info.ProductVersion))
+            throw new Exception("File ProductVersion is empty or null, was the binary compiled correctly?");
+        if (info.ProductVersion != expectedAssemblyVersion)
+            throw new Exception(
+                $"File ProductVersion is '{info.ProductVersion}', but expected '{expectedAssemblyVersion}'");
+        return Task.CompletedTask;
+    }
+}
+
+/// <summary>
+///     Combines multiple download validators into a single validator. All validators will be run in order.
+/// </summary>
+/// <param name="validators">Validators to run</param>
+public class CombinationDownloadValidator(params IDownloadValidator[] validators) : IDownloadValidator
+{
+    public async Task ValidateAsync(string path, CancellationToken ct = default)
+    {
+        foreach (var validator in validators)
+            await validator.ValidateAsync(path, ct);
     }
 }
 
@@ -134,7 +159,7 @@ public class DownloadTask
 
     private readonly ILogger _logger;
 
-    private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly RaiiSemaphoreSlim _semaphore = new(1, 1);
     private readonly IDownloadValidator _validator;
     public readonly string DestinationPath;
 
@@ -172,16 +197,9 @@ public class DownloadTask
 
     internal async Task<Task> EnsureStartedAsync(CancellationToken ct = default)
     {
-        await _semaphore.WaitAsync(ct);
-        try
-        {
-            if (Task == null!)
-                Task = await StartDownloadAsync(ct);
-        }
-        finally
-        {
-            _semaphore.Release();
-        }
+        using var _ = await _semaphore.LockAsync(ct);
+        if (Task == null!)
+            Task = await StartDownloadAsync(ct);
 
         return Task;
     }

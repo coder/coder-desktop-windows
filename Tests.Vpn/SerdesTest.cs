@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using Coder.Desktop.Vpn;
 using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.Vpn.Utilities;
 using Google.Protobuf;
 
 namespace Coder.Desktop.Tests.Vpn;
@@ -12,7 +13,7 @@ public class SerdesTest
     [CancelAfter(30_000)]
     public async Task WriteReadMessage(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
 
         var msg = new ManagerMessage
@@ -28,7 +29,7 @@ public class SerdesTest
     [CancelAfter(30_000)]
     public void WriteMessageTooLarge(CancellationToken ct)
     {
-        var (stream1, _) = BidirectionalPipe.New();
+        var (stream1, _) = BidirectionalPipe.NewInMemory();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
 
         var msg = new ManagerMessage
@@ -46,7 +47,7 @@ public class SerdesTest
     [CancelAfter(30_000)]
     public async Task ReadMessageTooLarge(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
 
         // In this test we don't actually write a message as the parser should
@@ -61,7 +62,7 @@ public class SerdesTest
     [CancelAfter(30_000)]
     public async Task ReadEmptyMessage(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
 
         // Write an empty message.
@@ -76,7 +77,7 @@ public class SerdesTest
     [CancelAfter(30_000)]
     public async Task ReadInvalidMessage(CancellationToken ct)
     {
-        var (stream1, stream2) = BidirectionalPipe.New();
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var serdes = new Serdes<ManagerMessage, ManagerMessage>();
 
         var lenBytes = new byte[4];
