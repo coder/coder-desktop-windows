@@ -18,8 +18,8 @@ public class RpcVersionCompatibilityException(RpcVersionList localVersion, RpcVe
 /// <param name="speaker">Speaker to use for sending reply</param>
 /// <param name="message">Original received message</param>
 public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : RpcMessage<TR>
-    where TS : RpcMessage<TS>, IMessage<TS>
-    where TR : RpcMessage<TR>, IMessage<TR>, new()
+    where TS : RpcMessage<TS>, IRpcMessageCompatibleWith<TR>, IMessage<TS>
+    where TR : RpcMessage<TR>, IRpcMessageCompatibleWith<TS>, IMessage<TR>, new()
 {
     public override RPC? RpcField
     {
@@ -51,8 +51,8 @@ public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : 
 /// <typeparam name="TS">The message type for sent messages</typeparam>
 /// <typeparam name="TR">The message type for received messages</typeparam>
 public class Speaker<TS, TR> : IAsyncDisposable
-    where TS : RpcMessage<TS>, IMessage<TS>
-    where TR : RpcMessage<TR>, IMessage<TR>, new()
+    where TS : RpcMessage<TS>, IRpcMessageCompatibleWith<TR>, IMessage<TS>
+    where TR : RpcMessage<TR>, IRpcMessageCompatibleWith<TS>, IMessage<TR>, new()
 {
     public delegate void OnErrorDelegate(Exception e);
 

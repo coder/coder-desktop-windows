@@ -6,8 +6,15 @@ namespace Coder.Desktop.Vpn.Proto;
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public class RpcRoleAttribute(string role) : Attribute
 {
-    public RpcRole Role { get; } = new(role);
+    public string Role { get; } = role;
 }
+
+/// <summary>
+///     IRpcMessageCompatibleWith is a marker interface that indicates that a
+///     message type can be used to peer with another message type.
+/// </summary>
+/// <typeparam name="T"></typeparam>
+public interface IRpcMessageCompatibleWith<T>;
 
 /// <summary>
 ///     Represents an actual over-the-wire message type.
@@ -36,9 +43,9 @@ public abstract class RpcMessage<T> where T : IMessage<T>
     /// <summary>
     ///     Gets the RpcRole of the message type from it's RpcRole attribute.
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The role string</returns>
     /// <exception cref="ArgumentException">The message type does not have an RpcRoleAttribute</exception>
-    public static RpcRole GetRole()
+    public static string GetRole()
     {
         var type = typeof(T);
         var attr = type.GetCustomAttribute<RpcRoleAttribute>();
@@ -47,8 +54,8 @@ public abstract class RpcMessage<T> where T : IMessage<T>
     }
 }
 
-[RpcRole(RpcRole.Manager)]
-public partial class ManagerMessage : RpcMessage<ManagerMessage>
+[RpcRole("manager")]
+public partial class ManagerMessage : RpcMessage<ManagerMessage>, IRpcMessageCompatibleWith<TunnelMessage>
 {
     public override RPC? RpcField
     {
@@ -64,8 +71,8 @@ public partial class ManagerMessage : RpcMessage<ManagerMessage>
     }
 }
 
-[RpcRole(RpcRole.Tunnel)]
-public partial class TunnelMessage : RpcMessage<TunnelMessage>
+[RpcRole("tunnel")]
+public partial class TunnelMessage : RpcMessage<TunnelMessage>, IRpcMessageCompatibleWith<ManagerMessage>
 {
     public override RPC? RpcField
     {
@@ -74,6 +81,40 @@ public partial class TunnelMessage : RpcMessage<TunnelMessage>
     }
 
     public override TunnelMessage Message => this;
+
+    public override void Validate()
+    {
+        if (MsgCase == MsgOneofCase.None) throw new ArgumentException("Message does not contain inner message type");
+    }
+}
+
+[RpcRole("service")]
+public partial class ServiceMessage : RpcMessage<ServiceMessage>, IRpcMessageCompatibleWith<ClientMessage>
+{
+    public override RPC? RpcField
+    {
+        get => Rpc;
+        set => Rpc = value;
+    }
+
+    public override ServiceMessage Message => this;
+
+    public override void Validate()
+    {
+        if (MsgCase == MsgOneofCase.None) throw new ArgumentException("Message does not contain inner message type");
+    }
+}
+
+[RpcRole("client")]
+public partial class ClientMessage : RpcMessage<ClientMessage>, IRpcMessageCompatibleWith<ServiceMessage>
+{
+    public override RPC? RpcField
+    {
+        get => Rpc;
+        set => Rpc = value;
+    }
+
+    public override ClientMessage Message => this;
 
     public override void Validate()
     {
