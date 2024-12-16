@@ -18,12 +18,11 @@ public class ManagerRpcService : BackgroundService, IAsyncDisposable
     private readonly ILogger<ManagerRpcService> _logger;
     private readonly IManager _manager;
 
-    // ReSharper disable once ConvertToPrimaryConstructor
     public ManagerRpcService(IOptions<ManagerConfig> config, ILogger<ManagerRpcService> logger, IManager manager)
     {
-        _config = config.Value;
         _logger = logger;
         _manager = manager;
+        _config = config.Value;
     }
 
     public async ValueTask DisposeAsync()

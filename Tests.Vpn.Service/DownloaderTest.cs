@@ -5,11 +5,18 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Coder.Desktop.Tests.Vpn.Service;
 
-public class TestDownloadValidator(Exception e) : IDownloadValidator
+public class TestDownloadValidator : IDownloadValidator
 {
+    private readonly Exception _e;
+
+    public TestDownloadValidator(Exception e)
+    {
+        _e = e;
+    }
+
     public Task ValidateAsync(string path, CancellationToken ct = default)
     {
-        throw e;
+        throw _e;
     }
 }
 

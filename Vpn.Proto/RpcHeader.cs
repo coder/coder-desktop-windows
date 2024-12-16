@@ -5,14 +5,20 @@ namespace Coder.Desktop.Vpn.Proto;
 /// <summary>
 ///     A header to write or read from a stream to identify the peer role and version.
 /// </summary>
-/// <param name="role">Role of the peer</param>
-/// <param name="versionList">Version of the peer</param>
-public class RpcHeader(string role, RpcVersionList versionList)
+public class RpcHeader
 {
     private const string Preamble = "codervpn";
 
-    public string Role { get; } = role;
-    public RpcVersionList VersionList { get; } = versionList;
+    public string Role { get; }
+    public RpcVersionList VersionList { get; }
+
+    /// <param name="role">Role of the peer</param>
+    /// <param name="versionList">Version of the peer</param>
+    public RpcHeader(string role, RpcVersionList versionList)
+    {
+        Role = role;
+        VersionList = versionList;
+    }
 
     /// <summary>
     ///     Parse a header string into a <c>SpeakerHeader</c>.

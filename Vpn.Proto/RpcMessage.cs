@@ -4,9 +4,14 @@ using Google.Protobuf;
 namespace Coder.Desktop.Vpn.Proto;
 
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
-public class RpcRoleAttribute(string role) : Attribute
+public class RpcRoleAttribute : Attribute
 {
-    public string Role { get; } = role;
+    public string Role { get; }
+
+    public RpcRoleAttribute(string role)
+    {
+        Role = role;
+    }
 }
 
 /// <summary>

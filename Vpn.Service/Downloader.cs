@@ -38,9 +38,16 @@ public class NullDownloadValidator : IDownloadValidator
 /// <summary>
 ///     Ensures the downloaded binary is signed by the expected authenticode organization.
 /// </summary>
-public class AuthenticodeDownloadValidator(string expectedName) : IDownloadValidator
+public class AuthenticodeDownloadValidator : IDownloadValidator
 {
+    private readonly string _expectedName;
+
     public static AuthenticodeDownloadValidator Coder => new("Coder Technologies Inc.");
+
+    public AuthenticodeDownloadValidator(string expectedName)
+    {
+        _expectedName = expectedName;
+    }
 
     public async Task ValidateAsync(string path, CancellationToken ct = default)
     {
@@ -62,22 +69,29 @@ public class AuthenticodeDownloadValidator(string expectedName) : IDownloadValid
         // TODO: check that it's an extended validation certificate
 
         var actualName = fileSigInfo.SigningCertificate.GetNameInfo(X509NameType.SimpleName, false);
-        if (actualName != expectedName)
+        if (actualName != _expectedName)
             throw new Exception(
-                $"File is signed by an unexpected certificate: ExpectedName='{expectedName}', ActualName='{actualName}'");
+                $"File is signed by an unexpected certificate: ExpectedName='{_expectedName}', ActualName='{actualName}'");
     }
 }
 
-public class AssemblyVersionDownloadValidator(string expectedAssemblyVersion) : IDownloadValidator
+public class AssemblyVersionDownloadValidator : IDownloadValidator
 {
+    private readonly string _expectedAssemblyVersion;
+
+    public AssemblyVersionDownloadValidator(string expectedAssemblyVersion)
+    {
+        _expectedAssemblyVersion = expectedAssemblyVersion;
+    }
+
     public Task ValidateAsync(string path, CancellationToken ct = default)
     {
         var info = FileVersionInfo.GetVersionInfo(path);
         if (string.IsNullOrEmpty(info.ProductVersion))
             throw new Exception("File ProductVersion is empty or null, was the binary compiled correctly?");
-        if (info.ProductVersion != expectedAssemblyVersion)
+        if (info.ProductVersion != _expectedAssemblyVersion)
             throw new Exception(
-                $"File ProductVersion is '{info.ProductVersion}', but expected '{expectedAssemblyVersion}'");
+                $"File ProductVersion is '{info.ProductVersion}', but expected '{_expectedAssemblyVersion}'");
         return Task.CompletedTask;
     }
 }
@@ -85,12 +99,19 @@ public class AssemblyVersionDownloadValidator(string expectedAssemblyVersion) : 
 /// <summary>
 ///     Combines multiple download validators into a single validator. All validators will be run in order.
 /// </summary>
-/// <param name="validators">Validators to run</param>
-public class CombinationDownloadValidator(params IDownloadValidator[] validators) : IDownloadValidator
+public class CombinationDownloadValidator : IDownloadValidator
 {
+    private readonly IDownloadValidator[] _validators;
+
+    /// <param name="validators">Validators to run</param>
+    public CombinationDownloadValidator(params IDownloadValidator[] validators)
+    {
+        _validators = validators;
+    }
+
     public async Task ValidateAsync(string path, CancellationToken ct = default)
     {
-        foreach (var validator in validators)
+        foreach (var validator in _validators)
             await validator.ValidateAsync(path, ct);
     }
 }

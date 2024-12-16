@@ -3,9 +3,14 @@ namespace Coder.Desktop.Vpn.Utilities;
 /// <summary>
 ///     RaiiSemaphoreSlim is a wrapper around SemaphoreSlim that provides RAII-style locking.
 /// </summary>
-public class RaiiSemaphoreSlim(int initialCount, int maxCount) : IDisposable
+public class RaiiSemaphoreSlim : IDisposable
 {
-    private readonly SemaphoreSlim _semaphore = new(initialCount, maxCount);
+    private readonly SemaphoreSlim _semaphore;
+
+    public RaiiSemaphoreSlim(int initialCount, int maxCount)
+    {
+        _semaphore = new SemaphoreSlim(initialCount, maxCount);
+    }
 
     public void Dispose()
     {
@@ -19,11 +24,18 @@ public class RaiiSemaphoreSlim(int initialCount, int maxCount) : IDisposable
         return new Lock(_semaphore);
     }
 
-    private class Lock(SemaphoreSlim semaphore) : IDisposable
+    private class Lock : IDisposable
     {
+        private readonly SemaphoreSlim _semaphore1;
+
+        public Lock(SemaphoreSlim semaphore)
+        {
+            _semaphore1 = semaphore;
+        }
+
         public void Dispose()
         {
-            semaphore.Release();
+            _semaphore1.Release();
             GC.SuppressFinalize(this);
         }
     }
