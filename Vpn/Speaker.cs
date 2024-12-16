@@ -9,29 +9,43 @@ namespace Coder.Desktop.Vpn;
 /// <summary>
 ///     Thrown when the two peers are incompatible with each other.
 /// </summary>
-public class RpcVersionCompatibilityException(RpcVersionList localVersion, RpcVersionList remoteVersion)
-    : Exception($"No RPC versions are compatible: local={localVersion}, remote={remoteVersion}");
+public class RpcVersionCompatibilityException : Exception
+{
+    public RpcVersionCompatibilityException(RpcVersionList localVersion, RpcVersionList remoteVersion) : base(
+        $"No RPC versions are compatible: local={localVersion}, remote={remoteVersion}")
+    {
+    }
+}
 
 /// <summary>
 ///     Wraps a <c>RpcMessage</c> to allow easily sending a reply via the <c>Speaker</c>.
 /// </summary>
-/// <param name="speaker">Speaker to use for sending reply</param>
-/// <param name="message">Original received message</param>
-public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : RpcMessage<TR>
-    where TS : RpcMessage<TS>, IMessage<TS>
-    where TR : RpcMessage<TR>, IMessage<TR>, new()
+public class ReplyableRpcMessage<TS, TR> : RpcMessage<TR>
+    where TS : RpcMessage<TS>, IRpcMessageCompatibleWith<TR>, IMessage<TS>
+    where TR : RpcMessage<TR>, IRpcMessageCompatibleWith<TS>, IMessage<TR>, new()
 {
+    private readonly TR _message;
+    private readonly Speaker<TS, TR> _speaker;
+
     public override RPC? RpcField
     {
-        get => message.RpcField;
-        set => message.RpcField = value;
+        get => _message.RpcField;
+        set => _message.RpcField = value;
     }
 
-    public override TR Message => message;
+    public override TR Message => _message;
+
+    /// <param name="speaker">Speaker to use for sending reply</param>
+    /// <param name="message">Original received message</param>
+    public ReplyableRpcMessage(Speaker<TS, TR> speaker, TR message)
+    {
+        _speaker = speaker;
+        _message = message;
+    }
 
     public override void Validate()
     {
-        message.Validate();
+        _message.Validate();
     }
 
     /// <summary>
@@ -41,7 +55,7 @@ public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : 
     /// <param name="ct">Optional cancellation token</param>
     public async Task SendReply(TS reply, CancellationToken ct = default)
     {
-        await speaker.SendReply(message, reply, ct);
+        await _speaker.SendReply(_message, reply, ct);
     }
 }
 
@@ -51,8 +65,8 @@ public class ReplyableRpcMessage<TS, TR>(Speaker<TS, TR> speaker, TR message) : 
 /// <typeparam name="TS">The message type for sent messages</typeparam>
 /// <typeparam name="TR">The message type for received messages</typeparam>
 public class Speaker<TS, TR> : IAsyncDisposable
-    where TS : RpcMessage<TS>, IMessage<TS>
-    where TR : RpcMessage<TR>, IMessage<TR>, new()
+    where TS : RpcMessage<TS>, IRpcMessageCompatibleWith<TR>, IMessage<TS>
+    where TR : RpcMessage<TR>, IRpcMessageCompatibleWith<TS>, IMessage<TR>, new()
 {
     public delegate void OnErrorDelegate(Exception e);
 

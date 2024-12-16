@@ -1,31 +1,9 @@
 ﻿using System.Buffers.Binary;
 using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.Vpn.Utilities;
 using Google.Protobuf;
 
 namespace Coder.Desktop.Vpn;
-
-/// <summary>
-///     RaiiSemaphoreSlim is a wrapper around SemaphoreSlim that provides RAII-style locking.
-/// </summary>
-internal class RaiiSemaphoreSlim(int initialCount, int maxCount)
-{
-    private readonly SemaphoreSlim _semaphore = new(initialCount, maxCount);
-
-    public async ValueTask<IDisposable> LockAsync(CancellationToken ct = default)
-    {
-        await _semaphore.WaitAsync(ct);
-        return new Lock(_semaphore);
-    }
-
-    private class Lock(SemaphoreSlim semaphore) : IDisposable
-    {
-        public void Dispose()
-        {
-            semaphore.Release();
-            GC.SuppressFinalize(this);
-        }
-    }
-}
 
 /// <summary>
 ///     Serdes provides serialization and deserialization of messages read from a Stream.

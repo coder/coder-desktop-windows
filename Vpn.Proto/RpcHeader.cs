@@ -3,16 +3,22 @@ using System.Text;
 namespace Coder.Desktop.Vpn.Proto;
 
 /// <summary>
-///     A header to write or read from a stream to identify the speaker's role and version.
+///     A header to write or read from a stream to identify the peer role and version.
 /// </summary>
-/// <param name="role">Role of the speaker</param>
-/// <param name="versionList">Version of the speaker</param>
-public class RpcHeader(RpcRole role, RpcVersionList versionList)
+public class RpcHeader
 {
     private const string Preamble = "codervpn";
 
-    public RpcRole Role { get; } = role;
-    public RpcVersionList VersionList { get; } = versionList;
+    public string Role { get; }
+    public RpcVersionList VersionList { get; }
+
+    /// <param name="role">Role of the peer</param>
+    /// <param name="versionList">Version of the peer</param>
+    public RpcHeader(string role, RpcVersionList versionList)
+    {
+        Role = role;
+        VersionList = versionList;
+    }
 
     /// <summary>
     ///     Parse a header string into a <c>SpeakerHeader</c>.
@@ -25,10 +31,10 @@ public class RpcHeader(RpcRole role, RpcVersionList versionList)
         var parts = header.Split(' ');
         if (parts.Length != 3) throw new ArgumentException($"Wrong number of parts in header string '{header}'");
         if (parts[0] != Preamble) throw new ArgumentException($"Invalid preamble in header string '{header}'");
+        if (string.IsNullOrEmpty(parts[1])) throw new ArgumentException($"Invalid role in header string '{header}'");
 
-        var role = new RpcRole(parts[1]);
         var versionList = RpcVersionList.Parse(parts[2]);
-        return new RpcHeader(role, versionList);
+        return new RpcHeader(parts[1], versionList);
     }
 
     /// <summary>

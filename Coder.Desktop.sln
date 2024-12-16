@@ -5,7 +5,15 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Vpn", "Vpn\Vp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Vpn.Proto", "Vpn.Proto\Vpn.Proto.csproj", "{318E78BB-E6AD-410F-8F3F-B680F6880293}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Tests", "Tests\Tests.csproj", "{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Vpn.Service", "Vpn.Service\Vpn.Service.csproj", "{51B91794-0A2A-4F84-9935-8E17DD2AB260}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Tests.Vpn", "Tests.Vpn\Tests.Vpn.csproj", "{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Tests.Vpn.Proto", "Tests.Vpn.Proto\Tests.Vpn.Proto.csproj", "{AA3EEFF4-414B-4A83-8ACF-188C3C61CCE1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.Tests.Vpn.Service", "Tests.Vpn.Service\Tests.Vpn.Service.csproj", "{D32E5FE1-C251-4A08-8EBE-B8D4F18A36F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Coder.Desktop.CoderSdk", "CoderSdk\CoderSdk.csproj", "{A3D2B2B3-A051-46BD-A190-5487A9F24C28}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -21,9 +29,25 @@ Global
 		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{318E78BB-E6AD-410F-8F3F-B680F6880293}.Release|Any CPU.Build.0 = Release|Any CPU
+		{51B91794-0A2A-4F84-9935-8E17DD2AB260}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{51B91794-0A2A-4F84-9935-8E17DD2AB260}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{51B91794-0A2A-4F84-9935-8E17DD2AB260}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{51B91794-0A2A-4F84-9935-8E17DD2AB260}.Release|Any CPU.Build.0 = Release|Any CPU
 		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D247B2E7-38A0-4A69-A710-7E8FAA7B807E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AA3EEFF4-414B-4A83-8ACF-188C3C61CCE1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AA3EEFF4-414B-4A83-8ACF-188C3C61CCE1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AA3EEFF4-414B-4A83-8ACF-188C3C61CCE1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AA3EEFF4-414B-4A83-8ACF-188C3C61CCE1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D32E5FE1-C251-4A08-8EBE-B8D4F18A36F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D32E5FE1-C251-4A08-8EBE-B8D4F18A36F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D32E5FE1-C251-4A08-8EBE-B8D4F18A36F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D32E5FE1-C251-4A08-8EBE-B8D4F18A36F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3D2B2B3-A051-46BD-A190-5487A9F24C28}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3D2B2B3-A051-46BD-A190-5487A9F24C28}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3D2B2B3-A051-46BD-A190-5487A9F24C28}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3D2B2B3-A051-46BD-A190-5487A9F24C28}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
