@@ -15,6 +15,7 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
@@ -30,8 +31,8 @@ public enum AgentStatus
 
 public partial class Agent
 {
-    public string Hostname { get; set; } // without suffix
-    public string Suffix { get; set; }
+    public required string Hostname { get; set; } // without suffix
+    public required string Suffix { get; set; }
     public AgentStatus Status { get; set; }
 
     public Brush StatusColor => Status switch
@@ -81,6 +82,26 @@ public partial class Agent
         };
         FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
         FlyoutBase.ShowAttachedFlyout(frameworkElement);
+    }
+
+    public void AgentHostnameText_OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBlock textBlock) return;
+        textBlock.Inlines.Clear();
+        textBlock.Inlines.Add(new Run
+        {
+            Text = Hostname,
+            Foreground =
+                (SolidColorBrush)Application.Current.Resources.ThemeDictionaries[
+                    "DefaultTextForegroundThemeBrush"],
+        });
+        textBlock.Inlines.Add(new Run
+        {
+            Text = Suffix,
+            Foreground =
+                (SolidColorBrush)Application.Current.Resources.ThemeDictionaries[
+                    "SystemControlForegroundBaseMediumBrush"],
+        });
     }
 }
 

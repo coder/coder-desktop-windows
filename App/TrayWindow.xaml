@@ -104,24 +104,16 @@
                                         Canvas.Top="3" />
                                 </Canvas>
 
-                                <!-- This needs to not have any whitespace at all to avoid adding spaces between the runs -->
+                                <!-- This cannot have any whitespace at all to avoid adding spaces between the elements, so it's populated from code instead -->
                                 <!-- TODO: I couldn't get ellipsis to work without hardcoding a width here -->
                                 <TextBlock
+                                    Loaded="{x:Bind AgentHostnameText_OnLoaded}"
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Stretch"
                                     HorizontalTextAlignment="Left"
                                     TextTrimming="CharacterEllipsis"
                                     TextWrapping="NoWrap"
-                                    Width="180"
-                                    xml:space="preserve"><!--
-
-                                    --><Run
-                                    Text="{x:Bind Hostname}"
-                                    Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" /><!--
-                                    --><Run
-                                    Text="{x:Bind Suffix}"
-                                    Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" /><!--
-                                --></TextBlock>
+                                    Width="180" />
                             </StackPanel>
                         </HyperlinkButton>
 
