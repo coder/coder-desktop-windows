@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+        <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+        <RootNamespace>Coder.Desktop.App</RootNamespace>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <Platforms>x86;x64;ARM64</Platforms>
+        <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+        <UseWinUI>true</UseWinUI>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <Manifest Include="$(ApplicationManifest)"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+        <PackageReference Include="DependencyPropertyGenerator" Version="1.5.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0"/>
+        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742"/>
+        <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Page Update="TrayIcon.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Page Update="HorizontalRule.xaml">
+            <Generator>MSBuild:Compile</Generator>
+        </Page>
+    </ItemGroup>
+
+    <!-- Publish Properties -->
+    <PropertyGroup>
+        <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
+        <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
+        <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
+        <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
+    </PropertyGroup>
+</Project>

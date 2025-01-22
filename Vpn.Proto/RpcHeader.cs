@@ -9,9 +9,6 @@ public class RpcHeader
 {
     private const string Preamble = "codervpn";
 
-    public string Role { get; }
-    public RpcVersionList VersionList { get; }
-
     /// <param name="role">Role of the peer</param>
     /// <param name="versionList">Version of the peer</param>
     public RpcHeader(string role, RpcVersionList versionList)
@@ -19,6 +16,9 @@ public class RpcHeader
         Role = role;
         VersionList = versionList;
     }
+
+    public string Role { get; }
+    public RpcVersionList VersionList { get; }
 
     /// <summary>
     ///     Parse a header string into a <c>SpeakerHeader</c>.

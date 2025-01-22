@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<UserControl
+    x:Class="Coder.Desktop.App.TrayIcon"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:tb="using:H.NotifyIcon"
+    mc:Ignorable="d">
+
+    <UserControl.Resources>
+        <!-- Icons are used from .cs -->
+        <!-- ReSharper disable Xaml.RedundantResource -->
+        <BitmapImage x:Key="IconLightTheme" UriSource="ms-appx:///Assets/coder_icon_32_dark.ico" />
+        <BitmapImage x:Key="IconDarkTheme" UriSource="ms-appx:///Assets/coder_icon_32_light.ico" />
+        <!-- ReSharper restore Xaml.RedundantResource -->
+    </UserControl.Resources>
+
+    <tb:TaskbarIcon
+        x:Name="TaskbarIcon"
+        Visibility="Visible"
+        ToolTipText="Coder"
+        ContextMenuMode="SecondWindow"
+        LeftClickCommand="{x:Bind OpenCommand}"
+        NoLeftClickDelay="True">
+
+        <tb:TaskbarIcon.ContextFlyout>
+            <MenuFlyout>
+                <MenuFlyoutItem>
+                    <MenuFlyoutItem.Command>
+                        <XamlUICommand
+                            Label="Show Window"
+                            Description="Show Window"
+                            Command="{x:Bind OpenCommand}">
+
+                            <XamlUICommand.IconSource>
+                                <SymbolIconSource Symbol="OpenPane" />
+                            </XamlUICommand.IconSource>
+                            <XamlUICommand.KeyboardAccelerators>
+                                <KeyboardAccelerator
+                                    Key="S"
+                                    Modifiers="Control" />
+                            </XamlUICommand.KeyboardAccelerators>
+                        </XamlUICommand>
+                    </MenuFlyoutItem.Command>
+                </MenuFlyoutItem>
+
+                <MenuFlyoutSeparator />
+
+                <MenuFlyoutItem>
+                    <MenuFlyoutItem.Command>
+                        <XamlUICommand
+                            Label="Exit"
+                            Description="Exit"
+                            Command="{x:Bind ExitCommand}">
+
+                            <XamlUICommand.IconSource>
+                                <SymbolIconSource Symbol="ClosePane" />
+                            </XamlUICommand.IconSource>
+                            <XamlUICommand.KeyboardAccelerators>
+                                <KeyboardAccelerator
+                                    Key="E"
+                                    Modifiers="Control" />
+                            </XamlUICommand.KeyboardAccelerators>
+                        </XamlUICommand>
+                    </MenuFlyoutItem.Command>
+                </MenuFlyoutItem>
+            </MenuFlyout>
+        </tb:TaskbarIcon.ContextFlyout>
+    </tb:TaskbarIcon>
+</UserControl>
