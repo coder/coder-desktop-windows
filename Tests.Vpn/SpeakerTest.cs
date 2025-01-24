@@ -16,6 +16,13 @@ internal class FailableStream : Stream
 
     private readonly TaskCompletionSource _writeTcs = new();
 
+    public FailableStream(Stream inner, Exception? writeException, Exception? readException)
+    {
+        _inner = inner;
+        if (writeException != null) _writeTcs.SetException(writeException);
+        if (readException != null) _readTcs.SetException(readException);
+    }
+
     public override bool CanRead => _inner.CanRead;
     public override bool CanSeek => _inner.CanSeek;
     public override bool CanWrite => _inner.CanWrite;
@@ -25,13 +32,6 @@ internal class FailableStream : Stream
     {
         get => _inner.Position;
         set => _inner.Position = value;
-    }
-
-    public FailableStream(Stream inner, Exception? writeException, Exception? readException)
-    {
-        _inner = inner;
-        if (writeException != null) _writeTcs.SetException(writeException);
-        if (readException != null) _readTcs.SetException(readException);
     }
 
     public void SetWriteException(Exception ex)

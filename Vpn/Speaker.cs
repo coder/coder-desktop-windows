@@ -27,14 +27,6 @@ public class ReplyableRpcMessage<TS, TR> : RpcMessage<TR>
     private readonly TR _message;
     private readonly Speaker<TS, TR> _speaker;
 
-    public override RPC? RpcField
-    {
-        get => _message.RpcField;
-        set => _message.RpcField = value;
-    }
-
-    public override TR Message => _message;
-
     /// <param name="speaker">Speaker to use for sending reply</param>
     /// <param name="message">Original received message</param>
     public ReplyableRpcMessage(Speaker<TS, TR> speaker, TR message)
@@ -42,6 +34,14 @@ public class ReplyableRpcMessage<TS, TR> : RpcMessage<TR>
         _speaker = speaker;
         _message = message;
     }
+
+    public override RPC? RpcField
+    {
+        get => _message.RpcField;
+        set => _message.RpcField = value;
+    }
+
+    public override TR Message => _message;
 
     public override void Validate()
     {

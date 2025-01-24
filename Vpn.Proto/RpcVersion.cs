@@ -7,9 +7,6 @@ public class RpcVersion
 {
     public static readonly RpcVersion Current = new(1, 0);
 
-    public ulong Major { get; }
-    public ulong Minor { get; }
-
     /// <param name="major">The major version of the peer</param>
     /// <param name="minor">The minor version of the peer</param>
     public RpcVersion(ulong major, ulong minor)
@@ -17,6 +14,9 @@ public class RpcVersion
         Major = major;
         Minor = minor;
     }
+
+    public ulong Major { get; }
+    public ulong Minor { get; }
 
     /// <summary>
     ///     Parse a string in the format "major.minor" into an ApiVersion.
