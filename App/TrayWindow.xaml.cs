@@ -192,7 +192,8 @@ public sealed partial class TrayWindow : Window
         // Adjust the AppWindow size
         var scale = GetDisplayScale();
         var height = (int)(desiredSize.Height * scale);
-        AppWindow.Resize(new SizeInt32(WIDTH, height));
+        var width = (int)(WIDTH * scale);
+        AppWindow.Resize(new SizeInt32(width, height));
     }
 
     private double GetDisplayScale()
@@ -232,12 +233,13 @@ public sealed partial class TrayWindow : Window
     private PointInt32 GetWindowPosition()
     {
         var height = AppWindow.Size.Height;
+        var width = AppWindow.Size.Width;
         var cursorPosition = _lastActivatePosition;
         if (cursorPosition is null)
         {
             var primaryWorkArea = DisplayArea.Primary.WorkArea;
             return new PointInt32(
-                primaryWorkArea.Width - WIDTH,
+                primaryWorkArea.Width - width,
                 primaryWorkArea.Height - height
             );
         }
@@ -252,7 +254,7 @@ public sealed partial class TrayWindow : Window
         ).WorkArea;
 
         // Adjust if the window goes off the right edge of the display.
-        if (x + WIDTH > workArea.X + workArea.Width) x = workArea.X + workArea.Width - WIDTH;
+        if (x + width > workArea.X + workArea.Width) x = workArea.X + workArea.Width - width;
 
         // Adjust if the window goes off the bottom edge of the display.
         if (y + height > workArea.Y + workArea.Height) y = workArea.Y + workArea.Height - height;
