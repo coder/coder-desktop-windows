@@ -42,6 +42,7 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 {
     private readonly string _expectedName;
 
+    // ReSharper disable once ConvertToPrimaryConstructor
     public AuthenticodeDownloadValidator(string expectedName)
     {
         _expectedName = expectedName;
@@ -79,6 +80,7 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
 {
     private readonly string _expectedAssemblyVersion;
 
+    // ReSharper disable once ConvertToPrimaryConstructor
     public AssemblyVersionDownloadValidator(string expectedAssemblyVersion)
     {
         _expectedAssemblyVersion = expectedAssemblyVersion;

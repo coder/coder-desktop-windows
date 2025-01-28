@@ -8,6 +8,7 @@ public class RegistryConfigurationSource : IConfigurationSource
     private readonly RegistryKey _root;
     private readonly string _subKeyName;
 
+    // ReSharper disable once ConvertToPrimaryConstructor
     public RegistryConfigurationSource(RegistryKey root, string subKeyName)
     {
         _root = root;
@@ -25,6 +26,7 @@ public class RegistryConfigurationProvider : ConfigurationProvider
     private readonly RegistryKey _root;
     private readonly string _subKeyName;
 
+    // ReSharper disable once ConvertToPrimaryConstructor
     public RegistryConfigurationProvider(RegistryKey root, string subKeyName)
     {
         _root = root;
