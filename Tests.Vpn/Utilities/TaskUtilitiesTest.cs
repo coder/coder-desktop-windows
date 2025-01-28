@@ -6,7 +6,6 @@ namespace Coder.Desktop.Tests.Vpn.Utilities;
 public class TaskUtilitiesTest
 {
     [Test(Description = "CancellableWhenAll with no tasks should complete immediately")]
-    [Timeout(30_000)]
     public void CancellableWhenAll_NoTasks()
     {
         var task = TaskUtilities.CancellableWhenAll(new CancellationTokenSource());
@@ -14,7 +13,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with a single task should complete")]
-    [Timeout(30_000)]
     public async Task CancellableWhenAll_SingleTask()
     {
         var innerTask = new TaskCompletionSource();
@@ -25,7 +23,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with a single task that faults should propagate the exception")]
-    [Timeout(30_000)]
     public void CancellableWhenAll_SingleTaskFault()
     {
         var cts = new CancellationTokenSource();
@@ -38,7 +35,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with a single task that is canceled should propagate the cancellation")]
-    [Timeout(30_000)]
     public void CancellableWhenAll_SingleTaskCanceled()
     {
         var cts = new CancellationTokenSource();
@@ -51,7 +47,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with multiple tasks should complete when all tasks are completed")]
-    [Timeout(30_000)]
     public async Task CancellableWhenAll_MultipleTasks()
     {
         var cts = new CancellationTokenSource();
@@ -74,7 +69,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with multiple tasks that fault should propagate the first exception only")]
-    [Timeout(30_000)]
     public async Task CancellableWhenAll_MultipleTasksFault()
     {
         var cts = new CancellationTokenSource();
@@ -95,7 +89,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with an exception and a cancellation should propagate the first thing")]
-    [Timeout(30_000)]
     public async Task CancellableWhenAll_MultipleTasksFaultAndCanceled()
     {
         var cts = new CancellationTokenSource();
@@ -118,7 +111,6 @@ public class TaskUtilitiesTest
     }
 
     [Test(Description = "CancellableWhenAll with a cancellation and an exception should propagate the first thing")]
-    [Timeout(30_000)]
     public async Task CancellableWhenAll_MultipleTasksCanceledAndFault()
     {
         var cts = new CancellationTokenSource();

@@ -1,4 +1,4 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
 using System.Text;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Utilities;
@@ -195,7 +195,7 @@ public class Speaker<TS, TR> : IAsyncDisposable
             while (!ct.IsCancellationRequested)
             {
                 var message = await _serdes.ReadMessage(_conn, ct);
-                if (message is { RpcField.ResponseTo : not 0 })
+                if (message is { RpcField.ResponseTo: not 0 })
                 {
                     // Look up the TaskCompletionSource for the message ID and
                     // complete it with the message.
