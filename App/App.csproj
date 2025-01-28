@@ -7,24 +7,38 @@
         <ApplicationManifest>app.manifest</ApplicationManifest>
         <Platforms>x86;x64;ARM64</Platforms>
         <RuntimeIdentifiers>win-x86;win-x64;win-arm64</RuntimeIdentifiers>
+        <PublishProfile>Properties\PublishProfiles\win-$(Platform).pubxml</PublishProfile>
         <UseWinUI>true</UseWinUI>
         <Nullable>enable</Nullable>
+        <EnableMsixTooling>true</EnableMsixTooling>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <Manifest Include="$(ApplicationManifest)"/>
+        <AppxManifest Include="Package.appxmanifest">
+            <SubType>Designer</SubType>
+        </AppxManifest>
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0"/>
+        <Manifest Include="$(ApplicationManifest)" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="Images\SplashScreen.scale-200.png" />
+        <Content Include="Images\Square150x150Logo.scale-200.png" />
+        <Content Include="Images\Square44x44Logo.scale-200.png" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
         <PackageReference Include="DependencyPropertyGenerator" Version="1.5.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0"/>
-        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742"/>
-        <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002"/>
+        <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0" />
+        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+        <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
     </ItemGroup>
 
     <ItemGroup>
@@ -38,6 +52,24 @@
             <Generator>MSBuild:Compile</Generator>
         </Page>
     </ItemGroup>
+
+    <!--
+      Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
+      Tools extension to be activated for this project even if the Windows App SDK Nuget
+      package has not yet been restored.
+    -->
+    <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+        <ProjectCapability Include="Msix" />
+    </ItemGroup>
+
+    <!--
+      Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
+      Explorer "Package and Publish" context menu entry to be enabled for this project even if
+      the Windows App SDK Nuget package has not yet been restored.
+    -->
+    <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
+        <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
+    </PropertyGroup>
 
     <!-- Publish Properties -->
     <PropertyGroup>
