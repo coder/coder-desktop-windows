@@ -18,10 +18,13 @@ jobs:
         with:
           dotnet-version: 8.0.x
           cache: true
-      - name: Install dotnet format
+          cache-dependency-path: */packages.lock.json
+      - name: Install dotnet format tool
         run: dotnet tool install -g dotnet-format
-      - name: Run dotnet format
-        run: dotnet format --verify-no-changes .\Coder.Desktop.sln
+      - name: dotnet restore
+        run: dotnet restore --locked-mode .\Coder.Desktop.sln
+      - name: dotnet format
+        run: dotnet format --verify-no-changes --no-restore .\Coder.Desktop.sln
 
   test:
     runs-on: windows-latest
@@ -32,10 +35,10 @@ jobs:
         with:
           dotnet-version: 8.0.x
           cache: true
-      - name: Restore dependencies
-        run: dotnet restore .\Coder.Desktop.sln
-      - name: Test
-        run: dotnet test .\Coder.Desktop.sln
+      - name: dotnet restore
+        run: dotnet restore --locked-mode .\Coder.Desktop.sln
+      - name: dotnet test
+        run: dotnet test --no-restore .\Coder.Desktop.sln
 
   build:
     runs-on: windows-latest
@@ -46,11 +49,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
           cache: true
-      - name: Restore dependencies
-        run: dotnet restore .\Coder.Desktop.sln
-      - name: Build
+      - name: dotnet restore
+        run: dotnet restore --locked-mode .\Coder.Desktop.sln
+      - name: dotnet build
         run: dotnet build .\Coder.Desktop.sln
-      - name: Publish
+      - name: dotnet publish
         run: dotnet publish .\Coder.Desktop.sln -c Release -o .\publish
       - name: Upload artifact
         uses: actions/upload-artifact@v4
