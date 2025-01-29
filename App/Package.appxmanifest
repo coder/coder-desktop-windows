@@ -9,7 +9,7 @@
 
     <Identity
         Name="925b49fc-4648-4967-b4e6-b5473061ee62"
-        Publisher="CN=dean"
+        Publisher="CN=Coder Technologies Inc."
         Version="1.0.0.0"/>
 
     <mp:PhoneIdentity PhoneProductId="925b49fc-4648-4967-b4e6-b5473061ee62"
@@ -17,7 +17,7 @@
 
     <Properties>
         <DisplayName>Coder Desktop (Package)</DisplayName>
-        <PublisherDisplayName>dean</PublisherDisplayName>
+        <PublisherDisplayName>Coder Technologies Inc.</PublisherDisplayName>
         <Logo>Images\StoreLogo.png</Logo>
     </Properties>
 
