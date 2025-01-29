@@ -5,14 +5,15 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj"/>
+        <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="System.IO.Pipelines" Version="9.0.0"/>
+        <PackageReference Include="System.IO.Pipelines" Version="9.0.1" />
     </ItemGroup>
 
 </Project>
