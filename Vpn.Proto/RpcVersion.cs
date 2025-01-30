@@ -1,4 +1,4 @@
-﻿namespace Coder.Desktop.Vpn.Proto;
+namespace Coder.Desktop.Vpn.Proto;
 
 /// <summary>
 ///     A version of the RPC API. Can be compared other versions to determine compatibility between two peers.
@@ -152,12 +152,12 @@ public class RpcVersionList : List<RpcVersion>
     {
         RpcVersion? bestVersion = null;
         foreach (var v1 in this)
-        foreach (var v2 in other)
-            if (v1.Major == v2.Major && (bestVersion is null || v1.Major > bestVersion.Major))
-            {
-                var v = v1.IsCompatibleWith(v2);
-                if (v is not null) bestVersion = v;
-            }
+            foreach (var v2 in other)
+                if (v1.Major == v2.Major && (bestVersion is null || v1.Major > bestVersion.Major))
+                {
+                    var v = v1.IsCompatibleWith(v2);
+                    if (v is not null) bestVersion = v;
+                }
 
         return bestVersion;
     }

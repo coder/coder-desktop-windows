@@ -40,6 +40,8 @@ public class NullDownloadValidator : IDownloadValidator
 /// </summary>
 public class AuthenticodeDownloadValidator : IDownloadValidator
 {
+    public static readonly AuthenticodeDownloadValidator Coder = new("Coder Technologies Inc.");
+
     private readonly string _expectedName;
 
     // ReSharper disable once ConvertToPrimaryConstructor
@@ -47,8 +49,6 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
     {
         _expectedName = expectedName;
     }
-
-    public static AuthenticodeDownloadValidator Coder => new("Coder Technologies Inc.");
 
     public async Task ValidateAsync(string path, CancellationToken ct = default)
     {

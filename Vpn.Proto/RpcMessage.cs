@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Google.Protobuf;
 
 namespace Coder.Desktop.Vpn.Proto;
