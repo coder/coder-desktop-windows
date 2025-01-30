@@ -284,10 +284,10 @@ public class Manager : IManager
             _config.TunnelBinaryPath);
         var req = new HttpRequestMessage(HttpMethod.Get, url);
         var validators = new CombinationDownloadValidator(
-            // TODO: re-enable when the binaries are signed and have versions
-            //AuthenticodeDownloadValidator.Coder,
-            //new AssemblyVersionDownloadValidator(
-            //$"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
+        // TODO: re-enable when the binaries are signed and have versions
+        //AuthenticodeDownloadValidator.Coder,
+        //new AssemblyVersionDownloadValidator(
+        //$"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
         );
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 

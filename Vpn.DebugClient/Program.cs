@@ -1,4 +1,4 @@
-﻿using System.IO.Pipes;
+using System.IO.Pipes;
 using Coder.Desktop.Vpn.Proto;
 
 namespace Coder.Desktop.Vpn.DebugClient;
