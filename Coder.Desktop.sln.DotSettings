@@ -30,7 +30,7 @@
         &lt;/HasMember&gt;
       &lt;/And&gt;
     &lt;/TypePattern.Match&gt;
-    
+
     &lt;Entry DisplayName="Fields"&gt;
       &lt;Entry.Match&gt;
         &lt;And&gt;
@@ -144,10 +144,6 @@
           &lt;Kind Is="Delegate" /&gt;
         &lt;/And&gt;
       &lt;/Entry.Match&gt;
-
-      &lt;Entry.SortBy&gt;
-        &lt;Name /&gt;
-      &lt;/Entry.SortBy&gt;
     &lt;/Entry&gt;
 
     &lt;Entry DisplayName="Public Enums" Priority="100"&gt;
@@ -157,10 +153,6 @@
           &lt;Kind Is="Enum" /&gt;
         &lt;/And&gt;
       &lt;/Entry.Match&gt;
-
-      &lt;Entry.SortBy&gt;
-        &lt;Name /&gt;
-      &lt;/Entry.SortBy&gt;
     &lt;/Entry&gt;
 
     &lt;Entry DisplayName="Static Fields and Constants"&gt;
@@ -193,21 +185,12 @@
           &lt;/Not&gt;
         &lt;/And&gt;
       &lt;/Entry.Match&gt;
-
-      &lt;Entry.SortBy&gt;
-        &lt;Readonly /&gt;
-        &lt;Name /&gt;
-      &lt;/Entry.SortBy&gt;
     &lt;/Entry&gt;
 
     &lt;Entry DisplayName="Events"&gt;
       &lt;Entry.Match&gt;
         &lt;Kind Is="Event" /&gt;
       &lt;/Entry.Match&gt;
-
-      &lt;Entry.SortBy&gt;
-        &lt;Name /&gt;
-      &lt;/Entry.SortBy&gt;
     &lt;/Entry&gt;
 
     &lt;Entry DisplayName="Constructors"&gt;

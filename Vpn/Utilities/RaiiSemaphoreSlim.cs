@@ -24,6 +24,13 @@ public class RaiiSemaphoreSlim : IDisposable
         return new Lock(_semaphore);
     }
 
+    public async ValueTask<IDisposable?> LockAsync(TimeSpan timeout, CancellationToken ct = default)
+    {
+        if (await _semaphore.WaitAsync(timeout, ct)) return null;
+
+        return new Lock(_semaphore);
+    }
+
     private class Lock : IDisposable
     {
         private readonly SemaphoreSlim _semaphore1;

@@ -144,12 +144,18 @@ public class ManagerRpcService : BackgroundService, IAsyncDisposable
 
     public async Task BroadcastAsync(ServiceMessage message, CancellationToken ct)
     {
+        // Looping over a ConcurrentDictionary is exception-safe, but any items
+        // added or removed during the loop may or may not be included.
         foreach (var (clientId, client) in _activeClients)
             try
             {
                 var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 cts.CancelAfter(5 * 1000);
                 await client.Speaker.SendMessage(message, cts.Token);
+            }
+            catch (ObjectDisposedException)
+            {
+                // The speaker was likely closed while we were iterating.
             }
             catch (Exception e)
             {

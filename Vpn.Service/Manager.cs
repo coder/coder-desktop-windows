@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.Vpn.Utilities;
 using CoderSdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,6 +28,10 @@ public class Manager : IManager
     private readonly IDownloader _downloader;
     private readonly ILogger<Manager> _logger;
     private readonly ITunnelSupervisor _tunnelSupervisor;
+
+    // TunnelSupervisor already has protections against concurrent operations,
+    // but all the other stuff before starting the tunnel does not.
+    private readonly RaiiSemaphoreSlim _tunnelOperationLock = new(1, 1);
     private SemVersion? _lastServerVersion;
     private StartRequest? _lastStartRequest;
 
@@ -58,10 +63,18 @@ public class Manager : IManager
         {
             case ClientMessage.MsgOneofCase.Start:
                 // TODO: these sub-methods should be managed by some Task list and cancelled/awaited on stop
-                await HandleClientMessageStart(message, ct);
+                var startResponse = await HandleClientMessageStart(message.Message, ct);
+                await message.SendReply(new ServiceMessage
+                {
+                    Start = startResponse,
+                }, ct);
                 break;
             case ClientMessage.MsgOneofCase.Stop:
-                await HandleClientMessageStop(message, ct);
+                var stopResponse = await HandleClientMessageStop(message.Message, ct);
+                await message.SendReply(new ServiceMessage
+                {
+                    Stop = stopResponse,
+                }, ct);
                 break;
             case ClientMessage.MsgOneofCase.None:
             default:
@@ -75,92 +88,105 @@ public class Manager : IManager
         await _tunnelSupervisor.StopAsync(ct);
     }
 
-    private async Task HandleClientMessageStart(ReplyableRpcMessage<ServiceMessage, ClientMessage> message,
+    private async ValueTask<StartResponse> HandleClientMessageStart(ClientMessage message,
         CancellationToken ct)
     {
-        try
+        var opLock = await _tunnelOperationLock.LockAsync(TimeSpan.FromMilliseconds(500), ct);
+        if (opLock == null)
         {
-            var serverVersion =
-                await CheckServerVersionAndCredentials(message.Message.Start.CoderUrl, message.Message.Start.ApiToken,
-                    ct);
-            if (_tunnelSupervisor.IsRunning && _lastStartRequest != null &&
-                _lastStartRequest.Equals(message.Message.Start) && _lastServerVersion == serverVersion)
+            _logger.LogWarning("ClientMessage.Start: Tunnel operation lock timed out");
+            return new StartResponse
             {
-                // The client is requesting to start an identical tunnel while
-                // we're already running it.
-                _logger.LogInformation("ClientMessage.Start: Ignoring duplicate start request");
-                await message.SendReply(new ServiceMessage
+                Success = false,
+                ErrorMessage = "Could not acquire tunnel operation lock, another operation is in progress",
+            };
+        }
+
+        using (opLock)
+        {
+            try
+            {
+                var serverVersion =
+                    await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken,
+                        ct);
+                if (_tunnelSupervisor.IsRunning && _lastStartRequest != null &&
+                    _lastStartRequest.Equals(message.Start) && _lastServerVersion == serverVersion)
                 {
-                    Start = new StartResponse
+                    // The client is requesting to start an identical tunnel while
+                    // we're already running it.
+                    _logger.LogInformation("ClientMessage.Start: Ignoring duplicate start request");
+                    return new StartResponse
                     {
                         Success = true,
-                    },
+                    };
+                }
+
+                _lastStartRequest = message.Start;
+                _lastServerVersion = serverVersion;
+
+                // TODO: each section of this operation needs a timeout
+                // Stop the tunnel if it's running so we don't have to worry about
+                // permissions issues when replacing the binary.
+                await _tunnelSupervisor.StopAsync(ct);
+                await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion, ct);
+                await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
+                    HandleTunnelRpcError,
+                    ct);
+
+                var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
+                {
+                    Start = message.Start,
                 }, ct);
-                return;
+                if (reply.MsgCase != TunnelMessage.MsgOneofCase.Start)
+                    throw new InvalidOperationException("Tunnel did not reply with a Start response");
+                return reply.Start;
             }
-
-            _lastStartRequest = message.Message.Start;
-            _lastServerVersion = serverVersion;
-
-            // Stop the tunnel if it's running so we don't have to worry about
-            // permissions issues when replacing the binary.
-            await _tunnelSupervisor.StopAsync(ct);
-            await DownloadTunnelBinaryAsync(message.Message.Start.CoderUrl, serverVersion, ct);
-            await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage, HandleTunnelRpcError,
-                ct);
-
-            var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
+            catch (Exception e)
             {
-                Start = message.Message.Start,
-            }, ct);
-            if (reply.MsgCase != TunnelMessage.MsgOneofCase.Start)
-                throw new InvalidOperationException("Tunnel did not reply with a Start response");
-
-            await message.SendReply(new ServiceMessage
-            {
-                Start = reply.Start,
-            }, ct);
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e, "ClientMessage.Start: Failed to start VPN client");
-            await message.SendReply(new ServiceMessage
-            {
-                Start = new StartResponse
+                _logger.LogWarning(e, "ClientMessage.Start: Failed to start VPN client");
+                return new StartResponse
                 {
                     Success = false,
                     ErrorMessage = e.ToString(),
-                },
-            }, ct);
+                };
+            }
         }
     }
 
-    private async Task HandleClientMessageStop(ReplyableRpcMessage<ServiceMessage, ClientMessage> message,
+    private async ValueTask<StopResponse> HandleClientMessageStop(ClientMessage message,
         CancellationToken ct)
     {
-        try
+        var opLock = await _tunnelOperationLock.LockAsync(TimeSpan.FromMilliseconds(500), ct);
+        if (opLock == null)
         {
-            // This will handle sending the Stop message to the tunnel for us.
-            await _tunnelSupervisor.StopAsync(ct);
-            await message.SendReply(new ServiceMessage
+            _logger.LogWarning("ClientMessage.Stop: Tunnel operation lock timed out");
+            return new StopResponse
             {
-                Stop = new StopResponse
+                Success = false,
+                ErrorMessage = "Could not acquire tunnel operation lock, another operation is in progress",
+            };
+        }
+
+        using (opLock)
+        {
+            try
+            {
+                // This will handle sending the Stop message to the tunnel for us.
+                await _tunnelSupervisor.StopAsync(ct);
+                return new StopResponse
                 {
                     Success = true,
-                },
-            }, ct);
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e, "ClientMessage.Stop: Failed to stop VPN client");
-            await message.SendReply(new ServiceMessage
+                };
+            }
+            catch (Exception e)
             {
-                Stop = new StopResponse
+                _logger.LogWarning(e, "ClientMessage.Stop: Failed to stop VPN client");
+                return new StopResponse
                 {
                     Success = false,
-                    ErrorMessage = e.Message,
-                },
-            }, ct);
+                    ErrorMessage = e.ToString(),
+                };
+            }
         }
     }
 
