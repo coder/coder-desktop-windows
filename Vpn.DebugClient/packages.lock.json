@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net8.0": {
+      "Google.Protobuf": {
+        "type": "Transitive",
+        "resolved": "3.29.3",
+        "contentHash": "t7nZFFUFwigCwZ+nIXHDLweXvwIpsOXi+P7J7smPT/QjI3EKxnCzTQOhBqyEh6XEzc/pNH+bCFOOSjatrPt6Tw=="
+      },
+      "System.IO.Pipelines": {
+        "type": "Transitive",
+        "resolved": "9.0.1",
+        "contentHash": "uXf5o8eV/gtzDQY4lGROLFMWQvcViKcF8o4Q6KpIOjloAQXrnscQSu6gTxYJMHuNJnh7szIF9AzkaEq+zDLoEg=="
+      },
+      "vpn": {
+        "type": "Project",
+        "dependencies": {
+          "System.IO.Pipelines": "[9.0.1, )",
+          "Vpn.Proto": "[1.0.0, )"
+        }
+      },
+      "vpn.proto": {
+        "type": "Project",
+        "dependencies": {
+          "Google.Protobuf": "[3.29.3, )"
+        }
+      }
+    }
+  }
+}

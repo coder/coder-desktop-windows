@@ -8,6 +8,8 @@ namespace Coder.Desktop.Vpn.Service;
 
 public interface ITunnelSupervisor : IAsyncDisposable
 {
+    public bool IsRunning { get; }
+
     /// <summary>
     ///     Starts the tunnel subprocess with the given executable path. If the subprocess is already running, this method will
     ///     kill it first.
@@ -27,9 +29,26 @@ public interface ITunnelSupervisor : IAsyncDisposable
     /// <summary>
     ///     Stops the tunnel subprocess. If the subprocess is not running, this method does nothing.
     /// </summary>
-    /// <param name="ct"></param>
-    /// <returns></returns>
+    /// <param name="ct">Cancellation token</param>
     public Task StopAsync(CancellationToken ct = default);
+
+    /// <summary>
+    ///     Sends a message to the tunnel that does not expect a reply.
+    /// </summary>
+    /// <param name="message">Message to send</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <exception cref="InvalidOperationException">The Speaker is not ready or the tunnel is not running</exception>
+    public Task SendMessage(ManagerMessage message, CancellationToken ct = default);
+
+    /// <summary>
+    ///     Send a message to the tunnel and wait for a reply. The reply will be returned and the callback will not be
+    ///     invoked as long as the reply is received before cancellation or termination.
+    /// </summary>
+    /// <param name="message">Message to send - the Rpc field will be overwritten</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>Received reply</returns>
+    /// <exception cref="InvalidOperationException">The Speaker is not ready or the tunnel is not running</exception>
+    public ValueTask<TunnelMessage> SendRequestAwaitReply(ManagerMessage message, CancellationToken ct = default);
 }
 
 /// <summary>
@@ -51,6 +70,8 @@ public class TunnelSupervisor : ITunnelSupervisor
     {
         _logger = logger;
     }
+
+    public bool IsRunning => _speaker != null;
 
     public async Task StartAsync(string binPath,
         Speaker<ManagerMessage, TunnelMessage>.OnReceiveDelegate messageHandler,
@@ -76,7 +97,19 @@ public class TunnelSupervisor : ITunnelSupervisor
                     ArgumentList = { "vpn-daemon", "run" },
                     UseShellExecute = false,
                     CreateNoWindow = true,
+                    RedirectStandardError = true,
+                    RedirectStandardOutput = true,
                 },
+            };
+            _subprocess.OutputDataReceived += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(args.Data))
+                    _logger.LogDebug("OUT: {Data}", args.Data);
+            };
+            _subprocess.ErrorDataReceived += (_, args) =>
+            {
+                if (!string.IsNullOrWhiteSpace(args.Data))
+                    _logger.LogDebug("ERR: {Data}", args.Data);
             };
 
             // Pass the other end of the pipes to the subprocess and dispose
@@ -85,11 +118,13 @@ public class TunnelSupervisor : ITunnelSupervisor
                 _outPipe.GetClientHandleAsString());
             _subprocess.StartInfo.Environment.Add("CODER_VPN_DAEMON_RPC_WRITE_HANDLE",
                 _inPipe.GetClientHandleAsString());
-            _outPipe.DisposeLocalCopyOfClientHandle();
-            _inPipe.DisposeLocalCopyOfClientHandle();
 
             _logger.LogInformation("StartAsync: starting subprocess");
             _subprocess.Start();
+            _subprocess.BeginOutputReadLine();
+            _subprocess.BeginErrorReadLine();
+            _outPipe.DisposeLocalCopyOfClientHandle();
+            _inPipe.DisposeLocalCopyOfClientHandle();
             _logger.LogInformation("StartAsync: subprocess started");
 
             // We don't use the supplied CancellationToken here because we want it to only apply to the startup
@@ -140,6 +175,48 @@ public class TunnelSupervisor : ITunnelSupervisor
         }
     }
 
+    public async Task SendMessage(ManagerMessage message, CancellationToken ct = default)
+    {
+        if (!await _operationLock.WaitAsync(0, ct))
+            throw new InvalidOperationException("TunnelSupervisor is not running");
+
+        Task task;
+        try
+        {
+            if (_speaker == null)
+                throw new InvalidOperationException("Speaker is not ready");
+            task = _speaker.SendMessage(message, ct);
+        }
+        finally
+        {
+            _operationLock.Release();
+        }
+
+        // Don't await the task while holding the lock.
+        await task;
+    }
+
+    public async ValueTask<TunnelMessage> SendRequestAwaitReply(ManagerMessage message, CancellationToken ct = default)
+    {
+        if (!await _operationLock.WaitAsync(0, ct))
+            throw new InvalidOperationException("TunnelSupervisor is not running");
+
+        ValueTask<TunnelMessage> task;
+        try
+        {
+            if (_speaker == null)
+                throw new InvalidOperationException("Speaker is not ready");
+            task = _speaker.SendRequestAwaitReply(message, ct);
+        }
+        finally
+        {
+            _operationLock.Release();
+        }
+
+        // Don't await the task while holding the lock.
+        return await task;
+    }
+
     public async ValueTask DisposeAsync()
     {
         _cts.Dispose();
@@ -150,12 +227,12 @@ public class TunnelSupervisor : ITunnelSupervisor
     private async Task OnProcessExited(Task task)
     {
         if (task.IsFaulted)
+            _logger.LogError(task.Exception, "OnProcessExited: subprocess task exited with an exception");
+        if (!await _operationLock.WaitAsync(0))
         {
-            _logger.LogError(task.Exception, "OnProcessExited: subprocess exited with an exception");
+            _logger.LogInformation("OnProcessExited: could not acquire operation lock to perform cleanup");
             return;
         }
-
-        if (!await _operationLock.WaitAsync(0)) _logger.LogInformation("OnProcessExited: subprocess exited");
 
         try
         {
@@ -170,7 +247,7 @@ public class TunnelSupervisor : ITunnelSupervisor
     }
 
     /// <summary>
-    ///     Cleans up the pipes and the subprocess if it's still running. This method should not be called without holding the
+    ///     Cleans up the pipes and the subprocess if it's still running. This method must be called while holding the
     ///     semaphore.
     /// </summary>
     private async Task CleanupAsync(CancellationToken ct = default)

@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.Vpn.Utilities;
 using CoderSdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,12 +22,18 @@ public interface IManager : IDisposable
 public class Manager : IManager
 {
     // TODO: determine a suitable value for this
-    private const string ServerVersionRange = ">=0.0.0";
+    private static readonly SemVersionRange ServerVersionRange = SemVersionRange.All;
 
     private readonly ManagerConfig _config;
     private readonly IDownloader _downloader;
     private readonly ILogger<Manager> _logger;
     private readonly ITunnelSupervisor _tunnelSupervisor;
+
+    // TunnelSupervisor already has protections against concurrent operations,
+    // but all the other stuff before starting the tunnel does not.
+    private readonly RaiiSemaphoreSlim _tunnelOperationLock = new(1, 1);
+    private SemVersion? _lastServerVersion;
+    private StartRequest? _lastStartRequest;
 
     // ReSharper disable once ConvertToPrimaryConstructor
     public Manager(IOptions<ManagerConfig> config, ILogger<Manager> logger, IDownloader downloader,
@@ -52,15 +59,22 @@ public class Manager : IManager
         CancellationToken ct = default)
     {
         _logger.LogInformation("ClientMessage: {MessageType}", message.Message.MsgCase);
-        // TODO: break out each into it's own method?
         switch (message.Message.MsgCase)
         {
             case ClientMessage.MsgOneofCase.Start:
                 // TODO: these sub-methods should be managed by some Task list and cancelled/awaited on stop
-                await HandleClientMessageStart(message, ct);
+                var startResponse = await HandleClientMessageStart(message.Message, ct);
+                await message.SendReply(new ServiceMessage
+                {
+                    Start = startResponse,
+                }, ct);
                 break;
             case ClientMessage.MsgOneofCase.Stop:
-                await HandleClientMessageStop(message, ct);
+                var stopResponse = await HandleClientMessageStop(message.Message, ct);
+                await message.SendReply(new ServiceMessage
+                {
+                    Stop = stopResponse,
+                }, ct);
                 break;
             case ClientMessage.MsgOneofCase.None:
             default:
@@ -74,63 +88,105 @@ public class Manager : IManager
         await _tunnelSupervisor.StopAsync(ct);
     }
 
-    private async Task HandleClientMessageStart(ReplyableRpcMessage<ServiceMessage, ClientMessage> message,
+    private async ValueTask<StartResponse> HandleClientMessageStart(ClientMessage message,
         CancellationToken ct)
     {
-        try
+        var opLock = await _tunnelOperationLock.LockAsync(TimeSpan.FromMilliseconds(500), ct);
+        if (opLock == null)
         {
-            // TODO: if the credentials and URL are identical and the server
-            //       version hasn't changed we should not do anything
-            // TODO: this should be broken out into it's own method
-            _logger.LogInformation("ClientMessage.Start: testing server '{ServerUrl}'", message.Message.Start.CoderUrl);
-            var client = new CoderApiClient(message.Message.Start.CoderUrl, message.Message.Start.ApiToken);
-            var buildInfo = await client.GetBuildInfo(ct);
-            _logger.LogInformation("ClientMessage.Start: server version '{ServerVersion}'", buildInfo.Version);
-            var serverVersion = SemVersion.Parse(buildInfo.Version);
-            if (!serverVersion.Satisfies(ServerVersionRange))
-                throw new InvalidOperationException(
-                    $"Server version '{serverVersion}' is not within required server version range '{ServerVersionRange}'");
-            var user = await client.GetUser(User.Me, ct);
-            _logger.LogInformation("ClientMessage.Start: authenticated as '{Username}'", user.Username);
-
-            await DownloadTunnelBinaryAsync(message.Message.Start.CoderUrl, serverVersion, ct);
-            await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
-                HandleTunnelRpcError,
-                ct);
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e, "ClientMessage.Start: Failed to start VPN client");
-            await message.SendReply(new ServiceMessage
+            _logger.LogWarning("ClientMessage.Start: Tunnel operation lock timed out");
+            return new StartResponse
             {
-                Start = new StartResponse
+                Success = false,
+                ErrorMessage = "Could not acquire tunnel operation lock, another operation is in progress",
+            };
+        }
+
+        using (opLock)
+        {
+            try
+            {
+                var serverVersion =
+                    await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken,
+                        ct);
+                if (_tunnelSupervisor.IsRunning && _lastStartRequest != null &&
+                    _lastStartRequest.Equals(message.Start) && _lastServerVersion == serverVersion)
+                {
+                    // The client is requesting to start an identical tunnel while
+                    // we're already running it.
+                    _logger.LogInformation("ClientMessage.Start: Ignoring duplicate start request");
+                    return new StartResponse
+                    {
+                        Success = true,
+                    };
+                }
+
+                _lastStartRequest = message.Start;
+                _lastServerVersion = serverVersion;
+
+                // TODO: each section of this operation needs a timeout
+                // Stop the tunnel if it's running so we don't have to worry about
+                // permissions issues when replacing the binary.
+                await _tunnelSupervisor.StopAsync(ct);
+                await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion, ct);
+                await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
+                    HandleTunnelRpcError,
+                    ct);
+
+                var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
+                {
+                    Start = message.Start,
+                }, ct);
+                if (reply.MsgCase != TunnelMessage.MsgOneofCase.Start)
+                    throw new InvalidOperationException("Tunnel did not reply with a Start response");
+                return reply.Start;
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "ClientMessage.Start: Failed to start VPN client");
+                return new StartResponse
                 {
                     Success = false,
-                    ErrorMessage = e.Message,
-                },
-            }, ct);
+                    ErrorMessage = e.ToString(),
+                };
+            }
         }
     }
 
-    private async Task HandleClientMessageStop(ReplyableRpcMessage<ServiceMessage, ClientMessage> message,
+    private async ValueTask<StopResponse> HandleClientMessageStop(ClientMessage message,
         CancellationToken ct)
     {
-        try
+        var opLock = await _tunnelOperationLock.LockAsync(TimeSpan.FromMilliseconds(500), ct);
+        if (opLock == null)
         {
-            // This will handle sending the Stop message for us.
-            await _tunnelSupervisor.StopAsync(ct);
-        }
-        catch (Exception e)
-        {
-            _logger.LogWarning(e, "ClientMessage.Stop: Failed to stop VPN client");
-            await message.SendReply(new ServiceMessage
+            _logger.LogWarning("ClientMessage.Stop: Tunnel operation lock timed out");
+            return new StopResponse
             {
-                Stop = new StopResponse
+                Success = false,
+                ErrorMessage = "Could not acquire tunnel operation lock, another operation is in progress",
+            };
+        }
+
+        using (opLock)
+        {
+            try
+            {
+                // This will handle sending the Stop message to the tunnel for us.
+                await _tunnelSupervisor.StopAsync(ct);
+                return new StopResponse
+                {
+                    Success = true,
+                };
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "ClientMessage.Stop: Failed to stop VPN client");
+                return new StopResponse
                 {
                     Success = false,
-                    ErrorMessage = e.Message,
-                },
-            }, ct);
+                    ErrorMessage = e.ToString(),
+                };
+            }
         }
     }
 
@@ -141,11 +197,11 @@ public class Manager : IManager
 
     private void HandleTunnelRpcError(Exception e)
     {
-        // TODO: this probably happens during an ongoing start or stop operation, and we should definitely ignore those
         _logger.LogError(e, "Manager<->Tunnel RPC error");
         try
         {
             _tunnelSupervisor.StopAsync();
+            // TODO: this should broadcast an update to all clients
         }
         catch (Exception e2)
         {
@@ -169,6 +225,34 @@ public class Manager : IManager
             _ => throw new PlatformNotSupportedException(
                 $"Unsupported architecture '{RuntimeInformation.ProcessArchitecture}'. Coder only supports amd64 and arm64."),
         };
+    }
+
+    /// <summary>
+    ///     Connects to the Coder server to ensure the server version is within the required range and the credentials
+    ///     are valid.
+    /// </summary>
+    /// <param name="baseUrl">Coder server base URL</param>
+    /// <param name="apiToken">Coder API token</param>
+    /// <param name="ct">Cancellation token</param>
+    /// <returns>The server version</returns>
+    /// <exception cref="InvalidOperationException">The server version is not within the required range</exception>
+    private async ValueTask<SemVersion> CheckServerVersionAndCredentials(string baseUrl, string apiToken,
+        CancellationToken ct = default)
+    {
+        var client = new CoderApiClient(baseUrl, apiToken);
+
+        var buildInfo = await client.GetBuildInfo(ct);
+        _logger.LogInformation("Fetched server version '{ServerVersion}'", buildInfo.Version);
+        if (buildInfo.Version.StartsWith('v')) buildInfo.Version = buildInfo.Version[1..];
+        var serverVersion = SemVersion.Parse(buildInfo.Version);
+        if (!serverVersion.Satisfies(ServerVersionRange))
+            throw new InvalidOperationException(
+                $"Server version '{serverVersion}' is not within required server version range '{ServerVersionRange}'");
+
+        var user = await client.GetUser(User.Me, ct);
+        _logger.LogInformation("Authenticated to server as '{Username}'", user.Username);
+
+        return serverVersion;
     }
 
     /// <summary>
@@ -200,16 +284,17 @@ public class Manager : IManager
             _config.TunnelBinaryPath);
         var req = new HttpRequestMessage(HttpMethod.Get, url);
         var validators = new CombinationDownloadValidator(
-            AuthenticodeDownloadValidator.Coder,
-            new AssemblyVersionDownloadValidator(
-                $"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
+        // TODO: re-enable when the binaries are signed and have versions
+        //AuthenticodeDownloadValidator.Coder,
+        //new AssemblyVersionDownloadValidator(
+        //$"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
         );
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 
         // TODO: monitor and report progress when we have a mechanism to do so
 
-        // Awaiting this will check the checksum (via the ETag) if provided,
-        // and will also validate the signature using the validator we supplied.
+        // Awaiting this will check the checksum (via the ETag) if the file
+        // exists, and will also validate the signature and version.
         await downloadTask.Task;
     }
 }
