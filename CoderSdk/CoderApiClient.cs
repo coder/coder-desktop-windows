@@ -26,12 +26,15 @@ public partial class CoderApiClient
     private readonly HttpClient _httpClient = new();
     private readonly JsonSerializerOptions _jsonOptions;
 
-    public CoderApiClient(string baseUrl)
+    public CoderApiClient(string baseUrl) : this(new Uri(baseUrl, UriKind.Absolute))
     {
-        var url = new Uri(baseUrl, UriKind.Absolute);
-        if (url.PathAndQuery != "/")
+    }
+
+    public CoderApiClient(Uri baseUrl)
+    {
+        if (baseUrl.PathAndQuery != "/")
             throw new ArgumentException($"Base URL '{baseUrl}' must not contain a path", nameof(baseUrl));
-        _httpClient.BaseAddress = url;
+        _httpClient.BaseAddress = baseUrl;
         _jsonOptions = new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true,

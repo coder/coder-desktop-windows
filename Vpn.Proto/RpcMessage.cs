@@ -6,12 +6,12 @@ namespace Coder.Desktop.Vpn.Proto;
 [AttributeUsage(AttributeTargets.Class, Inherited = false)]
 public class RpcRoleAttribute : Attribute
 {
+    public string Role { get; }
+
     public RpcRoleAttribute(string role)
     {
         Role = role;
     }
-
-    public string Role { get; }
 }
 
 /// <summary>
