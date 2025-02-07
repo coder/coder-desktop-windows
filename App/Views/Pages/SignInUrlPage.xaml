@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <Page
-    x:Class="Coder.Desktop.App.SignInURLPage"
+    x:Class="Coder.Desktop.App.Views.Pages.SignInUrlPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Coder.Desktop.App"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -20,34 +20,47 @@
             Text="Coder Desktop"
             FontSize="24"
             VerticalAlignment="Center"
-            HorizontalAlignment="Center"/>
+            HorizontalAlignment="Center" />
 
         <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="1*" />
+                <RowDefinition Height="1*" />
+                <RowDefinition Height="1*" />
+                <RowDefinition Height="1*" />
+            </Grid.RowDefinitions>
+
             <TextBlock
                 Grid.Column="0"
+                Grid.Row="0"
                 Text="Server URL"
                 HorizontalAlignment="Right"
-                Padding="10"/>
+                Padding="10 " />
 
             <TextBox
-                Name="URLTextBox"
                 Grid.Column="1"
+                Grid.Row="0"
                 HorizontalAlignment="Stretch"
                 PlaceholderText="https://coder.example.com"
-                Text="{x:Bind Path=ViewModel.Url, Mode=TwoWay}"
-                />
+                LostFocus="{x:Bind ViewModel.CoderUrl_FocusLost, Mode=OneWay}"
+                Text="{x:Bind ViewModel.CoderUrl, Mode=TwoWay}" />
 
+            <TextBlock
+                Grid.Column="1"
+                Grid.Row="1"
+                Text="{x:Bind ViewModel.CoderUrlError, Mode=OneWay}"
+                Foreground="Red" />
         </Grid>
 
         <Button
             Content="Next"
             HorizontalAlignment="Center"
-            Click="{x:Bind SignInWindow.NavigateToTokenPage}"
+            Command="{x:Bind ViewModel.UrlPage_NextCommand, Mode=OneWay}"
+            CommandParameter="{x:Bind SignInWindow, Mode=OneWay}"
             Style="{StaticResource AccentButtonStyle}" />
-
     </StackPanel>
 </Page>

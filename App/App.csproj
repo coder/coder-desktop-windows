@@ -12,6 +12,8 @@
         <Nullable>enable</Nullable>
         <EnableMsixTooling>true</EnableMsixTooling>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <!-- To use CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute: -->
+        <LangVersion>preview</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>
@@ -37,38 +39,9 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
         <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
         <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Update="SignInTokenPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Update="SignInWindow.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Update="SignInURLPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Page Update="TrayIcon.xaml">
-            <Generator>MSBuild:Compile</Generator>
-        </Page>
-    </ItemGroup>
-
-    <ItemGroup>
-        <Page Update="HorizontalRule.xaml">
-            <Generator>MSBuild:Compile</Generator>
-        </Page>
     </ItemGroup>
 
     <!--
@@ -78,6 +51,11 @@
     -->
     <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
         <ProjectCapability Include="Msix" />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\CoderSdk\CoderSdk.csproj" />
+        <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
+        <ProjectReference Include="..\Vpn\Vpn.csproj" />
     </ItemGroup>
 
     <!--

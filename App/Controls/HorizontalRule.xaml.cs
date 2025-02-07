@@ -1,6 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 
-namespace Coder.Desktop.App;
+namespace Coder.Desktop.App.Controls;
 
 public sealed partial class HorizontalRule : UserControl
 {

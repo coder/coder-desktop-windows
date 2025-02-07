@@ -1,110 +1,24 @@
 using System;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Windows.ApplicationModel.DataTransfer;
+using System.Threading;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.System;
-using Windows.UI;
 using Windows.UI.Core;
+using Coder.Desktop.App.Models;
+using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
-using Coder.Desktop.App.ViewModels;
 
-namespace Coder.Desktop.App;
-
-public enum AgentStatus
-{
-    Green,
-    Red,
-    Gray,
-}
-
-public partial class Agent
-{
-    public required string Hostname { get; set; } // without suffix
-    public required string Suffix { get; set; }
-    public AgentStatus Status { get; set; }
-
-    public Brush StatusColor => Status switch
-    {
-        AgentStatus.Green => new SolidColorBrush(Color.FromArgb(255, 52, 199, 89)),
-        AgentStatus.Red => new SolidColorBrush(Color.FromArgb(255, 255, 59, 48)),
-        _ => new SolidColorBrush(Color.FromArgb(255, 142, 142, 147)),
-    };
-
-    [RelayCommand]
-    private void AgentHostnameButton_Click()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                // TODO: this should probably be more robust instead of just joining strings
-                FileName = "http://" + Hostname + Suffix,
-                UseShellExecute = true,
-            });
-        }
-        catch
-        {
-            // TODO: log (notify?)
-        }
-    }
-
-    [RelayCommand]
-    private void AgentHostnameCopyButton_Click(object parameter)
-    {
-        var dataPackage = new DataPackage
-        {
-            RequestedOperation = DataPackageOperation.Copy,
-        };
-        dataPackage.SetText(Hostname + Suffix);
-        Clipboard.SetContent(dataPackage);
-
-        if (parameter is not FrameworkElement frameworkElement) return;
-
-        var flyout = new Flyout
-        {
-            Content = new TextBlock
-            {
-                Text = "DNS Copied",
-                Margin = new Thickness(4),
-            },
-        };
-        FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
-        FlyoutBase.ShowAttachedFlyout(frameworkElement);
-    }
-
-    public void AgentHostnameText_OnLoaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is not TextBlock textBlock) return;
-        textBlock.Inlines.Clear();
-        textBlock.Inlines.Add(new Run
-        {
-            Text = Hostname,
-            Foreground =
-                (SolidColorBrush)Application.Current.Resources.ThemeDictionaries[
-                    "DefaultTextForegroundThemeBrush"],
-        });
-        textBlock.Inlines.Add(new Run
-        {
-            Text = Suffix,
-            Foreground =
-                (SolidColorBrush)Application.Current.Resources.ThemeDictionaries[
-                    "SystemControlForegroundBaseMediumBrush"],
-        });
-    }
-}
+namespace Coder.Desktop.App.Views;
 
 public sealed partial class TrayWindow : Window
 {
@@ -112,52 +26,36 @@ public sealed partial class TrayWindow : Window
 
     private NativeApi.POINT? _lastActivatePosition;
 
-    public ObservableCollection<Agent> Agents =
-    [
-        new()
-        {
-            Hostname = "coder2",
-            Suffix = ".coder",
-            Status = AgentStatus.Green,
-        },
-        new()
-        {
-            Hostname = "coder3",
-            Suffix = ".coder",
-            Status = AgentStatus.Red,
-        },
-        new()
-        {
-            Hostname = "coder4",
-            Suffix = ".coder",
-            Status = AgentStatus.Gray,
-        },
-        new()
-        {
-            Hostname = "superlongworkspacenamewhyisitsolong",
-            Suffix = ".coder",
-            Status = AgentStatus.Gray,
-        },
-    ];
+    private readonly IRpcController _rpcController;
+    private readonly ICredentialManager _credentialManager;
+    private readonly TrayWindowDisconnectedPage _disconnectedPage;
+    private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
+    private readonly TrayWindowMainPage _mainPage;
 
-    public SignInViewModel SignInViewModel { get; }
-
-    public TrayWindow(SignInViewModel signInViewModel)
+    public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
+        TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
+        TrayWindowMainPage mainPage)
     {
-        SignInViewModel = signInViewModel;
+        _rpcController = rpcController;
+        _credentialManager = credentialManager;
+        _disconnectedPage = disconnectedPage;
+        _loginRequiredPage = loginRequiredPage;
+        _mainPage = mainPage;
+
         InitializeComponent();
         AppWindow.Hide();
         SystemBackdrop = new DesktopAcrylicBackdrop();
         Activated += Window_Activated;
 
+        rpcController.StateChanged += RpcController_StateChanged;
+        credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
+        SetPageByState(rpcController.GetState(), credentialManager.GetCredentials());
+
+        _rpcController.Reconnect(CancellationToken.None);
+
         // Setting OpenCommand and ExitCommand directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
         TrayIcon.ExitCommand = Tray_ExitCommand;
-
-        if (Content is FrameworkElement frameworkElement)
-            frameworkElement.SizeChanged += Content_SizeChanged;
-        else
-            throw new Exception("Failed to get Content as FrameworkElement for window");
 
         // Hide the title bar and buttons. WinUi 3 provides a method to do this with
         // `ExtendsContentIntoTitleBar = true;`, but it automatically adds emulated title bar buttons that cannot be
@@ -178,6 +76,55 @@ public sealed partial class TrayWindow : Window
         if (result != 0) throw new Exception("Failed to set window corner preference");
     }
 
+    private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel)
+    {
+        switch (rpcModel.RpcLifecycle)
+        {
+            case RpcLifecycle.Connected:
+                if (credentialModel.State == CredentialState.Valid)
+                    SetRootFrame(_mainPage);
+                else
+                    SetRootFrame(_loginRequiredPage);
+                break;
+            case RpcLifecycle.Disconnected:
+            case RpcLifecycle.Connecting:
+            default:
+                SetRootFrame(_disconnectedPage);
+                break;
+        }
+    }
+
+    private void RpcController_StateChanged(object? _, RpcModel model)
+    {
+        SetPageByState(model, _credentialManager.GetCredentials());
+    }
+
+    private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)
+    {
+        SetPageByState(_rpcController.GetState(), model);
+    }
+
+    // Sadly this is necessary because Window.Content.SizeChanged doesn't
+    // trigger when the Page's content changes.
+    public void SetRootFrame(Page page)
+    {
+        if (page.Content is not FrameworkElement newElement)
+            throw new Exception("Failed to get Page.Content as FrameworkElement on RootFrame navigation");
+        newElement.SizeChanged += Content_SizeChanged;
+
+        // Unset the previous event listener.
+        if (RootFrame.Content is Page { Content: FrameworkElement oldElement })
+            oldElement.SizeChanged -= Content_SizeChanged;
+
+        // Swap them out and reconfigure the window.
+        // We don't use RootFrame.Navigate here because it doesn't let you
+        // instantiate the page yourself. We also don't need forwards/backwards
+        // capabilities.
+        RootFrame.Content = page;
+        ResizeWindow();
+        MoveWindow();
+    }
+
     private void Content_SizeChanged(object sender, SizeChangedEventArgs e)
     {
         ResizeWindow();
@@ -186,18 +133,25 @@ public sealed partial class TrayWindow : Window
 
     private void ResizeWindow()
     {
-        if (Content is not FrameworkElement content)
+        if (RootFrame.Content is not Page { Content: FrameworkElement frameworkElement })
             throw new Exception("Failed to get Content as FrameworkElement for window");
 
         // Measure the desired size of the content
-        content.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        var desiredSize = content.DesiredSize;
+        frameworkElement.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
 
         // Adjust the AppWindow size
-        var scale = DisplayScale.WindowScale(this);
-        var height = (int)(desiredSize.Height * scale);
+        var scale = GetDisplayScale();
+        var height = (int)(frameworkElement.ActualHeight * scale);
         var width = (int)(WIDTH * scale);
         AppWindow.Resize(new SizeInt32(width, height));
+    }
+
+    private double GetDisplayScale()
+    {
+        var hwnd = WindowNative.GetWindowHandle(this);
+        var dpi = NativeApi.GetDpiForWindow(hwnd);
+        if (dpi == 0) return 1; // assume scale of 1
+        return dpi / 96.0; // 96 DPI == 1
     }
 
     public void MoveResizeAndActivate()
@@ -276,16 +230,6 @@ public sealed partial class TrayWindow : Window
             AppWindow.Hide();
     }
 
-    private void ButtonBase_OnClick(object sender, RoutedEventArgs e)
-    {
-        Agents.Add(new Agent
-        {
-            Hostname = "cool",
-            Suffix = ".coder",
-            Status = AgentStatus.Gray,
-        });
-    }
-
     [RelayCommand]
     private void Tray_Open()
     {
@@ -309,17 +253,13 @@ public sealed partial class TrayWindow : Window
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hwnd);
 
+        [DllImport("user32.dll")]
+        public static extern int GetDpiForWindow(IntPtr hwnd);
+
         public struct POINT
         {
             public int X;
             public int Y;
         }
-    }
-
-    [RelayCommand]
-    private void SignIn_Click()
-    {
-        var window = new SignInWindow(SignInViewModel);
-        window.Activate();
     }
 }

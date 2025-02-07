@@ -283,12 +283,15 @@ public class Manager : IManager
         _logger.LogInformation("Downloading VPN binary from '{url}' to '{DestinationPath}'", url,
             _config.TunnelBinaryPath);
         var req = new HttpRequestMessage(HttpMethod.Get, url);
-        var validators = new CombinationDownloadValidator(
+        var validators = new NullDownloadValidator();
         // TODO: re-enable when the binaries are signed and have versions
-        //AuthenticodeDownloadValidator.Coder,
-        //new AssemblyVersionDownloadValidator(
-        //$"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
+        /*
+        var validators = new CombinationDownloadValidator(
+            AuthenticodeDownloadValidator.Coder,
+            new AssemblyVersionDownloadValidator(
+                $"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
         );
+        */
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 
         // TODO: monitor and report progress when we have a mechanism to do so

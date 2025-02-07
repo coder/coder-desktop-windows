@@ -18,24 +18,35 @@ public class RaiiSemaphoreSlim : IDisposable
         GC.SuppressFinalize(this);
     }
 
+    public IDisposable Lock()
+    {
+        _semaphore.Wait();
+        return new Locker(_semaphore);
+    }
+
+    public IDisposable? Lock(TimeSpan timeout)
+    {
+        if (!_semaphore.Wait(timeout)) return null;
+        return new Locker(_semaphore);
+    }
+
     public async ValueTask<IDisposable> LockAsync(CancellationToken ct = default)
     {
         await _semaphore.WaitAsync(ct);
-        return new Lock(_semaphore);
+        return new Locker(_semaphore);
     }
 
     public async ValueTask<IDisposable?> LockAsync(TimeSpan timeout, CancellationToken ct = default)
     {
-        if (await _semaphore.WaitAsync(timeout, ct)) return null;
-
-        return new Lock(_semaphore);
+        if (!await _semaphore.WaitAsync(timeout, ct)) return null;
+        return new Locker(_semaphore);
     }
 
-    private class Lock : IDisposable
+    private class Locker : IDisposable
     {
         private readonly SemaphoreSlim _semaphore1;
 
-        public Lock(SemaphoreSlim semaphore)
+        public Locker(SemaphoreSlim semaphore)
         {
             _semaphore1 = semaphore;
         }
