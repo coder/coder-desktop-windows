@@ -67,6 +67,7 @@ public class CredentialManager : ICredentialManager
         try
         {
             var sdkClient = new CoderApiClient(uri);
+            sdkClient.SetSessionToken(apiToken);
             // TODO: we should probably perform a version check here too,
             // rather than letting the service do it on Start
             _ = await sdkClient.GetBuildInfo(ct);
