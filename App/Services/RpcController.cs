@@ -96,13 +96,13 @@ public class RpcController : IRpcController
         {
             state.RpcLifecycle = RpcLifecycle.Connecting;
             state.VpnLifecycle = VpnLifecycle.Stopped;
-            state.VisibleAgents.Clear();
+            state.Agents.Clear();
         });
 
         if (_speaker != null)
             try
             {
-                await _speaker.DisposeAsync();
+                await DisposeSpeaker();
             }
             catch (Exception e)
             {
@@ -126,7 +126,7 @@ public class RpcController : IRpcController
             {
                 state.RpcLifecycle = RpcLifecycle.Disconnected;
                 state.VpnLifecycle = VpnLifecycle.Stopped;
-                state.VisibleAgents.Clear();
+                state.Agents.Clear();
             });
             throw new RpcOperationException("Failed to reconnect to the RPC server", e);
         }
@@ -136,14 +136,14 @@ public class RpcController : IRpcController
             state.RpcLifecycle = RpcLifecycle.Connected;
             // TODO: fetch current state
             state.VpnLifecycle = VpnLifecycle.Stopped;
-            state.VisibleAgents.Clear();
+            state.Agents.Clear();
         });
     }
 
     public async Task StartVpn(CancellationToken ct = default)
     {
         using var _ = await AcquireOperationLockNowAsync();
-        EnsureRpcConnected();
+        AssertRpcConnected();
 
         var credentials = _credentialManager.GetCredentials();
         if (credentials.State != CredentialState.Valid)
@@ -184,7 +184,7 @@ public class RpcController : IRpcController
     public async Task StopVpn(CancellationToken ct = default)
     {
         using var _ = await AcquireOperationLockNowAsync();
-        EnsureRpcConnected();
+        AssertRpcConnected();
 
         MutateState(state => { state.VpnLifecycle = VpnLifecycle.Stopping; });
 
@@ -216,9 +216,14 @@ public class RpcController : IRpcController
 
     private void MutateState(Action<RpcModel> mutator)
     {
-        using var _ = _stateLock.Lock();
-        mutator(_state);
-        StateChanged?.Invoke(this, _state.Clone());
+        RpcModel newState;
+        using (_stateLock.Lock())
+        {
+            mutator(_state);
+            newState = _state.Clone();
+        }
+
+        StateChanged?.Invoke(this, newState);
     }
 
     private async Task<IDisposable> AcquireOperationLockNowAsync()
@@ -234,13 +239,22 @@ public class RpcController : IRpcController
         // TODO: this
     }
 
+    private async Task DisposeSpeaker()
+    {
+        if (_speaker == null) return;
+        _speaker.Receive -= SpeakerOnReceive;
+        _speaker.Error -= SpeakerOnError;
+        await _speaker.DisposeAsync();
+        _speaker = null;
+    }
+
     private void SpeakerOnError(Exception e)
     {
         Debug.WriteLine($"Error: {e}");
         Reconnect(CancellationToken.None).Wait();
     }
 
-    private void EnsureRpcConnected()
+    private void AssertRpcConnected()
     {
         if (_speaker == null)
             throw new InvalidOperationException("Not connected to the RPC server");

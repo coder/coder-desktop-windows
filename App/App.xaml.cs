@@ -1,7 +1,7 @@
 using System;
 using System.Diagnostics;
-using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
 using Coder.Desktop.App.Views.Pages;
 using Microsoft.Extensions.DependencyInjection;

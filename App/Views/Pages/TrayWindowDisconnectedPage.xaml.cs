@@ -1,4 +1,4 @@
-using Coder.Desktop.App.Models;
+using Coder.Desktop.App.ViewModels;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.Views.Pages;

@@ -1,13 +1,14 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
-namespace Coder.Desktop.App.Models;
+namespace Coder.Desktop.App.ViewModels;
 
 public partial class TrayWindowViewModel : ObservableObject
 {
@@ -17,16 +18,12 @@ public partial class TrayWindowViewModel : ObservableObject
     private readonly ICredentialManager _credentialManager;
 
     [ObservableProperty]
+    public partial VpnLifecycle VpnLifecycle { get; set; } =
+        VpnLifecycle.Stopping; // to prevent interaction until we get the real state
+
+    // VpnSwitchOn needs to be its own property as it is a two-way binding
+    [ObservableProperty]
     public partial bool VpnSwitchOn { get; set; } = false;
-
-    [ObservableProperty]
-    public partial bool VpnSwitchEnabled { get; set; } = false;
-
-    [ObservableProperty]
-    public partial bool VpnConnected { get; set; } = false;
-
-    [ObservableProperty]
-    public partial bool VpnConnecting { get; set; } = false;
 
     [ObservableProperty]
     public partial string? VpnFailedMessage { get; set; } = null;
@@ -35,7 +32,7 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(NoAgents))]
     [NotifyPropertyChangedFor(nameof(AgentOverflow))]
     [NotifyPropertyChangedFor(nameof(VisibleAgents))]
-    public partial ObservableCollection<AgentModel> Agents { get; set; } = [];
+    public partial ObservableCollection<AgentViewModel> Agents { get; set; } = [];
 
     public bool NoAgents => Agents.Count == 0;
 
@@ -45,7 +42,7 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(VisibleAgents))]
     public partial bool ShowAllAgents { get; set; } = false;
 
-    public IEnumerable<AgentModel> VisibleAgents => ShowAllAgents ? Agents : Agents.Take(MaxAgents);
+    public IEnumerable<AgentViewModel> VisibleAgents => ShowAllAgents ? Agents : Agents.Take(MaxAgents);
 
     [ObservableProperty]
     public partial string DashboardUrl { get; set; } = "https://coder.com";
@@ -68,57 +65,53 @@ public partial class TrayWindowViewModel : ObservableObject
         // Window should not show the current Page if the RPC is disconnected.
         if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
         {
+            VpnLifecycle = VpnLifecycle.Stopping;
             VpnSwitchOn = false;
-            VpnSwitchEnabled = false;
-            VpnConnected = false;
-            VpnConnecting = false;
             Agents = [];
             return;
         }
 
+        VpnLifecycle = rpcModel.VpnLifecycle;
         VpnSwitchOn = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
-        VpnSwitchEnabled = rpcModel.VpnLifecycle is not VpnLifecycle.Starting and not VpnLifecycle.Stopping;
-        VpnConnected = rpcModel.VpnLifecycle is VpnLifecycle.Started;
-        VpnConnecting = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Stopping;
         // TODO: convert from RpcModel once we send agent data
         Agents =
         [
-            new AgentModel
+            new AgentViewModel
             {
                 Hostname = "pog",
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Green,
                 DashboardUrl = "https://dev.coder.com/@dean/pog",
             },
-            new AgentModel
+            new AgentViewModel
             {
                 Hostname = "pog2",
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Gray,
                 DashboardUrl = "https://dev.coder.com/@dean/pog2",
             },
-            new AgentModel
+            new AgentViewModel
             {
                 Hostname = "pog3",
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Red,
                 DashboardUrl = "https://dev.coder.com/@dean/pog3",
             },
-            new AgentModel
+            new AgentViewModel
             {
                 Hostname = "pog4",
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Red,
                 DashboardUrl = "https://dev.coder.com/@dean/pog4",
             },
-            new AgentModel
+            new AgentViewModel
             {
                 Hostname = "pog5",
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Red,
                 DashboardUrl = "https://dev.coder.com/@dean/pog5",
             },
-            new AgentModel
+            new AgentViewModel
             {
                 Hostname = "pog6",
                 HostnameSuffix = ".coder",
@@ -139,9 +132,10 @@ public partial class TrayWindowViewModel : ObservableObject
         DashboardUrl = credentialModel.CoderUrl ?? "https://coder.com";
     }
 
-    // ActiveSwitch_Toggled is handled separately than just listening to the property change as we need to be able to
-    // tell the difference between the user toggling the switch and the switch being toggled by code.
-    public void ActiveSwitch_Toggled(object sender, RoutedEventArgs e)
+    // VpnSwitch_Toggled is handled separately than just listening to the
+    // property change as we need to be able to tell the difference between the
+    // user toggling the switch and the switch being toggled by code.
+    public void VpnSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch toggleSwitch) return;
 
@@ -160,7 +154,7 @@ public partial class TrayWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void ShowMoreLessAgents()
+    public void ToggleShowAllAgents()
     {
         ShowAllAgents = !ShowAllAgents;
     }

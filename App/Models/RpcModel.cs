@@ -23,8 +23,7 @@ public class RpcModel
 
     public VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Stopped;
 
-    // TODO: write a type for this or maybe use the Rpc Type directly
-    public List<object> VisibleAgents { get; set; } = [];
+    public List<object> Agents { get; set; } = [];
 
     public RpcModel Clone()
     {
@@ -32,7 +31,7 @@ public class RpcModel
         {
             RpcLifecycle = RpcLifecycle,
             VpnLifecycle = VpnLifecycle,
-            VisibleAgents = VisibleAgents,
+            Agents = Agents,
         };
     }
 }

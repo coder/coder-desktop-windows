@@ -58,7 +58,6 @@ public class CredentialManager : ICredentialManager
         if (coderUrl.Length > 128) throw new ArgumentOutOfRangeException(nameof(coderUrl), "Coder URL is too long");
         if (!Uri.TryCreate(coderUrl, UriKind.Absolute, out var uri))
             throw new ArgumentException($"Coder URL '{coderUrl}' is not a valid URL", nameof(coderUrl));
-        if (uri.Scheme != "https") throw new ArgumentException("Coder URL must use HTTPS", nameof(coderUrl));
         if (uri.PathAndQuery != "/") throw new ArgumentException("Coder URL must be the root URL", nameof(coderUrl));
         if (string.IsNullOrWhiteSpace(apiToken)) throw new ArgumentException("API token is required", nameof(apiToken));
         apiToken = apiToken.Trim();
@@ -105,11 +104,15 @@ public class CredentialManager : ICredentialManager
 
     private void UpdateState(CredentialModel newModel)
     {
-        _latestCredentials = newModel;
-        CredentialsChanged?.Invoke(this, _latestCredentials.Clone());
+        using (_lock.Lock())
+        {
+            _latestCredentials = newModel.Clone();
+        }
+
+        CredentialsChanged?.Invoke(this, newModel.Clone());
     }
 
-    private RawCredentials? ReadCredentials()
+    private static RawCredentials? ReadCredentials()
     {
         var raw = NativeApi.ReadCredentials(CredentialsTargetName);
         if (raw == null) return null;
@@ -130,7 +133,7 @@ public class CredentialManager : ICredentialManager
         return credentials;
     }
 
-    private void WriteCredentials(RawCredentials credentials)
+    private static void WriteCredentials(RawCredentials credentials)
     {
         var raw = JsonSerializer.Serialize(credentials);
         NativeApi.WriteCredentials(CredentialsTargetName, raw);
@@ -147,6 +150,7 @@ public class CredentialManager : ICredentialManager
         private const int CredentialTypeGeneric = 1;
         private const int PersistenceTypeLocalComputer = 2;
         private const int ErrorNotFound = 1168;
+        private const int CredMaxCredentialBlobSize = 5 * 512;
 
         public static string? ReadCredentials(string targetName)
         {
@@ -170,15 +174,17 @@ public class CredentialManager : ICredentialManager
 
         public static void WriteCredentials(string targetName, string secret)
         {
-            if (Encoding.Unicode.GetByteCount(secret) > 512)
-                throw new ArgumentOutOfRangeException(nameof(secret), "The secret is greater than 512 bytes");
+            var byteCount = Encoding.Unicode.GetByteCount(secret);
+            if (byteCount > CredMaxCredentialBlobSize)
+                throw new ArgumentOutOfRangeException(nameof(secret),
+                    $"The secret is greater than {CredMaxCredentialBlobSize} bytes");
 
             var credentialBlob = Marshal.StringToHGlobalUni(secret);
             var cred = new CREDENTIAL
             {
                 Type = CredentialTypeGeneric,
                 TargetName = targetName,
-                CredentialBlobSize = secret.Length * sizeof(char),
+                CredentialBlobSize = byteCount,
                 CredentialBlob = credentialBlob,
                 Persist = PersistenceTypeLocalComputer,
             };

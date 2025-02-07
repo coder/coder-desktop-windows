@@ -1,9 +1,10 @@
 using System.Threading.Tasks;
+using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Coder.Desktop.App.Models;
+namespace Coder.Desktop.App.ViewModels;
 
 public partial class TrayWindowDisconnectedViewModel : ObservableObject
 {

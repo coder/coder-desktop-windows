@@ -1,7 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
-namespace Coder.Desktop.App.Models;
+namespace Coder.Desktop.App.ViewModels;
 
 public partial class TrayWindowLoginRequiredViewModel : ObservableObject
 {

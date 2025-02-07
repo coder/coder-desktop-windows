@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Coder.Desktop.App.Models;
+using Coder.Desktop.App.ViewModels;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Documents;
