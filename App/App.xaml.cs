@@ -12,7 +12,6 @@ namespace Coder.Desktop.App;
 public partial class App : Application
 {
     private readonly IServiceProvider _services;
-    private TrayWindow? _trayWindow;
 
     public App()
     {
@@ -20,7 +19,11 @@ public partial class App : Application
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
 
-        // TrayWindow pages and view models
+        // SignInWindow views and view models
+        services.AddTransient<SignInViewModel>();
+        services.AddTransient<SignInWindow>();
+
+        // TrayWindow views and view models
         services.AddTransient<TrayWindowDisconnectedViewModel>();
         services.AddTransient<TrayWindowDisconnectedPage>();
         services.AddTransient<TrayWindowLoginRequiredViewModel>();
@@ -42,12 +45,11 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        _trayWindow = _services.GetRequiredService<TrayWindow>();
-        // Just hide the window rather than closing it.
-        _trayWindow.Closed += (sender, args) =>
+        var trayWindow = _services.GetRequiredService<TrayWindow>();
+        trayWindow.Closed += (sender, args) =>
         {
             args.Handled = true;
-            _trayWindow.AppWindow.Hide();
+            trayWindow.AppWindow.Hide();
         };
     }
 }
