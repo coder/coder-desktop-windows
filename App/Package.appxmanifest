@@ -10,10 +10,10 @@
     <Identity
         Name="925b49fc-4648-4967-b4e6-b5473061ee62"
         Publisher="CN=Coder Technologies Inc."
-        Version="1.0.0.0"/>
+        Version="1.0.0.0" />
 
     <mp:PhoneIdentity PhoneProductId="925b49fc-4648-4967-b4e6-b5473061ee62"
-                      PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
+                      PhonePublisherId="00000000-0000-0000-0000-000000000000" />
 
     <Properties>
         <DisplayName>Coder Desktop (Package)</DisplayName>
@@ -22,12 +22,12 @@
     </Properties>
 
     <Dependencies>
-        <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0"/>
-        <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0"/>
+        <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
+        <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.19041.0" />
     </Dependencies>
 
     <Resources>
-        <Resource Language="x-generate"/>
+        <Resource Language="x-generate" />
     </Resources>
 
     <Applications>
@@ -40,13 +40,13 @@
                 BackgroundColor="transparent"
                 Square150x150Logo="Images\Square150x150Logo.png"
                 Square44x44Logo="Images\Square44x44Logo.png">
-                <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png"/>
-                <uap:SplashScreen Image="Images\SplashScreen.png"/>
+                <uap:DefaultTile Wide310x150Logo="Images\Wide310x150Logo.png" />
+                <uap:SplashScreen Image="Images\SplashScreen.png" />
             </uap:VisualElements>
         </Application>
     </Applications>
 
     <Capabilities>
-        <rescap:Capability Name="runFullTrust"/>
+        <rescap:Capability Name="runFullTrust" />
     </Capabilities>
 </Package>

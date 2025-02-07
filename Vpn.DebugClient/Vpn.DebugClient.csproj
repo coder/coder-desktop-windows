@@ -10,8 +10,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Vpn\Vpn.csproj"/>
-        <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj"/>
+        <ProjectReference Include="..\Vpn\Vpn.csproj" />
+        <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
     </ItemGroup>
 
 </Project>

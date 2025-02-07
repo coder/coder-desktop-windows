@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Page
+    x:Class="Coder.Desktop.App.Views.Pages.TrayWindowDisconnectedPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:controls="using:Coder.Desktop.App.Controls"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel
+        Orientation="Vertical"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Top"
+        Padding="20,20,20,30"
+        Spacing="10">
+
+        <TextBlock
+            Text="CoderVPN"
+            FontSize="18"
+            VerticalAlignment="Center" />
+        <TextBlock
+            TextWrapping="Wrap"
+            Text="Could not connect to the CoderVPN system service." />
+        <TextBlock
+            TextWrapping="Wrap"
+            Margin="0,0,0,10"
+            Text="Please ensure the system service is running. Refer to the documentation for troubleshooting instructions." />
+
+        <controls:HorizontalRule />
+
+        <HyperlinkButton
+            HorizontalContentAlignment="Left"
+            HorizontalAlignment="Stretch"
+            Margin="-12,0"
+            Command="{x:Bind ViewModel.ReconnectCommand}"
+            IsEnabled="{x:Bind ViewModel.ReconnectButtonEnabled, Mode=OneWay}">
+
+            <TextBlock Text="Reconnect now" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
+    </StackPanel>
+</Page>

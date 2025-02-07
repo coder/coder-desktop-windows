@@ -15,6 +15,8 @@ public class TestHttpServer : IDisposable
     private readonly HttpListener _listener;
     private readonly Thread _listenerThread;
 
+    public string BaseUrl { get; private set; }
+
     public TestHttpServer(Action<HttpListenerContext> handler) : this(ctx =>
     {
         handler(ctx);
@@ -74,8 +76,6 @@ public class TestHttpServer : IDisposable
 
         _listenerThread.Start();
     }
-
-    public string BaseUrl { get; private set; }
 
     public void Dispose()
     {

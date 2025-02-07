@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Window
+    x:Class="Coder.Desktop.App.Views.TrayWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:controls="using:Coder.Desktop.App.Controls"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Coder">
+
+    <Window.SystemBackdrop>
+        <DesktopAcrylicBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid>
+        <!-- For some strange reason, setting OpenCommand and ExitCommand here doesn't work, see .cs -->
+        <controls:TrayIcon x:Name="TrayIcon" />
+
+        <!-- This is where the current Page is displayed -->
+        <Frame x:Name="RootFrame" />
+    </Grid>
+</Window>

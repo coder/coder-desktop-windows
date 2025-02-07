@@ -189,6 +189,13 @@ public class DownloadTask
     public readonly HttpRequestMessage Request;
     public readonly string TempDestinationPath;
 
+    public ulong? TotalBytes { get; private set; }
+    public ulong BytesRead { get; private set; }
+    public Task Task { get; private set; } = null!; // Set in EnsureStartedAsync
+
+    public double? Progress => TotalBytes == null ? null : (double)BytesRead / TotalBytes.Value;
+    public bool IsCompleted => Task.IsCompleted;
+
     internal DownloadTask(ILogger logger, HttpRequestMessage req, string destinationPath, IDownloadValidator validator)
     {
         _logger = logger;
@@ -210,13 +217,6 @@ public class DownloadTask
         TempDestinationPath = Path.Combine(_destinationDirectory, "." + Path.GetFileName(DestinationPath) +
                                                                   ".download-" + Path.GetRandomFileName());
     }
-
-    public ulong? TotalBytes { get; private set; }
-    public ulong BytesRead { get; private set; }
-    public Task Task { get; private set; } = null!; // Set in EnsureStartedAsync
-
-    public double? Progress => TotalBytes == null ? null : (double)BytesRead / TotalBytes.Value;
-    public bool IsCompleted => Task.IsCompleted;
 
     internal async Task<Task> EnsureStartedAsync(CancellationToken ct = default)
     {

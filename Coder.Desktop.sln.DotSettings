@@ -1,4 +1,10 @@
 ﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:Boolean x:Key="/Default/CodeStyle/CodeFormatting/CSharpFormat/INDENT_NESTED_FIXED_STMT/@EntryValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/CodeStyle/CodeFormatting/CSharpFormat/INDENT_NESTED_FOR_STMT/@EntryValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/CodeStyle/CodeFormatting/CSharpFormat/INDENT_NESTED_FOREACH_STMT/@EntryValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/CodeStyle/CodeFormatting/CSharpFormat/INDENT_NESTED_LOCK_STMT/@EntryValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/CodeStyle/CodeFormatting/CSharpFormat/INDENT_NESTED_USINGS_STMT/@EntryValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/CodeStyle/CodeFormatting/CSharpFormat/INDENT_NESTED_WHILE_STMT/@EntryValue">True</s:Boolean>
 	<s:String x:Key="/Default/CodeStyle/CSharpFileLayoutPatterns/Pattern/@EntryValue">&lt;Patterns xmlns="urn:schemas-jetbrains-com:member-reordering-patterns"&gt;
   &lt;TypePattern DisplayName="Non-reorderable types" Priority="99999999"&gt;
     &lt;TypePattern.Match&gt;
@@ -30,7 +36,7 @@
         &lt;/HasMember&gt;
       &lt;/And&gt;
     &lt;/TypePattern.Match&gt;
-
+    
     &lt;Entry DisplayName="Fields"&gt;
       &lt;Entry.Match&gt;
         &lt;And&gt;
@@ -146,6 +152,12 @@
       &lt;/Entry.Match&gt;
     &lt;/Entry&gt;
 
+      &lt;Entry DisplayName="Events"&gt;
+          &lt;Entry.Match&gt;
+              &lt;Kind Is="Event" /&gt;
+          &lt;/Entry.Match&gt;
+      &lt;/Entry&gt;
+
     &lt;Entry DisplayName="Public Enums" Priority="100"&gt;
       &lt;Entry.Match&gt;
         &lt;And&gt;
@@ -186,12 +198,15 @@
         &lt;/And&gt;
       &lt;/Entry.Match&gt;
     &lt;/Entry&gt;
-
-    &lt;Entry DisplayName="Events"&gt;
-      &lt;Entry.Match&gt;
-        &lt;Kind Is="Event" /&gt;
-      &lt;/Entry.Match&gt;
-    &lt;/Entry&gt;
+      
+      &lt;Entry DisplayName="Properties, Indexers"&gt;
+          &lt;Entry.Match&gt;
+              &lt;Or&gt;
+                  &lt;Kind Is="Property" /&gt;
+                  &lt;Kind Is="Indexer" /&gt;
+              &lt;/Or&gt;
+          &lt;/Entry.Match&gt;
+      &lt;/Entry&gt;
 
     &lt;Entry DisplayName="Constructors"&gt;
       &lt;Entry.Match&gt;
@@ -202,16 +217,7 @@
         &lt;Static/&gt;
       &lt;/Entry.SortBy&gt;
     &lt;/Entry&gt;
-
-    &lt;Entry DisplayName="Properties, Indexers"&gt;
-      &lt;Entry.Match&gt;
-        &lt;Or&gt;
-          &lt;Kind Is="Property" /&gt;
-          &lt;Kind Is="Indexer" /&gt;
-        &lt;/Or&gt;
-      &lt;/Entry.Match&gt;
-    &lt;/Entry&gt;
-
+      
     &lt;Entry DisplayName="Interface Implementations" Priority="100"&gt;
       &lt;Entry.Match&gt;
         &lt;And&gt;
@@ -235,7 +241,11 @@
   &lt;/TypePattern&gt;
 &lt;/Patterns&gt;
 </s:String>
+	<s:Boolean x:Key="/Default/Environment/SettingsMigration/IsMigratorApplied/=JetBrains_002EReSharper_002EPsi_002ECSharp_002ECodeStyle_002ECSharpKeepExistingMigration/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/Environment/SettingsMigration/IsMigratorApplied/=JetBrains_002EReSharper_002EPsi_002ECSharp_002ECodeStyle_002ECSharpPlaceEmbeddedOnSameLineMigration/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/Environment/SettingsMigration/IsMigratorApplied/=JetBrains_002EReSharper_002EPsi_002ECSharp_002ECodeStyle_002ECSharpUseContinuousIndentInsideBracesMigration/@EntryIndexedValue">True</s:Boolean>
 	<s:Boolean x:Key="/Default/Environment/SettingsMigration/IsMigratorApplied/=JetBrains_002EReSharper_002EPsi_002ECSharp_002ECodeStyle_002EMemberReordering_002EMigrations_002ECSharpFileLayoutPatternRemoveIsAttributeUpgrade/@EntryIndexedValue">True</s:Boolean>
+	<s:Boolean x:Key="/Default/Environment/SettingsMigration/IsMigratorApplied/=JetBrains_002EReSharper_002EPsi_002ECSharp_002ECodeStyle_002ESettingsUpgrade_002EMigrateBlankLinesAroundFieldToBlankLinesAroundProperty/@EntryIndexedValue">True</s:Boolean>
 	<s:Boolean x:Key="/Default/UserDictionary/Words/=codervpn/@EntryIndexedValue">True</s:Boolean>
 	<s:Boolean x:Key="/Default/UserDictionary/Words/=hkey/@EntryIndexedValue">True</s:Boolean>
 	<s:Boolean x:Key="/Default/UserDictionary/Words/=replyable/@EntryIndexedValue">True</s:Boolean>

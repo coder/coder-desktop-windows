@@ -27,14 +27,6 @@ public class ReplyableRpcMessage<TS, TR> : RpcMessage<TR>
     private readonly TR _message;
     private readonly Speaker<TS, TR> _speaker;
 
-    /// <param name="speaker">Speaker to use for sending reply</param>
-    /// <param name="message">Original received message</param>
-    public ReplyableRpcMessage(Speaker<TS, TR> speaker, TR message)
-    {
-        _speaker = speaker;
-        _message = message;
-    }
-
     public override RPC? RpcField
     {
         get => _message.RpcField;
@@ -42,6 +34,14 @@ public class ReplyableRpcMessage<TS, TR> : RpcMessage<TR>
     }
 
     public override TR Message => _message;
+
+    /// <param name="speaker">Speaker to use for sending reply</param>
+    /// <param name="message">Original received message</param>
+    public ReplyableRpcMessage(Speaker<TS, TR> speaker, TR message)
+    {
+        _speaker = speaker;
+        _message = message;
+    }
 
     public override void Validate()
     {
@@ -72,6 +72,17 @@ public class Speaker<TS, TR> : IAsyncDisposable
 
     public delegate void OnReceiveDelegate(ReplyableRpcMessage<TS, TR> message);
 
+    /// <summary>
+    ///     Event that is triggered when an error occurs. The handling code should dispose the Speaker after this event is
+    ///     triggered.
+    /// </summary>
+    public event OnErrorDelegate? Error;
+
+    /// <summary>
+    ///     Event that is triggered when a message is received.
+    /// </summary>
+    public event OnReceiveDelegate? Receive;
+
     private readonly Stream _conn;
 
     // _cts is cancelled when Dispose is called and will cause all ongoing I/O
@@ -84,17 +95,6 @@ public class Speaker<TS, TR> : IAsyncDisposable
     // first request ID will actually be 1.
     private ulong _lastRequestId;
     private Task? _receiveTask;
-
-    /// <summary>
-    ///     Event that is triggered when an error occurs. The handling code should dispose the Speaker after this event is
-    ///     triggered.
-    /// </summary>
-    public event OnErrorDelegate? Error;
-
-    /// <summary>
-    ///     Event that is triggered when a message is received.
-    /// </summary>
-    public event OnReceiveDelegate? Receive;
 
     /// <summary>
     ///     Instantiates a speaker. The speaker will not perform any I/O until <c>StartAsync</c> is called.

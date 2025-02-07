@@ -10,14 +10,6 @@ public class BidirectionalPipe : Stream
     private readonly Stream _reader;
     private readonly Stream _writer;
 
-    /// <param name="reader">The stream to perform reads from</param>
-    /// <param name="writer">The stream to write data to</param>
-    public BidirectionalPipe(Stream reader, Stream writer)
-    {
-        _reader = reader;
-        _writer = writer;
-    }
-
     public override bool CanRead => true;
     public override bool CanSeek => false;
     public override bool CanWrite => true;
@@ -27,6 +19,14 @@ public class BidirectionalPipe : Stream
     {
         get => -1;
         set => throw new NotImplementedException("BidirectionalPipe does not support setting position");
+    }
+
+    /// <param name="reader">The stream to perform reads from</param>
+    /// <param name="writer">The stream to write data to</param>
+    public BidirectionalPipe(Stream reader, Stream writer)
+    {
+        _reader = reader;
+        _writer = writer;
     }
 
     /// <summary>
