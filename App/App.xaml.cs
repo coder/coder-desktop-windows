@@ -13,7 +13,6 @@ public partial class App : Application
 {
     private readonly IServiceProvider _services;
     private TrayWindow? _trayWindow;
-    private readonly bool _handleClosedEvents = true;
 
     public App()
     {
@@ -21,6 +20,7 @@ public partial class App : Application
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
 
+        // TrayWindow pages and view models
         services.AddTransient<TrayWindowDisconnectedViewModel>();
         services.AddTransient<TrayWindowDisconnectedPage>();
         services.AddTransient<TrayWindowLoginRequiredViewModel>();
@@ -43,14 +43,11 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _trayWindow = _services.GetRequiredService<TrayWindow>();
+        // Just hide the window rather than closing it.
         _trayWindow.Closed += (sender, args) =>
         {
-            // TODO: wire up HandleClosedEvents properly
-            if (_handleClosedEvents)
-            {
-                args.Handled = true;
-                _trayWindow.AppWindow.Hide();
-            }
+            args.Handled = true;
+            _trayWindow.AppWindow.Hide();
         };
     }
 }

@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using Coder.Desktop.Vpn.Proto;
 
 namespace Coder.Desktop.App.Models;
 
@@ -23,7 +25,9 @@ public class RpcModel
 
     public VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Stopped;
 
-    public List<object> Agents { get; set; } = [];
+    public List<Workspace> Workspaces { get; set; } = [];
+
+    public List<Agent> Agents { get; set; } = [];
 
     public RpcModel Clone()
     {
@@ -31,7 +35,8 @@ public class RpcModel
         {
             RpcLifecycle = RpcLifecycle,
             VpnLifecycle = VpnLifecycle,
-            Agents = Agents,
+            Workspaces = Workspaces.ToList(),
+            Agents = Agents.ToList(),
         };
     }
 }

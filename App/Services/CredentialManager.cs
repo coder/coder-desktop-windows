@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.Vpn.Utilities;
-using CoderSdk;
 
 namespace Coder.Desktop.App.Services;
 
@@ -64,18 +63,23 @@ public class CredentialManager : ICredentialManager
         if (apiToken.Length != 33)
             throw new ArgumentOutOfRangeException(nameof(apiToken), "API token must be 33 characters long");
 
+        // TODO: this code seems to hang?
+        /*
         try
         {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(5));
             var sdkClient = new CoderApiClient(uri);
             // TODO: we should probably perform a version check here too,
             // rather than letting the service do it on Start
-            _ = await sdkClient.GetBuildInfo(ct);
-            _ = await sdkClient.GetUser(User.Me, ct);
+            _ = await sdkClient.GetBuildInfo(cts.Token);
+            _ = await sdkClient.GetUser(User.Me, cts.Token);
         }
         catch (Exception e)
         {
             throw new InvalidOperationException("Could not connect to or verify Coder server", e);
         }
+        */
 
         WriteCredentials(new RawCredentials
         {

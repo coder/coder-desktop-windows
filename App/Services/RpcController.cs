@@ -96,6 +96,7 @@ public class RpcController : IRpcController
         {
             state.RpcLifecycle = RpcLifecycle.Connecting;
             state.VpnLifecycle = VpnLifecycle.Stopped;
+            state.Workspaces.Clear();
             state.Agents.Clear();
         });
 
@@ -126,6 +127,7 @@ public class RpcController : IRpcController
             {
                 state.RpcLifecycle = RpcLifecycle.Disconnected;
                 state.VpnLifecycle = VpnLifecycle.Stopped;
+                state.Workspaces.Clear();
                 state.Agents.Clear();
             });
             throw new RpcOperationException("Failed to reconnect to the RPC server", e);
@@ -134,10 +136,18 @@ public class RpcController : IRpcController
         MutateState(state =>
         {
             state.RpcLifecycle = RpcLifecycle.Connected;
-            // TODO: fetch current state
-            state.VpnLifecycle = VpnLifecycle.Stopped;
+            state.VpnLifecycle = VpnLifecycle.Stopping; // prevents clicking the toggle
+            state.Workspaces.Clear();
             state.Agents.Clear();
         });
+
+        var statusReply = await _speaker.SendRequestAwaitReply(new ClientMessage
+        {
+            Status = new StatusRequest(),
+        }, ct);
+        if (statusReply.MsgCase != ServiceMessage.MsgOneofCase.Status)
+            throw new InvalidOperationException($"Unexpected reply message type: {statusReply.MsgCase}");
+        ApplyStatusUpdate(statusReply.Status);
     }
 
     public async Task StartVpn(CancellationToken ct = default)
@@ -234,9 +244,40 @@ public class RpcController : IRpcController
         return locker;
     }
 
+    private void ApplyStatusUpdate(Status status)
+    {
+        MutateState(state =>
+        {
+            state.VpnLifecycle = status.Lifecycle switch
+            {
+                Status.Types.Lifecycle.Unknown => VpnLifecycle.Stopping, // disables the switch
+                Status.Types.Lifecycle.Starting => VpnLifecycle.Starting,
+                Status.Types.Lifecycle.Started => VpnLifecycle.Started,
+                Status.Types.Lifecycle.Stopping => VpnLifecycle.Stopping,
+                Status.Types.Lifecycle.Stopped => VpnLifecycle.Stopped,
+                _ => VpnLifecycle.Stopped,
+            };
+            state.Workspaces.Clear();
+            state.Workspaces.AddRange(status.PeerUpdate.UpsertedWorkspaces);
+            state.Agents.Clear();
+            state.Agents.AddRange(status.PeerUpdate.UpsertedAgents);
+        });
+    }
+
     private void SpeakerOnReceive(ReplyableRpcMessage<ClientMessage, ServiceMessage> message)
     {
-        // TODO: this
+        switch (message.Message.MsgCase)
+        {
+            case ServiceMessage.MsgOneofCase.Status:
+                ApplyStatusUpdate(message.Message.Status);
+                break;
+            case ServiceMessage.MsgOneofCase.Start:
+            case ServiceMessage.MsgOneofCase.Stop:
+            case ServiceMessage.MsgOneofCase.None:
+            default:
+                // TODO: log unexpected message
+                break;
+        }
     }
 
     private async Task DisposeSpeaker()
@@ -251,7 +292,14 @@ public class RpcController : IRpcController
     private void SpeakerOnError(Exception e)
     {
         Debug.WriteLine($"Error: {e}");
-        Reconnect(CancellationToken.None).Wait();
+        try
+        {
+            Reconnect(CancellationToken.None).Wait();
+        }
+        catch
+        {
+            // best effort to immediately reconnect
+        }
     }
 
     private void AssertRpcConnected()

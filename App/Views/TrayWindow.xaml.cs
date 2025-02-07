@@ -108,6 +108,14 @@ public sealed partial class TrayWindow : Window
     // trigger when the Page's content changes.
     public void SetRootFrame(Page page)
     {
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            DispatcherQueue.TryEnqueue(() => SetRootFrame(page));
+            return;
+        }
+
+        if (ReferenceEquals(page, RootFrame.Content)) return;
+
         if (page.Content is not FrameworkElement newElement)
             throw new Exception("Failed to get Page.Content as FrameworkElement on RootFrame navigation");
         newElement.SizeChanged += Content_SizeChanged;
@@ -239,7 +247,7 @@ public sealed partial class TrayWindow : Window
     [RelayCommand]
     private void Tray_Exit()
     {
-        // TODO: implement exit
+        Application.Current.Exit();
     }
 
     public class NativeApi

@@ -10,17 +10,12 @@
         <PublishProfile>Properties\PublishProfiles\win-$(Platform).pubxml</PublishProfile>
         <UseWinUI>true</UseWinUI>
         <Nullable>enable</Nullable>
-        <EnableMsixTooling>true</EnableMsixTooling>
+        <EnableMsixTooling>false</EnableMsixTooling>
+        <WindowsPackageType>None</WindowsPackageType>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <!-- To use CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute: -->
         <LangVersion>preview</LangVersion>
     </PropertyGroup>
-
-    <ItemGroup>
-        <AppxManifest Include="Package.appxmanifest">
-            <SubType>Designer</SubType>
-        </AppxManifest>
-    </ItemGroup>
 
     <ItemGroup>
         <Manifest Include="$(ApplicationManifest)" />
@@ -40,43 +35,12 @@
         </PackageReference>
         <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
-        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
         <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
     </ItemGroup>
 
-    <!--
-      Defining the "Msix" ProjectCapability here allows the Single-project MSIX Packaging
-      Tools extension to be activated for this project even if the Windows App SDK Nuget
-      package has not yet been restored.
-    -->
-    <ItemGroup Condition="'$(DisableMsixProjectCapabilityAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
-        <ProjectCapability Include="Msix" />
-    </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\CoderSdk\CoderSdk.csproj" />
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
         <ProjectReference Include="..\Vpn\Vpn.csproj" />
     </ItemGroup>
-
-    <!--
-      Defining the "HasPackageAndPublishMenuAddedByProject" property here allows the Solution
-      Explorer "Package and Publish" context menu entry to be enabled for this project even if
-      the Windows App SDK Nuget package has not yet been restored.
-    -->
-    <PropertyGroup Condition="'$(DisableHasPackageAndPublishMenuAddedByProject)'!='true' and '$(EnableMsixTooling)'=='true'">
-        <HasPackageAndPublishMenu>true</HasPackageAndPublishMenu>
-    </PropertyGroup>
-
-    <!-- Publish Properties -->
-    <PropertyGroup>
-        <!--
-        This does not work in CI at the moment, so we need to set it to false
-        Error: C:\Program Files\dotnet\sdk\9.0.102\Sdks\Microsoft.NET.Sdk\targets\Microsoft.NET.Publish.targets(400,5): error NETSDK1094: Unable to optimize assemblies for performance: a valid runtime package was not found. Either set the PublishReadyToRun property to false, or use a supported runtime identifier when publishing. When targeting .NET 6 or higher, make sure to restore packages with the PublishReadyToRun property set to true. [D:\a\coder-desktop-windows\coder-desktop-windows\App\App.csproj]
-        <PublishReadyToRun Condition="'$(Configuration)' == 'Debug'">False</PublishReadyToRun>
-        <PublishReadyToRun Condition="'$(Configuration)' != 'Debug'">True</PublishReadyToRun>
-        -->
-        <PublishReadyToRun>False</PublishReadyToRun>
-        <PublishTrimmed Condition="'$(Configuration)' == 'Debug'">False</PublishTrimmed>
-        <PublishTrimmed Condition="'$(Configuration)' != 'Debug'">True</PublishTrimmed>
-    </PropertyGroup>
 </Project>

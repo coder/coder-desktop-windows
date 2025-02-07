@@ -1,10 +1,12 @@
+using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Google.Protobuf;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -16,6 +18,8 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+
+    private DispatcherQueue? _dispatcherQueue;
 
     [ObservableProperty]
     public partial VpnLifecycle VpnLifecycle { get; set; } =
@@ -32,7 +36,7 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(NoAgents))]
     [NotifyPropertyChangedFor(nameof(AgentOverflow))]
     [NotifyPropertyChangedFor(nameof(VisibleAgents))]
-    public partial ObservableCollection<AgentViewModel> Agents { get; set; } = [];
+    public partial List<AgentViewModel> Agents { get; set; } = [];
 
     public bool NoAgents => Agents.Count == 0;
 
@@ -51,6 +55,11 @@ public partial class TrayWindowViewModel : ObservableObject
     {
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+    }
+
+    public void Initialize(DispatcherQueue dispatcherQueue)
+    {
+        _dispatcherQueue = dispatcherQueue;
 
         _rpcController.StateChanged += (_, rpcModel) => UpdateFromRpcModel(rpcModel);
         UpdateFromRpcModel(_rpcController.GetState());
@@ -61,6 +70,14 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private void UpdateFromRpcModel(RpcModel rpcModel)
     {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => UpdateFromRpcModel(rpcModel));
+            return;
+        }
+
         // As a failsafe, if RPC is disconnected we disable the switch. The
         // Window should not show the current Page if the RPC is disconnected.
         if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
@@ -73,52 +90,67 @@ public partial class TrayWindowViewModel : ObservableObject
 
         VpnLifecycle = rpcModel.VpnLifecycle;
         VpnSwitchOn = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
-        // TODO: convert from RpcModel once we send agent data
-        Agents =
-        [
-            new AgentViewModel
+
+        // Add every known agent.
+        HashSet<ByteString> workspacesWithAgents = [];
+        List<AgentViewModel> agents = [];
+        foreach (var agent in rpcModel.Agents)
+        {
+            // Find the FQDN with the least amount of dots and split it into
+            // prefix and suffix.
+            var fqdn = agent.Fqdn
+                .Select(a => a.Trim('.'))
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Aggregate((a, b) => a.Count(c => c == '.') < b.Count(c => c == '.') ? a : b);
+            if (string.IsNullOrWhiteSpace(fqdn))
+                continue;
+
+            var fqdnPrefix = fqdn;
+            var fqdnSuffix = "";
+            if (fqdn.Contains('.'))
             {
-                Hostname = "pog",
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Green,
-                DashboardUrl = "https://dev.coder.com/@dean/pog",
-            },
-            new AgentViewModel
+                fqdnPrefix = fqdn[..fqdn.LastIndexOf('.')];
+                fqdnSuffix = fqdn[fqdn.LastIndexOf('.')..];
+            }
+
+            var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
+            workspacesWithAgents.Add(agent.WorkspaceId);
+            agents.Add(new AgentViewModel
             {
-                Hostname = "pog2",
+                Hostname = fqdnPrefix,
+                HostnameSuffix = fqdnSuffix,
+                ConnectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
+                    ? AgentConnectionStatus.Green
+                    : AgentConnectionStatus.Red,
+                // TODO: we don't actually have any way of crafting a dashboard
+                // URL without the owner's username
+                DashboardUrl = "https://coder.com",
+            });
+        }
+
+        // For every workspace that doesn't have an agent, add a dummy agent.
+        foreach (var workspace in rpcModel.Workspaces.Where(w => !workspacesWithAgents.Contains(w.Id)))
+        {
+            agents.Add(new AgentViewModel
+            {
+                // We just assume that it's a single-agent workspace.
+                Hostname = workspace.Name,
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Gray,
-                DashboardUrl = "https://dev.coder.com/@dean/pog2",
-            },
-            new AgentViewModel
-            {
-                Hostname = "pog3",
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Red,
-                DashboardUrl = "https://dev.coder.com/@dean/pog3",
-            },
-            new AgentViewModel
-            {
-                Hostname = "pog4",
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Red,
-                DashboardUrl = "https://dev.coder.com/@dean/pog4",
-            },
-            new AgentViewModel
-            {
-                Hostname = "pog5",
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Red,
-                DashboardUrl = "https://dev.coder.com/@dean/pog5",
-            },
-            new AgentViewModel
-            {
-                Hostname = "pog6",
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Red,
-                DashboardUrl = "https://dev.coder.com/@dean/pog6",
-            },
-        ];
+                // TODO: we don't actually have any way of crafting a dashboard
+                // URL without the owner's username
+                DashboardUrl = "https://coder.com",
+            });
+        }
+
+        // Sort by status green, red, gray, then by hostname.
+        agents.Sort((a, b) =>
+        {
+            if (a.ConnectionStatus != b.ConnectionStatus)
+                return a.ConnectionStatus.CompareTo(b.ConnectionStatus);
+            return string.Compare(a.FullHostname, b.FullHostname, StringComparison.Ordinal);
+        });
+        Agents = agents;
 
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
     }
@@ -162,7 +194,8 @@ public partial class TrayWindowViewModel : ObservableObject
     [RelayCommand]
     public void SignOut()
     {
-        // TODO: this should either be blocked until the VPN is stopped or it should stop the VPN
+        if (VpnLifecycle is not VpnLifecycle.Stopped)
+            return;
         _credentialManager.ClearCredentials();
     }
 }
