@@ -1,3 +1,4 @@
+using Coder.Desktop.App.ViewModels;
 using Microsoft.UI.Xaml;
 
 namespace Coder.Desktop.App;
@@ -5,9 +6,11 @@ namespace Coder.Desktop.App;
 public partial class App : Application
 {
     private TrayWindow? TrayWindow;
+    public SignInViewModel SignInViewModel { get; }
 
     public App()
     {
+        SignInViewModel = new SignInViewModel();
         InitializeComponent();
     }
 
@@ -15,7 +18,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        TrayWindow = new TrayWindow();
+        TrayWindow = new TrayWindow(SignInViewModel);
         TrayWindow.Closed += (sender, args) =>
         {
             // TODO: wire up HandleClosedEvents properly

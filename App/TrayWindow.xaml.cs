@@ -19,6 +19,7 @@ using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
+using Coder.Desktop.App.ViewModels;
 
 namespace Coder.Desktop.App;
 
@@ -139,8 +140,11 @@ public sealed partial class TrayWindow : Window
         },
     ];
 
-    public TrayWindow()
+    public SignInViewModel SignInViewModel { get; }
+
+    public TrayWindow(SignInViewModel signInViewModel)
     {
+        SignInViewModel = signInViewModel;
         InitializeComponent();
         AppWindow.Hide();
         SystemBackdrop = new DesktopAcrylicBackdrop();
@@ -190,18 +194,10 @@ public sealed partial class TrayWindow : Window
         var desiredSize = content.DesiredSize;
 
         // Adjust the AppWindow size
-        var scale = GetDisplayScale();
+        var scale = DisplayScale.WindowScale(this);
         var height = (int)(desiredSize.Height * scale);
         var width = (int)(WIDTH * scale);
         AppWindow.Resize(new SizeInt32(width, height));
-    }
-
-    private double GetDisplayScale()
-    {
-        var hwnd = WindowNative.GetWindowHandle(this);
-        var dpi = NativeApi.GetDpiForWindow(hwnd);
-        if (dpi == 0) return 1; // assume scale of 1
-        return dpi / 96.0; // 96 DPI == 1
     }
 
     public void MoveResizeAndActivate()
@@ -313,13 +309,17 @@ public sealed partial class TrayWindow : Window
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hwnd);
 
-        [DllImport("user32.dll")]
-        public static extern int GetDpiForWindow(IntPtr hwnd);
-
         public struct POINT
         {
             public int X;
             public int Y;
         }
+    }
+
+    [RelayCommand]
+    private void SignIn_Click()
+    {
+        var window = new SignInWindow(SignInViewModel);
+        window.Activate();
     }
 }

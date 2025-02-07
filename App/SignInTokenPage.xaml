@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Coder.Desktop.App.SignInTokenPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Coder.Desktop.App"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <StackPanel
+        Orientation="Vertical"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Top"
+        Padding="20"
+        Spacing="10">
+
+        <TextBlock
+            Text="Coder Desktop"
+            FontSize="24"
+            VerticalAlignment="Center"
+            HorizontalAlignment="Center"/>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="1*" />
+                <RowDefinition Height="1*" />
+                <RowDefinition Height="1*" />
+            </Grid.RowDefinitions>
+            
+            <TextBlock
+                Grid.Column="0"
+                Grid.Row="0"
+                Text="Server URL"
+                HorizontalAlignment="Right"
+                Padding="10"/>
+
+            <TextBlock
+                Grid.Column="1"
+                Grid.Row="0"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Center"
+                Padding="10"
+                Text="{x:Bind Path=ViewModel.Url, Mode=OneTime}"
+                />
+
+            <TextBlock
+                Grid.Column="0"
+                Grid.Row="1"
+                Text="Session Token"
+                HorizontalAlignment="Right"
+                Padding="10"/>
+
+            <TextBox
+                Grid.Column="1"
+                Grid.Row="1"
+                HorizontalAlignment="Stretch"
+                PlaceholderText="paste your token here"
+                Text="{x:Bind Path=ViewModel.CoderToken, Mode=TwoWay}"
+                />
+
+            <HyperlinkButton
+                Grid.Column="1"
+                Grid.Row="2"
+                Content="Generate a token via the Web UI"
+                NavigateUri="{x:Bind ViewModel.GenTokenURL, Mode=OneTime}" />
+
+        </Grid>
+
+        <StackPanel
+            Orientation="Horizontal"
+            HorizontalAlignment="Center"
+            Spacing="10">
+            <Button Content="Back" HorizontalAlignment="Right"
+                    Click="{x:Bind SignInWindow.NavigateToURLPage}"/>
+            <Button Content="Sign In" HorizontalAlignment="Left" Style="{StaticResource AccentButtonStyle}"
+                    Click="{x:Bind ViewModel.SignIn_Click}"/>
+        </StackPanel>
+
+        <TextBlock
+            Text="{x:Bind ViewModel.LoginError, Mode=OneWay}"
+            HorizontalAlignment="Center"
+            Foreground="Red"
+            />
+       
+
+    </StackPanel>
+</Page>
