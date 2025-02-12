@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Get version from tag
+      id: version
+      shell: pwsh
+      run: |
+        $tag = $env:GITHUB_REF -replace 'refs/tags/',''
+        if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Tag must be in format v1.2.3"
+        }
+        $version = $tag -replace '^v',''
+        $assemblyVersion = "$version.0"
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        echo "ASSEMBLY_VERSION=$assemblyVersion" >> $env:GITHUB_OUTPUT
+
+    - name: Build and publish x64
+      run: |
+        dotnet publish src/App/App.csproj -c Release -r win-x64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/x64
+        dotnet publish src/Vpn.Service/Vpn.Service.csproj -c Release -r win-x64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/x64
+
+    - name: Build and publish arm64
+      run: |
+        dotnet publish src/App/App.csproj -c Release -r win-arm64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/arm64
+        dotnet publish src/Vpn.Service/Vpn.Service.csproj -c Release -r win-arm64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/arm64
+
+    - name: Create ZIP archives
+      shell: pwsh
+      run: |
+        Compress-Archive -Path "publish/x64/*" -DestinationPath "./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-x64.zip"
+        Compress-Archive -Path "publish/arm64/*" -DestinationPath "./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-arm64.zip"
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          ./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-x64.zip
+          ./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-arm64.zip
+        name: Release ${{ steps.version.outputs.VERSION }}
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
