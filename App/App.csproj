@@ -10,22 +10,42 @@
         <PublishProfile>Properties\PublishProfiles\win-$(Platform).pubxml</PublishProfile>
         <UseWinUI>true</UseWinUI>
         <Nullable>enable</Nullable>
-        <EnableMsixTooling>false</EnableMsixTooling>
+        <EnableMsixTooling>true</EnableMsixTooling>
         <WindowsPackageType>None</WindowsPackageType>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <!-- To use CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute: -->
         <LangVersion>preview</LangVersion>
+        <!-- We have our own implementation of main with exception handling -->
+        <DefineConstants>DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="$(Configuration) == 'Release'">
+        <PublishTrimmed>true</PublishTrimmed>
+        <TrimMode>CopyUsed</TrimMode>
+        <PublishReadyToRun>true</PublishReadyToRun>
+        <SelfContained>true</SelfContained>
     </PropertyGroup>
 
     <ItemGroup>
         <Manifest Include="$(ApplicationManifest)" />
     </ItemGroup>
 
-    <ItemGroup>
-        <Content Include="Images\SplashScreen.scale-200.png" />
-        <Content Include="Images\Square150x150Logo.scale-200.png" />
-        <Content Include="Images\Square44x44Logo.scale-200.png" />
-    </ItemGroup>
+    <!--
+        Clean up unnecessary files (including .xbf XAML Binary Format files)
+        and (now) empty directories from target. The .xbf files are not
+        necessary as they are contained within resources.pri.
+    -->
+    <Target Name="CleanupTargetDir" AfterTargets="Build;_GenerateProjectPriFileCore" Condition="$(Configuration) == 'Release'">
+        <ItemGroup>
+            <FilesToDelete Include="$(TargetDir)**\*.xbf" />
+            <FilesToDelete Include="$(TargetDir)createdump.exe" />
+            <DirsToDelete Include="$(TargetDir)Controls" />
+            <DirsToDelete Include="$(TargetDir)Views" />
+        </ItemGroup>
+
+        <Delete Files="@(FilesToDelete)" />
+        <RemoveDir Directories="@(DirsToDelete)" />
+    </Target>
 
     <ItemGroup>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />

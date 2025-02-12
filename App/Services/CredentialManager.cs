@@ -2,6 +2,7 @@ using System;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
@@ -9,6 +10,17 @@ using Coder.Desktop.Vpn.Utilities;
 using CoderSdk;
 
 namespace Coder.Desktop.App.Services;
+
+public class RawCredentials
+{
+    public required string CoderUrl { get; set; }
+    public required string ApiToken { get; set; }
+}
+
+[JsonSerializable(typeof(RawCredentials))]
+public partial class RawCredentialsJsonContext : JsonSerializerContext
+{
+}
 
 public interface ICredentialManager
 {
@@ -123,7 +135,7 @@ public class CredentialManager : ICredentialManager
         RawCredentials? credentials;
         try
         {
-            credentials = JsonSerializer.Deserialize<RawCredentials>(raw);
+            credentials = JsonSerializer.Deserialize(raw, RawCredentialsJsonContext.Default.RawCredentials);
         }
         catch (JsonException)
         {
@@ -138,14 +150,8 @@ public class CredentialManager : ICredentialManager
 
     private static void WriteCredentials(RawCredentials credentials)
     {
-        var raw = JsonSerializer.Serialize(credentials);
+        var raw = JsonSerializer.Serialize(credentials, RawCredentialsJsonContext.Default.RawCredentials);
         NativeApi.WriteCredentials(CredentialsTargetName, raw);
-    }
-
-    private class RawCredentials
-    {
-        public required string CoderUrl { get; set; }
-        public required string ApiToken { get; set; }
     }
 
     private static class NativeApi

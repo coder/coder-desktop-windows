@@ -15,8 +15,9 @@
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
 
-        <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter" Starting="true" Stopping="true" />
+        <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter" Unknown="true" Starting="true" Stopping="true" />
         <converters:VpnLifecycleToBoolConverter x:Key="NotConnectingBoolConverter" Started="true" Stopped="true" />
+        <converters:VpnLifecycleToBoolConverter x:Key="StoppedBoolConverter" Stopped="true" />
         <converters:VpnLifecycleToVisibilityConverter x:Key="StartedVisibilityConverter" Started="true" />
         <converters:VpnLifecycleToVisibilityConverter x:Key="NotStartedVisibilityConverter" Starting="true"
                                                       Stopping="true" Stopped="true" />
@@ -56,8 +57,8 @@
                 Grid.Column="2"
                 OnContent=""
                 OffContent=""
-                IsOn="{x:Bind ViewModel.VpnSwitchOn, Mode=TwoWay}"
                 IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}, Mode=OneWay}"
+                Loaded="{x:Bind ViewModel.VpnSwitch_Loaded}"
                 Toggled="{x:Bind ViewModel.VpnSwitch_Toggled}"
                 Margin="0,0,-110,0"
                 HorizontalAlignment="Right" />
@@ -204,6 +205,7 @@
 
         <HyperlinkButton
             Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
+            IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource StoppedBoolConverter}, Mode=OneWay}"
             Margin="-12,0"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left">

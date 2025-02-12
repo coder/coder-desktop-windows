@@ -51,10 +51,15 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
       - name: dotnet restore
         run: dotnet restore --locked-mode
-      #- name: dotnet publish
-      #  run: dotnet publish --no-restore --configuration Release --output .\publish
-      #- name: Upload artifact
-      #  uses: actions/upload-artifact@v4
-      #  with:
-      #    name: publish
-      #    path: .\publish\
+      # This doesn't call `dotnet publish` on the entire solution, just the
+      # projects we care about building. Doing a full publish includes test
+      # libraries and stuff which is pointless.
+      - name: dotnet publish Coder.Desktop.Vpn.Service
+        run: dotnet publish .\Vpn.Service\Vpn.Service.csproj --configuration Release --output .\publish\Vpn.Service
+      - name: dotnet publish Coder.Desktop.App
+        run: dotnet publish .\App\App.csproj --configuration Release --output .\publish\App
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish
+          path: .\publish\
