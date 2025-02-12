@@ -8,29 +8,27 @@ namespace Coder.Desktop.Vpn.Service;
 
 public static class Program
 {
-#if DEBUG
-    private const string ServiceName = "Coder Desktop (Debug)";
+#if !DEBUG
+    private const string ServiceName = "Coder Desktop";
 #else
-    const string ServiceName = "Coder Desktop";
+    private const string ServiceName = "Coder Desktop (Debug)";
 #endif
+
+    private const string ConsoleOutputTemplate =
+        "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
+    private const string FileOutputTemplate =
+        "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
 
     private static readonly ILogger MainLogger = Log.ForContext("SourceContext", "Coder.Desktop.Vpn.Service.Program");
 
+    private static LoggerConfiguration LogConfig = new LoggerConfiguration()
+        .Enrich.FromLogContext()
+        .MinimumLevel.Debug()
+        .WriteTo.Console(outputTemplate: ConsoleOutputTemplate);
+
     public static async Task<int> Main(string[] args)
     {
-        // Configure Serilog.
-        Log.Logger = new LoggerConfiguration()
-            .Enrich.FromLogContext()
-            // TODO: configurable level
-            .MinimumLevel.Debug()
-            .WriteTo.Console(
-                outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}")
-            // TODO: better location
-            .WriteTo.File(@"C:\CoderDesktop.log",
-                outputTemplate:
-                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}")
-            .CreateLogger();
-
+        Log.Logger = LogConfig.CreateLogger();
         try
         {
             await BuildAndRun(args);
@@ -61,7 +59,13 @@ public static class Program
         // Options types (these get registered as IOptions<T> singletons)
         builder.Services.AddOptions<ManagerConfig>()
             .Bind(builder.Configuration.GetSection("Manager"))
-            .ValidateDataAnnotations();
+            .ValidateDataAnnotations()
+            .PostConfigure(config =>
+            {
+                LogConfig = LogConfig
+                    .WriteTo.File(config.LogFileLocation, outputTemplate: FileOutputTemplate);
+                Log.Logger = LogConfig.CreateLogger();
+            });
 
         // Logging
         builder.Services.AddSerilog();

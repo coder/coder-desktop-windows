@@ -403,5 +403,7 @@ FodyWeavers.xsd
 .idea/**/shelf
 
 publish
-WindowsAppRuntimeInstall-x64.exe
+WindowsAppRuntimeInstall-*.exe
+windowsdesktop-runtime-*.exe
 wintun.dll
+wintun-*.dll

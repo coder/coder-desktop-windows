@@ -57,14 +57,13 @@
                 HorizontalAlignment="Right"
                 Padding="10" />
 
-            <TextBox
+            <PasswordBox
                 Grid.Column="1"
                 Grid.Row="2"
                 HorizontalAlignment="Stretch"
                 PlaceholderText="Paste your token here"
                 LostFocus="{x:Bind ViewModel.ApiToken_FocusLost, Mode=OneWay}"
-                Text="{x:Bind ViewModel.ApiToken, Mode=TwoWay}"
-                InputScope="Password" />
+                Password="{x:Bind ViewModel.ApiToken, Mode=TwoWay}" />
 
             <TextBlock
                 Grid.Column="1"

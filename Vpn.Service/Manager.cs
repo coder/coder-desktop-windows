@@ -16,6 +16,12 @@ public enum TunnelStatus
     Stopped,
 }
 
+public class ServerVersion
+{
+    public required string String { get; set; }
+    public required SemVersion SemVersion { get; set; }
+}
+
 public interface IManager : IDisposable
 {
     public Task StopAsync(CancellationToken ct = default);
@@ -40,7 +46,7 @@ public class Manager : IManager
     // TunnelSupervisor already has protections against concurrent operations,
     // but all the other stuff before starting the tunnel does not.
     private readonly RaiiSemaphoreSlim _tunnelOperationLock = new(1, 1);
-    private SemVersion? _lastServerVersion;
+    private ServerVersion? _lastServerVersion;
     private StartRequest? _lastStartRequest;
 
     private readonly RaiiSemaphoreSlim _statusLock = new(1, 1);
@@ -132,11 +138,9 @@ public class Manager : IManager
         {
             try
             {
-                var serverVersion =
-                    await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken,
-                        ct);
+                var serverVersion = await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
                 if (_status == TunnelStatus.Started && _lastStartRequest != null &&
-                    _lastStartRequest.Equals(message.Start) && _lastServerVersion == serverVersion)
+                    _lastStartRequest.Equals(message.Start) && _lastServerVersion?.String == serverVersion.String)
                 {
                     // The client is requesting to start an identical tunnel while
                     // we're already running it.
@@ -156,7 +160,7 @@ public class Manager : IManager
                 // Stop the tunnel if it's running so we don't have to worry about
                 // permissions issues when replacing the binary.
                 await _tunnelSupervisor.StopAsync(ct);
-                await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion, ct);
+                await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion.SemVersion, ct);
                 await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
                     HandleTunnelRpcError,
                     ct);
@@ -361,7 +365,7 @@ public class Manager : IManager
     /// <param name="ct">Cancellation token</param>
     /// <returns>The server version</returns>
     /// <exception cref="InvalidOperationException">The server version is not within the required range</exception>
-    private async ValueTask<SemVersion> CheckServerVersionAndCredentials(string baseUrl, string apiToken,
+    private async ValueTask<ServerVersion> CheckServerVersionAndCredentials(string baseUrl, string apiToken,
         CancellationToken ct = default)
     {
         var client = new CoderApiClient(baseUrl, apiToken);
@@ -377,7 +381,11 @@ public class Manager : IManager
         var user = await client.GetUser(User.Me, ct);
         _logger.LogInformation("Authenticated to server as '{Username}'", user.Username);
 
-        return serverVersion;
+        return new ServerVersion
+        {
+            String = buildInfo.Version,
+            SemVersion = serverVersion,
+        };
     }
 
     /// <summary>

@@ -32,7 +32,7 @@ public class VpnLifecycleException : Exception
     }
 }
 
-public interface IRpcController
+public interface IRpcController : IAsyncDisposable
 {
     public event EventHandler<RpcModel> StateChanged;
 
@@ -222,6 +222,13 @@ public class RpcController : IRpcController
         if (!reply.Stop.Success)
             throw new VpnLifecycleException("Failed to stop VPN",
                 new InvalidOperationException($"Service reported failure: {reply.Stop.ErrorMessage}"));
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_speaker != null)
+            await _speaker.DisposeAsync();
+        GC.SuppressFinalize(this);
     }
 
     private void MutateState(Action<RpcModel> mutator)
