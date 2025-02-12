@@ -50,7 +50,7 @@ message ClientMessage {
   oneof msg {
     StartRequest start = 2;
     StopRequest stop = 3;
-  StatusRequest status = 4;
+    StatusRequest status = 4;
   }
 }
 
@@ -60,7 +60,7 @@ message ServiceMessage {
   oneof msg {
     StartResponse start = 2;
     StopResponse stop = 3;
-  Status status = 4; // either in reply to a StatusRequest or broadcasted
+    Status status = 4; // either in reply to a StatusRequest or broadcasted
   }
 }
 

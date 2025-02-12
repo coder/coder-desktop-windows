@@ -22,8 +22,7 @@ public partial class TrayWindowViewModel : ObservableObject
     private DispatcherQueue? _dispatcherQueue;
 
     [ObservableProperty]
-    public partial VpnLifecycle VpnLifecycle { get; set; } =
-        VpnLifecycle.Stopping; // to prevent interaction until we get the real state
+    public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
     // VpnSwitchOn needs to be its own property as it is a two-way binding
     [ObservableProperty]
@@ -82,7 +81,7 @@ public partial class TrayWindowViewModel : ObservableObject
         // Window should not show the current Page if the RPC is disconnected.
         if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
         {
-            VpnLifecycle = VpnLifecycle.Stopping;
+            VpnLifecycle = VpnLifecycle.Unknown;
             VpnSwitchOn = false;
             Agents = [];
             return;

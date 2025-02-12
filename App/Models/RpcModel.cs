@@ -13,6 +13,7 @@ public enum RpcLifecycle
 
 public enum VpnLifecycle
 {
+    Unknown,
     Stopped,
     Starting,
     Started,
@@ -23,7 +24,7 @@ public class RpcModel
 {
     public RpcLifecycle RpcLifecycle { get; set; } = RpcLifecycle.Disconnected;
 
-    public VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Stopped;
+    public VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
     public List<Workspace> Workspaces { get; set; } = [];
 

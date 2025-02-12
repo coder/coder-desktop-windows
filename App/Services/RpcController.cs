@@ -126,7 +126,7 @@ public class RpcController : IRpcController
             MutateState(state =>
             {
                 state.RpcLifecycle = RpcLifecycle.Disconnected;
-                state.VpnLifecycle = VpnLifecycle.Stopped;
+                state.VpnLifecycle = VpnLifecycle.Unknown;
                 state.Workspaces.Clear();
                 state.Agents.Clear();
             });
@@ -136,7 +136,7 @@ public class RpcController : IRpcController
         MutateState(state =>
         {
             state.RpcLifecycle = RpcLifecycle.Connected;
-            state.VpnLifecycle = VpnLifecycle.Stopping; // prevents clicking the toggle
+            state.VpnLifecycle = VpnLifecycle.Unknown;
             state.Workspaces.Clear();
             state.Agents.Clear();
         });
@@ -250,7 +250,7 @@ public class RpcController : IRpcController
         {
             state.VpnLifecycle = status.Lifecycle switch
             {
-                Status.Types.Lifecycle.Unknown => VpnLifecycle.Stopping, // disables the switch
+                Status.Types.Lifecycle.Unknown => VpnLifecycle.Unknown,
                 Status.Types.Lifecycle.Starting => VpnLifecycle.Starting,
                 Status.Types.Lifecycle.Started => VpnLifecycle.Started,
                 Status.Types.Lifecycle.Stopping => VpnLifecycle.Stopping,
