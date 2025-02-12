@@ -51,10 +51,10 @@ jobs:
           cache-dependency-path: '**/packages.lock.json'
       - name: dotnet restore
         run: dotnet restore --locked-mode
-      - name: dotnet publish
-        run: dotnet publish --no-restore --configuration Release --output .\publish
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: publish
-          path: .\publish\
+      #- name: dotnet publish
+      #  run: dotnet publish --no-restore --configuration Release --output .\publish
+      #- name: Upload artifact
+      #  uses: actions/upload-artifact@v4
+      #  with:
+      #    name: publish
+      #    path: .\publish\
