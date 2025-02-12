@@ -9,9 +9,9 @@ namespace Coder.Desktop.Vpn.Service;
 public static class Program
 {
 #if DEBUG
-    private const string serviceName = "Coder Desktop (Debug)";
+    private const string ServiceName = "Coder Desktop (Debug)";
 #else
-    const string serviceName = "Coder Desktop";
+    const string ServiceName = "Coder Desktop";
 #endif
 
     private static readonly ILogger MainLogger = Log.ForContext("SourceContext", "Coder.Desktop.Vpn.Service.Program");
@@ -69,14 +69,14 @@ public static class Program
         // Singletons
         builder.Services.AddSingleton<IDownloader, Downloader>();
         builder.Services.AddSingleton<ITunnelSupervisor, TunnelSupervisor>();
+        builder.Services.AddSingleton<IManagerRpc, ManagerRpc>();
         builder.Services.AddSingleton<IManager, Manager>();
 
         // Services
-        // TODO: is this sound enough to determine if we're a service?
         if (!Environment.UserInteractive)
         {
             MainLogger.Information("Running as a windows service");
-            builder.Services.AddWindowsService(options => { options.ServiceName = serviceName; });
+            builder.Services.AddWindowsService(options => { options.ServiceName = ServiceName; });
         }
         else
         {

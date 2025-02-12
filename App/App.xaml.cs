@@ -12,7 +12,6 @@ namespace Coder.Desktop.App;
 public partial class App : Application
 {
     private readonly IServiceProvider _services;
-    private readonly bool _handleClosedEvents = true;
 
     public App()
     {
@@ -49,12 +48,8 @@ public partial class App : Application
         var trayWindow = _services.GetRequiredService<TrayWindow>();
         trayWindow.Closed += (sender, args) =>
         {
-            // TODO: wire up HandleClosedEvents properly
-            if (_handleClosedEvents)
-            {
-                args.Handled = true;
-                trayWindow.AppWindow.Hide();
-            }
+            args.Handled = true;
+            trayWindow.AppWindow.Hide();
         };
     }
 }

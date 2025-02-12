@@ -3,13 +3,13 @@ using System.IO.Pipes;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Utilities;
 using Microsoft.Extensions.Logging;
+using Log = Serilog.Log;
+using Process = System.Diagnostics.Process;
 
 namespace Coder.Desktop.Vpn.Service;
 
 public interface ITunnelSupervisor : IAsyncDisposable
 {
-    public bool IsRunning { get; }
-
     /// <summary>
     ///     Starts the tunnel subprocess with the given executable path. If the subprocess is already running, this method will
     ///     kill it first.
@@ -62,7 +62,6 @@ public class TunnelSupervisor : ITunnelSupervisor
     private AnonymousPipeServerStream? _inPipe;
     private AnonymousPipeServerStream? _outPipe;
     private Speaker<ManagerMessage, TunnelMessage>? _speaker;
-
     private Process? _subprocess;
 
     // ReSharper disable once ConvertToPrimaryConstructor
@@ -70,8 +69,6 @@ public class TunnelSupervisor : ITunnelSupervisor
     {
         _logger = logger;
     }
-
-    public bool IsRunning => _speaker != null;
 
     public async Task StartAsync(string binPath,
         Speaker<ManagerMessage, TunnelMessage>.OnReceiveDelegate messageHandler,
@@ -101,15 +98,19 @@ public class TunnelSupervisor : ITunnelSupervisor
                     RedirectStandardOutput = true,
                 },
             };
+            // TODO: maybe we should change the log format in the inner binary
+            // to something without a timestamp
+            var outLogger = Log.ForContext("SourceContext", "coder-vpn.exe[OUT]");
+            var errLogger = Log.ForContext("SourceContext", "coder-vpn.exe[ERR]");
             _subprocess.OutputDataReceived += (_, args) =>
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
-                    _logger.LogDebug("OUT: {Data}", args.Data);
+                    outLogger.Debug("{Data}", args.Data);
             };
             _subprocess.ErrorDataReceived += (_, args) =>
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
-                    _logger.LogDebug("ERR: {Data}", args.Data);
+                    errLogger.Debug("{Data}", args.Data);
             };
 
             // Pass the other end of the pipes to the subprocess and dispose

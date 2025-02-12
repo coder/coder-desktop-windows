@@ -14,6 +14,7 @@ public sealed partial class TrayWindowMainPage : Page
     {
         InitializeComponent();
         ViewModel = viewModel;
+        ViewModel.Initialize(DispatcherQueue);
     }
 
     // HACK: using XAML to populate the text Runs results in an additional

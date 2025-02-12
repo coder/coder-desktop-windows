@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Data;
 
 namespace Coder.Desktop.App.Converters;
 
+[DependencyProperty<bool>("Unknown", DefaultValue = false)]
 [DependencyProperty<bool>("Starting", DefaultValue = false)]
 [DependencyProperty<bool>("Started", DefaultValue = false)]
 [DependencyProperty<bool>("Stopping", DefaultValue = false)]
@@ -18,6 +19,7 @@ public partial class VpnLifecycleToBoolConverter : DependencyObject, IValueConve
 
         return lifecycle switch
         {
+            VpnLifecycle.Unknown => Unknown,
             VpnLifecycle.Starting => Starting,
             VpnLifecycle.Started => Started,
             VpnLifecycle.Stopping => Stopping,

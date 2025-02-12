@@ -66,12 +66,14 @@ public class CredentialManager : ICredentialManager
 
         try
         {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
             var sdkClient = new CoderApiClient(uri);
             sdkClient.SetSessionToken(apiToken);
             // TODO: we should probably perform a version check here too,
             // rather than letting the service do it on Start
-            _ = await sdkClient.GetBuildInfo(ct);
-            _ = await sdkClient.GetUser(User.Me, ct);
+            _ = await sdkClient.GetBuildInfo(cts.Token);
+            _ = await sdkClient.GetUser(User.Me, cts.Token);
         }
         catch (Exception e)
         {

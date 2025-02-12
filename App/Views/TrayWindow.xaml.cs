@@ -72,8 +72,8 @@ public sealed partial class TrayWindow : Window
         // Ensure the corner is rounded.
         var windowHandle = Win32Interop.GetWindowFromWindowId(AppWindow.Id);
         var value = 2;
-        var result = NativeApi.DwmSetWindowAttribute(windowHandle, 33, ref value, Marshal.SizeOf<int>());
-        if (result != 0) throw new Exception("Failed to set window corner preference");
+        // Best effort. This does not work on Windows 10.
+        _ = NativeApi.DwmSetWindowAttribute(windowHandle, 33, ref value, Marshal.SizeOf<int>());
     }
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel)
@@ -108,6 +108,14 @@ public sealed partial class TrayWindow : Window
     // trigger when the Page's content changes.
     public void SetRootFrame(Page page)
     {
+        if (!DispatcherQueue.HasThreadAccess)
+        {
+            DispatcherQueue.TryEnqueue(() => SetRootFrame(page));
+            return;
+        }
+
+        if (ReferenceEquals(page, RootFrame.Content)) return;
+
         if (page.Content is not FrameworkElement newElement)
             throw new Exception("Failed to get Page.Content as FrameworkElement on RootFrame navigation");
         newElement.SizeChanged += Content_SizeChanged;
@@ -239,7 +247,7 @@ public sealed partial class TrayWindow : Window
     [RelayCommand]
     private void Tray_Exit()
     {
-        // TODO: implement exit
+        Application.Current.Exit();
     }
 
     public class NativeApi
