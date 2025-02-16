@@ -17,6 +17,12 @@ internal class SnakeCaseNamingPolicy : JsonNamingPolicy
     }
 }
 
+[JsonSerializable(typeof(BuildInfo))]
+[JsonSerializable(typeof(User))]
+public partial class CoderSdkJsonContext : JsonSerializerContext
+{
+}
+
 /// <summary>
 ///     Provides a limited selection of API methods for a Coder instance.
 /// </summary>
@@ -37,6 +43,7 @@ public partial class CoderApiClient
         _httpClient.BaseAddress = baseUrl;
         _jsonOptions = new JsonSerializerOptions
         {
+            TypeInfoResolver = CoderSdkJsonContext.Default,
             PropertyNameCaseInsensitive = true,
             PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
@@ -53,9 +60,11 @@ public partial class CoderApiClient
         _httpClient.DefaultRequestHeaders.Remove("Coder-Session-Token");
         _httpClient.DefaultRequestHeaders.Add("Coder-Session-Token", token);
     }
+    private async Task<TResponse> SendRequestNoBodyAsync<TResponse>(HttpMethod method, string path, CancellationToken ct = default) =>
+        await SendRequestAsync<object, TResponse>(method, path, null, ct);
 
-    private async Task<TResponse> SendRequestAsync<TResponse>(HttpMethod method, string path,
-        object? payload, CancellationToken ct = default)
+    private async Task<TResponse> SendRequestAsync<TRequest, TResponse>(HttpMethod method, string path,
+        TRequest? payload, CancellationToken ct = default)
     {
         try
         {
@@ -63,7 +72,7 @@ public partial class CoderApiClient
 
             if (payload is not null)
             {
-                var json = JsonSerializer.Serialize(payload, _jsonOptions);
+                var json = JsonSerializer.Serialize(payload, typeof(TRequest), _jsonOptions);
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             }
 

@@ -12,6 +12,6 @@ public partial class CoderApiClient
 {
     public Task<User> GetUser(string user, CancellationToken ct = default)
     {
-        return SendRequestAsync<User>(HttpMethod.Get, $"/api/v2/users/{user}", null, ct);
+        return SendRequestNoBodyAsync<User>(HttpMethod.Get, $"/api/v2/users/{user}", ct);
     }
 }

@@ -21,13 +21,14 @@ public partial class TrayWindowViewModel : ObservableObject
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
 
-    private ToggleSwitch? _vpnActiveSwitch;
-    private bool _isProgrammaticStateChange;
-
     private DispatcherQueue? _dispatcherQueue;
 
     [ObservableProperty]
     public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
+
+    // This is a separate property because we need the switch to be 2-way.
+    [ObservableProperty]
+    public partial bool VpnSwitchActive { get; set; } = false;
 
     [ObservableProperty]
     public partial string? VpnFailedMessage { get; set; } = null;
@@ -83,13 +84,13 @@ public partial class TrayWindowViewModel : ObservableObject
         if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
         {
             VpnLifecycle = VpnLifecycle.Unknown;
-            SetVpnSwitch(false);
+            VpnSwitchActive = false;
             Agents = [];
             return;
         }
 
         VpnLifecycle = rpcModel.VpnLifecycle;
-        SetVpnSwitch(rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started);
+        VpnSwitchActive = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
 
         // Get the current dashboard URL.
         var credentialModel = _credentialManager.GetCredentials();
@@ -188,42 +189,20 @@ public partial class TrayWindowViewModel : ObservableObject
         DashboardUrl = credentialModel.CoderUrl ?? DefaultDashboardUrl;
     }
 
-    private void SetVpnSwitch(bool value)
-    {
-        if (_vpnActiveSwitch == null) return;
-        _isProgrammaticStateChange = true;
-        _vpnActiveSwitch.IsOn = value;
-        _isProgrammaticStateChange = false;
-    }
-
-    // HACK: using a two-way bool to store the VPN active state results in
-    // erroneous events being sent (even outside our change handlers). This
-    // sucks and breaks the ViewModel separation but is necessary for the
-    // switch to function correctly.
-    public void VpnSwitch_Loaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is not ToggleSwitch toggleSwitch) return;
-        _vpnActiveSwitch = toggleSwitch;
-        SetVpnSwitch(VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started);
-    }
-
     public void VpnSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch toggleSwitch) return;
-
-        // HACK: the toggled event gets fired even when the switch state is
-        // changed from code, so we ignore all events while we're performing
-        // changes.
-        if (_isProgrammaticStateChange) return;
 
         VpnFailedMessage = "";
         try
         {
             // The start/stop methods will call back to update the state.
-            if (toggleSwitch.IsOn)
+            if (toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Stopped)
                 _rpcController.StartVpn();
-            else
+            else if (!toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Started)
                 _rpcController.StopVpn();
+            else
+                toggleSwitch.IsOn = VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
         }
         catch
         {
