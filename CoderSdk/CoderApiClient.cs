@@ -60,8 +60,12 @@ public partial class CoderApiClient
         _httpClient.DefaultRequestHeaders.Remove("Coder-Session-Token");
         _httpClient.DefaultRequestHeaders.Add("Coder-Session-Token", token);
     }
-    private async Task<TResponse> SendRequestNoBodyAsync<TResponse>(HttpMethod method, string path, CancellationToken ct = default) =>
-        await SendRequestAsync<object, TResponse>(method, path, null, ct);
+
+    private async Task<TResponse> SendRequestNoBodyAsync<TResponse>(HttpMethod method, string path,
+        CancellationToken ct = default)
+    {
+        return await SendRequestAsync<object, TResponse>(method, path, null, ct);
+    }
 
     private async Task<TResponse> SendRequestAsync<TRequest, TResponse>(HttpMethod method, string path,
         TRequest? payload, CancellationToken ct = default)

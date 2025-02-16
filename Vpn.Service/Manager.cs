@@ -138,7 +138,8 @@ public class Manager : IManager
         {
             try
             {
-                var serverVersion = await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
+                var serverVersion =
+                    await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
                 if (_status == TunnelStatus.Started && _lastStartRequest != null &&
                     _lastStartRequest.Equals(message.Start) && _lastServerVersion?.String == serverVersion.String)
                 {

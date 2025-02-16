@@ -15,7 +15,8 @@
         <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
         <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
 
-        <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter" Unknown="true" Starting="true" Stopping="true" />
+        <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter" Unknown="true" Starting="true"
+                                                Stopping="true" />
         <converters:VpnLifecycleToBoolConverter x:Key="NotConnectingBoolConverter" Started="true" Stopped="true" />
         <converters:VpnLifecycleToBoolConverter x:Key="StoppedBoolConverter" Stopped="true" />
         <converters:VpnLifecycleToVisibilityConverter x:Key="StartedVisibilityConverter" Started="true" />

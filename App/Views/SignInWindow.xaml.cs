@@ -3,7 +3,6 @@ using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views.Pages;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-using WinRT.Interop;
 
 namespace Coder.Desktop.App.Views;
 

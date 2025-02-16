@@ -16,6 +16,7 @@ public static class Program
 
     private const string ConsoleOutputTemplate =
         "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
+
     private const string FileOutputTemplate =
         "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
 

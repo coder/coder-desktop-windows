@@ -144,7 +144,8 @@ public partial class TrayWindowViewModel : ObservableObject
 
         // For every stopped workspace that doesn't have any agents, add a
         // dummy agent row.
-        foreach (var workspace in rpcModel.Workspaces.Where(w => w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
+        foreach (var workspace in rpcModel.Workspaces.Where(w =>
+                     w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
             agents.Add(new AgentViewModel
             {
                 // We just assume that it's a single-agent workspace.
