@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using System.Threading.Tasks;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
@@ -12,6 +12,8 @@ namespace Coder.Desktop.App;
 public partial class App : Application
 {
     private readonly IServiceProvider _services;
+
+    private bool _handleWindowClosed = true;
 
     public App()
     {
@@ -36,18 +38,27 @@ public partial class App : Application
 
         _services = services.BuildServiceProvider();
 
-#if DEBUG
-        UnhandledException += (_, e) => { Debug.WriteLine(e.Exception.ToString()); };
-#endif
-
         InitializeComponent();
+    }
+
+    public async Task ExitApplication()
+    {
+        _handleWindowClosed = false;
+        Exit();
+        var rpcManager = _services.GetRequiredService<IRpcController>();
+        // TODO: send a StopRequest if we're connected???
+        await rpcManager.DisposeAsync();
+        Environment.Exit(0);
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         var trayWindow = _services.GetRequiredService<TrayWindow>();
+
+        // Prevent the TrayWindow from closing, just hide it.
         trayWindow.Closed += (sender, args) =>
         {
+            if (!_handleWindowClosed) return;
             args.Handled = true;
             trayWindow.AppWindow.Hide();
         };

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Google.Protobuf;
@@ -15,6 +16,7 @@ namespace Coder.Desktop.App.ViewModels;
 public partial class TrayWindowViewModel : ObservableObject
 {
     private const int MaxAgents = 5;
+    private const string DefaultDashboardUrl = "https://coder.com";
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
@@ -24,9 +26,9 @@ public partial class TrayWindowViewModel : ObservableObject
     [ObservableProperty]
     public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
-    // VpnSwitchOn needs to be its own property as it is a two-way binding
+    // This is a separate property because we need the switch to be 2-way.
     [ObservableProperty]
-    public partial bool VpnSwitchOn { get; set; } = false;
+    public partial bool VpnSwitchActive { get; set; } = false;
 
     [ObservableProperty]
     public partial string? VpnFailedMessage { get; set; } = null;
@@ -82,13 +84,26 @@ public partial class TrayWindowViewModel : ObservableObject
         if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
         {
             VpnLifecycle = VpnLifecycle.Unknown;
-            VpnSwitchOn = false;
+            VpnSwitchActive = false;
             Agents = [];
             return;
         }
 
         VpnLifecycle = rpcModel.VpnLifecycle;
-        VpnSwitchOn = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
+        VpnSwitchActive = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
+
+        // Get the current dashboard URL.
+        var credentialModel = _credentialManager.GetCredentials();
+        Uri? coderUri = null;
+        if (credentialModel.State == CredentialState.Valid && !string.IsNullOrWhiteSpace(credentialModel.CoderUrl))
+            try
+            {
+                coderUri = new Uri(credentialModel.CoderUrl, UriKind.Absolute);
+            }
+            catch
+            {
+                // Ignore
+            }
 
         // Add every known agent.
         HashSet<ByteString> workspacesWithAgents = [];
@@ -114,6 +129,8 @@ public partial class TrayWindowViewModel : ObservableObject
 
             var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
             workspacesWithAgents.Add(agent.WorkspaceId);
+            var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
+
             agents.Add(new AgentViewModel
             {
                 Hostname = fqdnPrefix,
@@ -121,26 +138,22 @@ public partial class TrayWindowViewModel : ObservableObject
                 ConnectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
                     ? AgentConnectionStatus.Green
                     : AgentConnectionStatus.Red,
-                // TODO: we don't actually have any way of crafting a dashboard
-                // URL without the owner's username
-                DashboardUrl = "https://coder.com",
+                DashboardUrl = WorkspaceUri(coderUri, workspace?.Name),
             });
         }
 
-        // For every workspace that doesn't have an agent, add a dummy agent.
-        foreach (var workspace in rpcModel.Workspaces.Where(w => !workspacesWithAgents.Contains(w.Id)))
-        {
+        // For every stopped workspace that doesn't have any agents, add a
+        // dummy agent row.
+        foreach (var workspace in rpcModel.Workspaces.Where(w =>
+                     w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
             agents.Add(new AgentViewModel
             {
                 // We just assume that it's a single-agent workspace.
                 Hostname = workspace.Name,
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Gray,
-                // TODO: we don't actually have any way of crafting a dashboard
-                // URL without the owner's username
-                DashboardUrl = "https://coder.com",
+                DashboardUrl = WorkspaceUri(coderUri, workspace.Name),
             });
-        }
 
         // Sort by status green, red, gray, then by hostname.
         agents.Sort((a, b) =>
@@ -154,18 +167,29 @@ public partial class TrayWindowViewModel : ObservableObject
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
     }
 
+    private string WorkspaceUri(Uri? baseUri, string? workspaceName)
+    {
+        if (baseUri == null) return DefaultDashboardUrl;
+        if (string.IsNullOrWhiteSpace(workspaceName)) return baseUri.ToString();
+        try
+        {
+            return new Uri(baseUri, $"/@me/{workspaceName}").ToString();
+        }
+        catch
+        {
+            return DefaultDashboardUrl;
+        }
+    }
+
     private void UpdateFromCredentialsModel(CredentialModel credentialModel)
     {
         // HACK: the HyperlinkButton crashes the whole app if the initial URI
         // or this URI is invalid. CredentialModel.CoderUrl should never be
         // null while the Page is active as the Page is only displayed when
         // CredentialModel.Status == Valid.
-        DashboardUrl = credentialModel.CoderUrl ?? "https://coder.com";
+        DashboardUrl = credentialModel.CoderUrl ?? DefaultDashboardUrl;
     }
 
-    // VpnSwitch_Toggled is handled separately than just listening to the
-    // property change as we need to be able to tell the difference between the
-    // user toggling the switch and the switch being toggled by code.
     public void VpnSwitch_Toggled(object sender, RoutedEventArgs e)
     {
         if (sender is not ToggleSwitch toggleSwitch) return;
@@ -173,13 +197,17 @@ public partial class TrayWindowViewModel : ObservableObject
         VpnFailedMessage = "";
         try
         {
-            if (toggleSwitch.IsOn)
+            // The start/stop methods will call back to update the state.
+            if (toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Stopped)
                 _rpcController.StartVpn();
-            else
+            else if (!toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Started)
                 _rpcController.StopVpn();
+            else
+                toggleSwitch.IsOn = VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
         }
         catch
         {
+            // TODO: display error
             VpnFailedMessage = e.ToString();
         }
     }

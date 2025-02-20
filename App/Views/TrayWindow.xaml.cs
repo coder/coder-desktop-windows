@@ -247,10 +247,11 @@ public sealed partial class TrayWindow : Window
     [RelayCommand]
     private void Tray_Exit()
     {
-        Application.Current.Exit();
+        // It's fine that this happens in the background.
+        _ = ((App)Application.Current).ExitApplication();
     }
 
-    public class NativeApi
+    public static class NativeApi
     {
         [DllImport("dwmapi.dll")]
         public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);

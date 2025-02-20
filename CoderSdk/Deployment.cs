@@ -17,6 +17,6 @@ public partial class CoderApiClient
 {
     public Task<BuildInfo> GetBuildInfo(CancellationToken ct = default)
     {
-        return SendRequestAsync<BuildInfo>(HttpMethod.Get, "/api/v2/buildinfo", null, ct);
+        return SendRequestNoBodyAsync<BuildInfo>(HttpMethod.Get, "/api/v2/buildinfo", ct);
     }
 }

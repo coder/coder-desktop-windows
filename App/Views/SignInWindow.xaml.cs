@@ -1,6 +1,7 @@
 using Windows.Graphics;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views.Pages;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 
 namespace Coder.Desktop.App.Views;
@@ -24,6 +25,7 @@ public sealed partial class SignInWindow : Window
 
         NavigateToUrlPage();
         ResizeWindow();
+        MoveWindowToCenterOfDisplay();
     }
 
     public void NavigateToTokenPage()
@@ -42,5 +44,14 @@ public sealed partial class SignInWindow : Window
         var height = (int)(HEIGHT * scale);
         var width = (int)(WIDTH * scale);
         AppWindow.Resize(new SizeInt32(width, height));
+    }
+
+    private void MoveWindowToCenterOfDisplay()
+    {
+        var workArea = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        var x = (workArea.Width - AppWindow.Size.Width) / 2;
+        var y = (workArea.Height - AppWindow.Size.Height) / 2;
+        if (x < 0 || y < 0) return;
+        AppWindow.Move(new PointInt32(x, y));
     }
 }
