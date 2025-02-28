@@ -9,6 +9,7 @@ namespace Coder.Desktop.App.ViewModels;
 public enum AgentConnectionStatus
 {
     Green,
+    Yellow,
     Red,
     Gray,
 }

@@ -137,7 +137,7 @@ public partial class TrayWindowViewModel : ObservableObject
                 HostnameSuffix = fqdnSuffix,
                 ConnectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
                     ? AgentConnectionStatus.Green
-                    : AgentConnectionStatus.Red,
+                    : AgentConnectionStatus.Yellow,
                 DashboardUrl = WorkspaceUri(coderUri, workspace?.Name),
             });
         }
