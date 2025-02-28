@@ -10,6 +10,7 @@ public enum AgentConnectionStatus
 {
     Green,
     Red,
+    Yellow,
     Gray,
 }
 
