@@ -20,8 +20,8 @@ public class AgentStatusToColorConverter : IValueConverter
         return status switch
         {
             AgentConnectionStatus.Green => Green,
-            AgentConnectionStatus.Red => Red,
             AgentConnectionStatus.Yellow => Yellow,
+            AgentConnectionStatus.Red => Red,
             _ => Gray,
         };
     }
