@@ -15,11 +15,68 @@ param (
     [string] $outputPath = "", # defaults to "publish\CoderDesktop-$version-$arch.exe"
 
     [Parameter(Mandatory = $false)]
-    [switch] $keepBuildTemp = $false
+    [switch] $keepBuildTemp = $false,
+
+    [Parameter(Mandatory = $false)]
+    [switch] $sign = $false
 )
 
+$ErrorActionPreference = "Stop"
+
+$ourAssemblies = @(
+    "Coder Desktop.exe",
+    "Coder Desktop.dll",
+    "CoderVpnService.exe",
+    "CoderVpnService.dll",
+
+    "Coder.Desktop.CoderSdk.dll",
+    "Coder.Desktop.Vpn.dll",
+    "Coder.Desktop.Vpn.Proto.dll"
+)
+
+function Find-Dependencies([string[]] $dependencies) {
+    foreach ($dependency in $dependencies) {
+        if (!(Get-Command $dependency -ErrorAction SilentlyContinue)) {
+            throw "Missing dependency: $dependency"
+        }
+    }
+}
+
+function Find-EnvironmentVariables([string[]] $variables) {
+    foreach ($variable in $variables) {
+        if (!(Get-Item env:$variable -ErrorAction SilentlyContinue)) {
+            throw "Missing environment variable: $variable"
+        }
+    }
+}
+
+if ($sign) {
+    Write-Host "Signing is enabled"
+    Find-Dependencies java
+    Find-EnvironmentVariables @("JSIGN_PATH", "EV_KEYSTORE", "EV_KEY", "EV_CERTIFICATE_PATH", "EV_TSA_URL", "GCLOUD_ACCESS_TOKEN")
+}
+
+function Add-CoderSignature([string] $path) {
+    if (!$sign) {
+        Write-Host "Skipping signing $path"
+        return
+    }
+
+    Write-Host "Signing $path"
+    & java.exe -jar $env:JSIGN_PATH `
+        --storetype GOOGLECLOUD `
+        --storepass $env:GCLOUD_ACCESS_TOKEN `
+        --keystore $env:EV_KEYSTORE `
+        --alias $env:EV_KEY `
+        --certfile $env:EV_CERTIFICATE_PATH `
+        --tsmode RFC3161 `
+        --tsaurl $env:EV_TSA_URL `
+        $path
+    if ($LASTEXITCODE -ne 0) { throw "Failed to sign $path" }
+}
+
 # CD to the root of the repo
-$repoRoot = Join-Path $PSScriptRoot ".."
+$repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
 
 if ($msiOutputPath -eq "") {
@@ -48,11 +105,21 @@ New-Item -ItemType Directory -Path $buildPath -Force
 
 # Build in release mode
 $servicePublishDir = Join-Path $buildPath "service"
-dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir
+& dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir
+if ($LASTEXITCODE -ne 0) { throw "Failed to build Vpn.Service" }
 # App needs to be built with msbuild
 $appPublishDir = Join-Path $buildPath "app"
 $msbuildBinary = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
+if ($LASTEXITCODE -ne 0) { throw "Failed to find MSBuild" }
 & $msbuildBinary .\App\App.csproj /p:Configuration=Release /p:Platform=$arch /p:OutputPath=$appPublishDir
+if ($LASTEXITCODE -ne 0) { throw "Failed to build App" }
+
+# Find any files in the publish directory recursively that match any of our
+# assemblies and sign them.
+$toSign = Get-ChildItem -Path $buildPath -Recurse | Where-Object { $ourAssemblies -contains $_.Name }
+foreach ($file in $toSign) {
+    Add-CoderSignature $file.FullName
+}
 
 # Copy any additional files into the install directory
 Copy-Item "scripts\files\License.txt" $buildPath
@@ -63,7 +130,7 @@ $wintunDllPath = Join-Path $vpnFilesPath "wintun.dll"
 Copy-Item "scripts\files\wintun-*-$($arch).dll" $wintunDllPath
 
 # Build the MSI installer
-dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
+& dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
     build-msi `
     --arch $arch `
     --version $version `
@@ -77,11 +144,11 @@ dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
     --vpn-dir "vpn" `
     --banner-bmp "scripts\files\WixUIBannerBmp.bmp" `
     --dialog-bmp "scripts\files\WixUIDialogBmp.bmp"
-
-# TODO: sign the installer
+if ($LASTEXITCODE -ne 0) { throw "Failed to build MSI" }
+Add-CoderSignature $msiOutputPath
 
 # Build the bootstrapper
-dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
+& dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
     build-bootstrapper `
     --arch $arch `
     --version $version `
@@ -90,8 +157,8 @@ dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
     --icon-file "App\coder.ico" `
     --msi-path $msiOutputPath `
     --logo-png "scripts\files\logo.png"
-
-# TODO: sign the bootstrapper
+if ($LASTEXITCODE -ne 0) { throw "Failed to build bootstrapper" }
+Add-CoderSignature $outputPath
 
 if (!$keepBuildTemp) {
     Remove-Item -Recurse -Force $buildPath
