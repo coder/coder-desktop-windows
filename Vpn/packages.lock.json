@@ -13,7 +13,7 @@
         "resolved": "3.29.3",
         "contentHash": "t7nZFFUFwigCwZ+nIXHDLweXvwIpsOXi+P7J7smPT/QjI3EKxnCzTQOhBqyEh6XEzc/pNH+bCFOOSjatrPt6Tw=="
       },
-      "vpn.proto": {
+      "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
           "Google.Protobuf": "[3.29.3, )"

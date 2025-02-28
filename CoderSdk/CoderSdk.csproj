@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
+        <AssemblyName>Coder.Desktop.CoderSdk</AssemblyName>
         <RootNamespace>Coder.Desktop.CoderSdk</RootNamespace>
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>

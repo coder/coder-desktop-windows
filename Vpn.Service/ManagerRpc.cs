@@ -51,7 +51,15 @@ public class ManagerRpc : IManagerRpc
     public async ValueTask DisposeAsync()
     {
         await _cts.CancelAsync();
-        while (!_activeClients.IsEmpty) await Task.WhenAny(_activeClients.Values.Select(c => c.Task));
+        try
+        {
+            while (!_activeClients.IsEmpty)
+                await Task.WhenAny(_activeClients.Values.Select(c => c.Task));
+        }
+        catch
+        {
+        }
+
         _cts.Dispose();
         GC.SuppressFinalize(this);
     }

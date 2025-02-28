@@ -33,11 +33,9 @@ public partial class SignInViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ApiTokenError))]
     public partial bool ApiTokenTouched { get; set; } = false;
 
-    [ObservableProperty]
-    public partial string? SignInError { get; set; } = null;
+    [ObservableProperty] public partial string? SignInError { get; set; } = null;
 
-    [ObservableProperty]
-    public partial bool SignInLoading { get; set; } = false;
+    [ObservableProperty] public partial bool SignInLoading { get; set; } = false;
 
     public string? CoderUrlError => CoderUrlTouched ? _coderUrlError : null;
 

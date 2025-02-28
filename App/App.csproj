@@ -17,14 +17,21 @@
         <LangVersion>preview</LangVersion>
         <!-- We have our own implementation of main with exception handling -->
         <DefineConstants>DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+        <AssemblyName>Coder Desktop</AssemblyName>
+        <ApplicationIcon>coder.ico</ApplicationIcon>
     </PropertyGroup>
 
     <PropertyGroup Condition="$(Configuration) == 'Release'">
-        <PublishTrimmed>true</PublishTrimmed>
-        <TrimMode>CopyUsed</TrimMode>
+        <PublishTrimmed>false</PublishTrimmed>
+        <!-- <TrimMode>CopyUsed</TrimMode> -->
         <PublishReadyToRun>true</PublishReadyToRun>
-        <SelfContained>true</SelfContained>
+        <SelfContained>false</SelfContained>
     </PropertyGroup>
+
+    <ItemGroup>
+      <Content Include="coder.ico" />
+    </ItemGroup>
 
     <ItemGroup>
         <Manifest Include="$(ApplicationManifest)" />

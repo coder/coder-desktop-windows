@@ -112,17 +112,17 @@
           "System.Collections.Immutable": "9.0.0"
         }
       },
-      "codersdk": {
+      "Coder.Desktop.CoderSdk": {
         "type": "Project"
       },
-      "vpn": {
+      "Coder.Desktop.Vpn": {
         "type": "Project",
         "dependencies": {
-          "System.IO.Pipelines": "[9.0.1, )",
-          "Vpn.Proto": "[1.0.0, )"
+          "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
+          "System.IO.Pipelines": "[9.0.1, )"
         }
       },
-      "vpn.proto": {
+      "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
           "Google.Protobuf": "[3.29.3, )"

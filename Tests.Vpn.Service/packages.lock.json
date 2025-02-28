@@ -467,26 +467,27 @@
           "System.Text.Encodings.Web": "9.0.1"
         }
       },
-      "codersdk": {
+      "Coder.Desktop.CoderSdk": {
         "type": "Project"
       },
-      "vpn": {
+      "Coder.Desktop.Vpn": {
         "type": "Project",
         "dependencies": {
-          "System.IO.Pipelines": "[9.0.1, )",
-          "Vpn.Proto": "[1.0.0, )"
+          "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
+          "System.IO.Pipelines": "[9.0.1, )"
         }
       },
-      "vpn.proto": {
+      "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
           "Google.Protobuf": "[3.29.3, )"
         }
       },
-      "vpn.service": {
+      "CoderVpnService": {
         "type": "Project",
         "dependencies": {
-          "CoderSdk": "[1.0.0, )",
+          "Coder.Desktop.CoderSdk": "[1.0.0, )",
+          "Coder.Desktop.Vpn": "[1.0.0, )",
           "Microsoft.Extensions.Hosting": "[9.0.1, )",
           "Microsoft.Extensions.Hosting.WindowsServices": "[9.0.1, )",
           "Microsoft.Extensions.Options.DataAnnotations": "[9.0.1, )",
@@ -494,8 +495,7 @@
           "Semver": "[3.0.0, )",
           "Serilog.Extensions.Hosting": "[9.0.0, )",
           "Serilog.Sinks.Console": "[6.0.0, )",
-          "Serilog.Sinks.File": "[6.0.0, )",
-          "Vpn": "[1.0.0, )"
+          "Serilog.Sinks.File": "[6.0.0, )"
         }
       }
     }

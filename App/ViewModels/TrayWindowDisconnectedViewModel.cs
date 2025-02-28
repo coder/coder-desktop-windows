@@ -10,8 +10,7 @@ public partial class TrayWindowDisconnectedViewModel : ObservableObject
 {
     private readonly IRpcController _rpcController;
 
-    [ObservableProperty]
-    public partial bool ReconnectButtonEnabled { get; set; } = true;
+    [ObservableProperty] public partial bool ReconnectButtonEnabled { get; set; } = true;
 
     public TrayWindowDisconnectedViewModel(IRpcController rpcController)
     {
