@@ -78,14 +78,14 @@
         "resolved": "1.6.0",
         "contentHash": "COC1aiAJjCoA5GBF+QKL2uLqEBew4JsCkQmoHKbN3TlOZKa2fKLz5CpiRQKDz0RsAOEGsVKqOD5bomsXq/4STQ=="
       },
-      "vpn": {
+      "Coder.Desktop.Vpn": {
         "type": "Project",
         "dependencies": {
-          "System.IO.Pipelines": "[9.0.1, )",
-          "Vpn.Proto": "[1.0.0, )"
+          "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
+          "System.IO.Pipelines": "[9.0.1, )"
         }
       },
-      "vpn.proto": {
+      "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
           "Google.Protobuf": "[3.29.3, )"

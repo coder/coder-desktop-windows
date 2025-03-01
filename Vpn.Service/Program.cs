@@ -20,16 +20,17 @@ public static class Program
     private const string FileOutputTemplate =
         "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
 
-    private static readonly ILogger MainLogger = Log.ForContext("SourceContext", "Coder.Desktop.Vpn.Service.Program");
+    private static ILogger MainLogger => Log.ForContext("SourceContext", "Coder.Desktop.Vpn.Service.Program");
 
-    private static LoggerConfiguration LogConfig = new LoggerConfiguration()
+    private static LoggerConfiguration BaseLogConfig => new LoggerConfiguration()
         .Enrich.FromLogContext()
         .MinimumLevel.Debug()
         .WriteTo.Console(outputTemplate: ConsoleOutputTemplate);
 
     public static async Task<int> Main(string[] args)
     {
-        Log.Logger = LogConfig.CreateLogger();
+        Log.Logger = BaseLogConfig.CreateLogger();
+        MainLogger.Information("Application is starting");
         try
         {
             await BuildAndRun(args);
@@ -42,6 +43,7 @@ public static class Program
         }
         finally
         {
+            MainLogger.Information("Application is shutting down");
             await Log.CloseAndFlushAsync();
         }
     }
@@ -53,7 +55,7 @@ public static class Program
         // Configuration sources
         builder.Configuration.Sources.Clear();
         (builder.Configuration as IConfigurationBuilder).Add(
-            new RegistryConfigurationSource(Registry.LocalMachine, @"SOFTWARE\Coder\Coder Desktop"));
+            new RegistryConfigurationSource(Registry.LocalMachine, @"SOFTWARE\Coder Desktop"));
         builder.Configuration.AddEnvironmentVariables("CODER_MANAGER_");
         builder.Configuration.AddCommandLine(args);
 
@@ -63,9 +65,9 @@ public static class Program
             .ValidateDataAnnotations()
             .PostConfigure(config =>
             {
-                LogConfig = LogConfig
-                    .WriteTo.File(config.LogFileLocation, outputTemplate: FileOutputTemplate);
-                Log.Logger = LogConfig.CreateLogger();
+                Log.Logger = BaseLogConfig
+                    .WriteTo.File(config.LogFileLocation, outputTemplate: FileOutputTemplate)
+                    .CreateLogger();
             });
 
         // Logging

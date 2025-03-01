@@ -1,6 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
+        <AssemblyName>Coder.Desktop.Vpn.DebugClient</AssemblyName>
         <RootNamespace>Coder.Desktop.Vpn.DebugClient</RootNamespace>
         <OutputType>Exe</OutputType>
         <TargetFramework>net8.0</TargetFramework>

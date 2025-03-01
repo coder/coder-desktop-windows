@@ -23,15 +23,12 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private DispatcherQueue? _dispatcherQueue;
 
-    [ObservableProperty]
-    public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
+    [ObservableProperty] public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
     // This is a separate property because we need the switch to be 2-way.
-    [ObservableProperty]
-    public partial bool VpnSwitchActive { get; set; } = false;
+    [ObservableProperty] public partial bool VpnSwitchActive { get; set; } = false;
 
-    [ObservableProperty]
-    public partial string? VpnFailedMessage { get; set; } = null;
+    [ObservableProperty] public partial string? VpnFailedMessage { get; set; } = null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NoAgents))]
@@ -49,8 +46,7 @@ public partial class TrayWindowViewModel : ObservableObject
 
     public IEnumerable<AgentViewModel> VisibleAgents => ShowAllAgents ? Agents : Agents.Take(MaxAgents);
 
-    [ObservableProperty]
-    public partial string DashboardUrl { get; set; } = "https://coder.com";
+    [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
 
     public TrayWindowViewModel(IRpcController rpcController, ICredentialManager credentialManager)
     {

@@ -73,7 +73,7 @@
         "resolved": "1.6.0",
         "contentHash": "COC1aiAJjCoA5GBF+QKL2uLqEBew4JsCkQmoHKbN3TlOZKa2fKLz5CpiRQKDz0RsAOEGsVKqOD5bomsXq/4STQ=="
       },
-      "vpn.proto": {
+      "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
           "Google.Protobuf": "[3.29.3, )"

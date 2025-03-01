@@ -4,12 +4,18 @@ on:
   push:
     tags:
       - '*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. v1.2.3)'
+        required: true
+        default: 'v1.2.3'
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
 
     steps:
@@ -20,42 +26,83 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
+    # Necessary for signing Windows binaries.
+    - name: Setup Java
+      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+      with:
+        distribution: "zulu"
+        java-version: "11.0"
+
     - name: Get version from tag
       id: version
       shell: pwsh
       run: |
-        $tag = $env:GITHUB_REF -replace 'refs/tags/',''
+        $ErrorActionPreference = "Stop"
+        if ($env:INPUT_VERSION) {
+          $tag = $env:INPUT_VERSION
+        } else {
+          $tag = $env:GITHUB_REF -replace 'refs/tags/',''
+        }
         if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
-            throw "Tag must be in format v1.2.3"
+          throw "Version must be in format v1.2.3, got $tag"
         }
         $version = $tag -replace '^v',''
-        $assemblyVersion = "$version.0"
-        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
-        echo "ASSEMBLY_VERSION=$assemblyVersion" >> $env:GITHUB_OUTPUT
+        $assemblyVersion = "$($version).0"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "VERSION=$version"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "ASSEMBLY_VERSION=$assemblyVersion"
+        Write-Host "Version: $version"
+        Write-Host "Assembly version: $assemblyVersion"
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
 
-    - name: Build and publish x64
-      run: |
-        dotnet publish src/App/App.csproj -c Release -r win-x64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/x64
-        dotnet publish src/Vpn.Service/Vpn.Service.csproj -c Release -r win-x64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/x64
+    # Setup GCloud for signing Windows binaries.
+    - name: Authenticate to Google Cloud
+      id: gcloud_auth
+      uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+      with:
+        workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
+        service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
+        token_format: "access_token"
 
-    - name: Build and publish arm64
-      run: |
-        dotnet publish src/App/App.csproj -c Release -r win-arm64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/arm64
-        dotnet publish src/Vpn.Service/Vpn.Service.csproj -c Release -r win-arm64 -p:Version=${{ steps.version.outputs.ASSEMBLY_VERSION }} -o publish/arm64
+    - name: Setup GCloud SDK
+      uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
-    - name: Create ZIP archives
+    - name: scripts/Release.ps1
+      id: release
       shell: pwsh
       run: |
-        Compress-Archive -Path "publish/x64/*" -DestinationPath "./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-x64.zip"
-        Compress-Archive -Path "publish/arm64/*" -DestinationPath "./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-arm64.zip"
+        $ErrorActionPreference = "Stop"
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
+        $env:EV_CERTIFICATE_PATH = Join-Path $env:TEMP "ev_cert.pem"
+        $env:JSIGN_PATH = Join-Path $env:TEMP "jsign-6.0.jar"
+        Invoke-WebRequest -Uri "https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar" -OutFile $env:JSIGN_PATH
+
+        & ./scripts/Release.ps1 `
+          -version ${{ steps.version.outputs.VERSION }} `
+          -assemblyVersion ${{ steps.version.outputs.ASSEMBLY_VERSION }}
+        if ($LASTEXITCODE -ne 0) { throw "Failed to publish" }
+      env:
+        EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+        EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+        EV_KEY: ${{ secrets.EV_KEY }}
+        EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+        GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
       with:
-        files: |
-          ./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-x64.zip
-          ./publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-arm64.zip
+        name: publish
+        path: .\publish\
+
+    - name: Create release
+      uses: softprops/action-gh-release@v2
+      if: startsWith(github.ref, 'refs/tags/')
+      with:
         name: Release ${{ steps.version.outputs.VERSION }}
         generate_release_notes: true
+        # We currently only release the bootstrappers, not the MSIs.
+        files: |
+          ${{ steps.release.outputs.X64_OUTPUT_PATH }}
+          ${{ steps.release.outputs.ARM64_OUTPUT_PATH }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

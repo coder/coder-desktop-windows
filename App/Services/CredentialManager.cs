@@ -239,11 +239,9 @@ public class CredentialManager : ICredentialManager
             public int Flags;
             public int Type;
 
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string TargetName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string TargetName;
 
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string Comment;
+            [MarshalAs(UnmanagedType.LPWStr)] public string Comment;
 
             public long LastWritten;
             public int CredentialBlobSize;
@@ -252,11 +250,9 @@ public class CredentialManager : ICredentialManager
             public int AttributeCount;
             public IntPtr Attributes;
 
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string TargetAlias;
+            [MarshalAs(UnmanagedType.LPWStr)] public string TargetAlias;
 
-            [MarshalAs(UnmanagedType.LPWStr)]
-            public string UserName;
+            [MarshalAs(UnmanagedType.LPWStr)] public string UserName;
         }
     }
 }
