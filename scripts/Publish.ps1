@@ -104,6 +104,8 @@ if (Test-Path $buildPath) {
 New-Item -ItemType Directory -Path $buildPath -Force
 
 # Build in release mode
+& dotnet.exe restore
+if ($LASTEXITCODE -ne 0) { throw "Failed to dotnet restore" }
 $servicePublishDir = Join-Path $buildPath "service"
 & dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir
 if ($LASTEXITCODE -ne 0) { throw "Failed to build Vpn.Service" }
