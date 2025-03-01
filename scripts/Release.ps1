@@ -29,17 +29,18 @@ foreach ($arch in @("x64", "arm64")) {
       -version $assemblyVersion `
       -arch $arch `
       -msiOutputPath $msiOutputPath `
-      -outputPath $outputPath
+      -outputPath $outputPath `
+      -sign
     if ($LASTEXITCODE -ne 0) { throw "Failed to publish" }
 
     # Verify that the output exe is authenticode signed
-    #$sig = Get-AuthenticodeSignature $outputPath
-    #if ($sig.Status -ne "Valid") {
-    #  throw "Output file is not authenticode signed"
-    #}
-    #else {
-    #  Write-Host "Output file is authenticode signed"
-    #}
+    $sig = Get-AuthenticodeSignature $outputPath
+    if ($sig.Status -ne "Valid") {
+      throw "Output file is not authenticode signed"
+    }
+    else {
+      Write-Host "Output file is authenticode signed"
+    }
   }
   finally {
     Write-Host "::endgroup::"
