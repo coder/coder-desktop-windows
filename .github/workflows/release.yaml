@@ -7,15 +7,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version number (e.g. 1.2.3)'
+        description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: '1.2.3'
+        default: 'v1.2.3'
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
 
     steps:
