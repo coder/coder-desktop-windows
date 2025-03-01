@@ -75,6 +75,7 @@ jobs:
         $ErrorActionPreference = "Stop"
 
         $env:EV_CERTIFICATE_PATH = Join-Path $env:TEMP "ev_cert.pem"
+        Set-Content -Path $env:EV_CERTIFICATE_PATH -Value $env:EV_SIGNING_CERT
         $env:JSIGN_PATH = Join-Path $env:TEMP "jsign-6.0.jar"
         Invoke-WebRequest -Uri "https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar" -OutFile $env:JSIGN_PATH
 
