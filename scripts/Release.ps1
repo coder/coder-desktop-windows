@@ -1,7 +1,7 @@
 # Usage: Release.ps1 -version <version>
 param (
   [Parameter(Mandatory = $true)]
-  [ValidatePattern("^\d+\.\d+\.\d+\.\d+$")]
+  [ValidatePattern("^\d+\.\d+\.\d+$")]
   [string] $version,
 
   [Parameter(Mandatory = $true)]

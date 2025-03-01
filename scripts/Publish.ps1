@@ -1,4 +1,4 @@
-# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-buildPath <path>] [-outputPath <path>]
+# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-msiOutputPath <path>] [-outputPath <path>]
 param (
     [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory = $true)]
