@@ -75,6 +75,12 @@ function Add-CoderSignature([string] $path) {
         --tsaurl $env:EV_TSA_URL `
         $path
     if ($LASTEXITCODE -ne 0) { throw "Failed to sign $path" }
+
+    # Verify that the output exe is authenticode signed
+    $sig = Get-AuthenticodeSignature $path
+    if ($sig.Status -ne "Valid") {
+        throw "File $path is not authenticode signed"
+    }
 }
 
 # CD to the root of the repo
