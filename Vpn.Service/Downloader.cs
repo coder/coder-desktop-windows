@@ -78,12 +78,30 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 
 public class AssemblyVersionDownloadValidator : IDownloadValidator
 {
-    private readonly string _expectedAssemblyVersion;
+    private readonly int _expectedMajor;
+    private readonly int _expectedMinor;
+    private readonly int _expectedBuild;
+    private readonly int _expectedRevision;
+
+    private readonly Version _expectedVersion;
 
     // ReSharper disable once ConvertToPrimaryConstructor
-    public AssemblyVersionDownloadValidator(string expectedAssemblyVersion)
+    public AssemblyVersionDownloadValidator(int expectedMajor, int expectedMinor, int expectedBuild,
+        int expectedRevision)
     {
-        _expectedAssemblyVersion = expectedAssemblyVersion;
+        _expectedMajor = expectedMajor;
+        _expectedMinor = expectedMinor;
+        _expectedBuild = expectedBuild < 0 ? -1 : expectedBuild;
+        _expectedRevision = expectedRevision < 0 ? -1 : expectedRevision;
+        if (_expectedBuild == -1 && _expectedRevision != -1)
+            throw new ArgumentException("Build must be set if Revision is set", nameof(expectedRevision));
+
+        if (_expectedBuild == -1)
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor);
+        else if (_expectedRevision == -1)
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild);
+        else
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild, _expectedRevision);
     }
 
     public Task ValidateAsync(string path, CancellationToken ct = default)
@@ -91,9 +109,16 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
         var info = FileVersionInfo.GetVersionInfo(path);
         if (string.IsNullOrEmpty(info.ProductVersion))
             throw new Exception("File ProductVersion is empty or null, was the binary compiled correctly?");
-        if (info.ProductVersion != _expectedAssemblyVersion)
+        if (!Version.TryParse(info.ProductVersion, out var productVersion))
+            throw new Exception($"File ProductVersion '{info.ProductVersion}' is not a valid version string");
+
+        // If the build or revision are -1 on the expected version, they are ignored.
+        if (productVersion.Major != _expectedMajor || productVersion.Minor != _expectedMinor ||
+            (_expectedBuild != -1 && productVersion.Build != _expectedBuild) ||
+            (_expectedRevision != -1 && productVersion.Revision != _expectedRevision))
             throw new Exception(
-                $"File ProductVersion is '{info.ProductVersion}', but expected '{_expectedAssemblyVersion}'");
+                $"File ProductVersion is '{info.ProductVersion}', but expected '{_expectedVersion}'");
+
         return Task.CompletedTask;
     }
 }
@@ -103,18 +128,23 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
 /// </summary>
 public class CombinationDownloadValidator : IDownloadValidator
 {
-    private readonly IDownloadValidator[] _validators;
+    private readonly List<IDownloadValidator> _validators;
 
     /// <param name="validators">Validators to run</param>
     public CombinationDownloadValidator(params IDownloadValidator[] validators)
     {
-        _validators = validators;
+        _validators = validators.ToList();
     }
 
     public async Task ValidateAsync(string path, CancellationToken ct = default)
     {
         foreach (var validator in _validators)
             await validator.ValidateAsync(path, ct);
+    }
+
+    public void Add(IDownloadValidator validator)
+    {
+        _validators.Add(validator);
     }
 }
 
