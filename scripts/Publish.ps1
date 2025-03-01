@@ -1,4 +1,4 @@
-# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-msiOutputPath <path>] [-outputPath <path>]
+# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-msiOutputPath <path>] [-outputPath <path>] [-sign]
 param (
     [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory = $true)]
@@ -128,8 +128,12 @@ Copy-Item "scripts\files\License.txt" $buildPath
 $vpnFilesPath = Join-Path $buildPath "vpn"
 New-Item -ItemType Directory -Path $vpnFilesPath -Force
 Copy-Item "scripts\files\LICENSE.WINTUN.txt" $vpnFilesPath
-$wintunDllPath = Join-Path $vpnFilesPath "wintun.dll"
-Copy-Item "scripts\files\wintun-*-$($arch).dll" $wintunDllPath
+$wintunDllSrc = Get-Item "scripts\files\wintun-*-$($arch).dll"
+if ($null -eq $wintunDllSrc) {
+    throw "Failed to find wintun DLL"
+}
+$wintunDllDest = Join-Path $vpnFilesPath "wintun.dll"
+Copy-Item $wintunDllSrc $wintunDllDest
 
 # Build the MSI installer
 & dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `

@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'windows-latest-16-cores' || 'windows-latest' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -64,9 +64,6 @@ jobs:
         workload_identity_provider: ${{ secrets.GCP_CODE_SIGNING_WORKLOAD_ID_PROVIDER }}
         service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
         token_format: "access_token"
-
-    - name: Setup GCloud SDK
-      uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
     - name: scripts/Release.ps1
       id: release
