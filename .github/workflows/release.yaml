@@ -65,6 +65,17 @@ jobs:
         service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
         token_format: "access_token"
 
+    - name: Install wix
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        & dotnet.exe tool install --global wix --version 5.0.2
+        if ($LASTEXITCODE -ne 0) { throw "Failed to install wix" }
+        foreach ($ext in @("WixToolset.Bal.wixext/5.0.2", "WixToolset.Netfx.wixext/5.0.2", "WixToolset.UI.wixext/5.0.2", "WixToolset.Util.wixext/5.0.2")) {
+          & wix.exe extension add -g $ext
+          if ($LASTEXITCODE -ne 0) { throw "Failed to add wix extension $ext" }
+        }
+
     - name: scripts/Release.ps1
       id: release
       shell: pwsh
