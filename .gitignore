@@ -403,3 +403,11 @@ FodyWeavers.xsd
 .idea/**/shelf
 
 publish
+
+*.wxs
+*.wixobj
+*.wixpdb
+*.wixlib
+*.wixmdb
+*.wixprj
+*.wixproj
