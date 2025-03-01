@@ -9,10 +9,11 @@ on:
       version:
         description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: 'v1.2.3'
 
 permissions:
   contents: write
+  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+  id-token: write
 
 jobs:
   release:
