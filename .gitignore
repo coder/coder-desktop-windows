@@ -403,7 +403,11 @@ FodyWeavers.xsd
 .idea/**/shelf
 
 publish
-WindowsAppRuntimeInstall-*.exe
-windowsdesktop-runtime-*.exe
-wintun.dll
-wintun-*.dll
+
+*.wxs
+*.wixobj
+*.wixpdb
+*.wixlib
+*.wixmdb
+*.wixprj
+*.wixproj

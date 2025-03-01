@@ -1,4 +1,4 @@
-# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-buildPath <path>] [-outputPath <path>]
+# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-msiOutputPath <path>] [-outputPath <path>] [-sign]
 param (
     [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory = $true)]
@@ -50,6 +50,8 @@ function Find-EnvironmentVariables([string[]] $variables) {
     }
 }
 
+Find-Dependencies @("dotnet.exe", "wix.exe")
+
 if ($sign) {
     Write-Host "Signing is enabled"
     Find-Dependencies java
@@ -73,6 +75,12 @@ function Add-CoderSignature([string] $path) {
         --tsaurl $env:EV_TSA_URL `
         $path
     if ($LASTEXITCODE -ne 0) { throw "Failed to sign $path" }
+
+    # Verify that the output exe is authenticode signed
+    $sig = Get-AuthenticodeSignature $path
+    if ($sig.Status -ne "Valid") {
+        throw "File $path is not authenticode signed"
+    }
 }
 
 # CD to the root of the repo
@@ -97,13 +105,16 @@ if (Test-Path $outputPath.Replace(".exe", ".wixpdb")) {
 }
 
 # Create a publish directory
-$buildPath = Join-Path $repoRoot "publish\buildtemp-$($version)-$($arch)"
+$publishDir = Join-Path $repoRoot "publish"
+$buildPath = Join-Path $publishDir "buildtemp-$($version)-$($arch)"
 if (Test-Path $buildPath) {
     Remove-Item -Recurse -Force $buildPath
 }
 New-Item -ItemType Directory -Path $buildPath -Force
 
 # Build in release mode
+& dotnet.exe restore
+if ($LASTEXITCODE -ne 0) { throw "Failed to dotnet restore" }
 $servicePublishDir = Join-Path $buildPath "service"
 & dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir
 if ($LASTEXITCODE -ne 0) { throw "Failed to build Vpn.Service" }
@@ -126,8 +137,12 @@ Copy-Item "scripts\files\License.txt" $buildPath
 $vpnFilesPath = Join-Path $buildPath "vpn"
 New-Item -ItemType Directory -Path $vpnFilesPath -Force
 Copy-Item "scripts\files\LICENSE.WINTUN.txt" $vpnFilesPath
-$wintunDllPath = Join-Path $vpnFilesPath "wintun.dll"
-Copy-Item "scripts\files\wintun-*-$($arch).dll" $wintunDllPath
+$wintunDllSrc = Get-Item "scripts\files\wintun-*-$($arch).dll"
+if ($null -eq $wintunDllSrc) {
+    throw "Failed to find wintun DLL"
+}
+$wintunDllDest = Join-Path $vpnFilesPath "wintun.dll"
+Copy-Item $wintunDllSrc $wintunDllDest
 
 # Build the MSI installer
 & dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
@@ -158,7 +173,39 @@ Add-CoderSignature $msiOutputPath
     --msi-path $msiOutputPath `
     --logo-png "scripts\files\logo.png"
 if ($LASTEXITCODE -ne 0) { throw "Failed to build bootstrapper" }
-Add-CoderSignature $outputPath
+
+# Sign the bootstrapper, which is not as simple as just signing the exe.
+if ($sign) {
+    $burnIntermediate = Join-Path $publishDir "burn-intermediate-$($version)-$($arch)"
+    New-Item -ItemType Directory -Path $burnIntermediate -Force
+    $burnEngine = Join-Path $publishDir "burn-engine-$($version)-$($arch).exe"
+
+    # Move the current output path
+    $unsignedOutputPath = Join-Path (Split-Path $outputPath -Parent) ("UNSIGNED-" + (Split-Path $outputPath -Leaf))
+    Move-Item $outputPath $unsignedOutputPath
+
+    # Extract the engine from the bootstrapper
+    & wix.exe burn detach $unsignedOutputPath -intermediateFolder $burnIntermediate -engine $burnEngine
+    if ($LASTEXITCODE -ne 0) { throw "Failed to extract engine from bootstrapper" }
+
+    # Sign the engine
+    Add-CoderSignature $burnEngine
+
+    # Re-attach the signed engine to the bootstrapper
+    & wix.exe burn reattach $unsignedOutputPath -intermediateFolder $burnIntermediate -engine $burnEngine -out $outputPath
+    if ($LASTEXITCODE -ne 0) { throw "Failed to re-attach signed engine to bootstrapper" }
+    if (!(Test-Path $outputPath)) { throw "Failed to create reattached bootstrapper at $outputPath" }
+
+    # Now sign the output path
+    Add-CoderSignature $outputPath
+
+    # Clean up the intermediate files
+    if (!$keepBuildTemp) {
+        Remove-Item -Force $unsignedOutputPath
+        Remove-Item -Recurse -Force $burnIntermediate
+        Remove-Item -Force $burnEngine
+    }
+}
 
 if (!$keepBuildTemp) {
     Remove-Item -Recurse -Force $buildPath

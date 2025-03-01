@@ -9,14 +9,15 @@ on:
       version:
         description: 'Version number (e.g. v1.2.3)'
         required: true
-        default: 'v1.2.3'
 
 permissions:
   contents: write
+  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+  id-token: write
 
 jobs:
   release:
-    runs-on: windows-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'windows-latest-16-cores' || 'windows-latest' }}
 
     steps:
     - uses: actions/checkout@v4
@@ -64,8 +65,16 @@ jobs:
         service_account: ${{ secrets.GCP_CODE_SIGNING_SERVICE_ACCOUNT }}
         token_format: "access_token"
 
-    - name: Setup GCloud SDK
-      uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
+    - name: Install wix
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        & dotnet.exe tool install --global wix --version 5.0.2
+        if ($LASTEXITCODE -ne 0) { throw "Failed to install wix" }
+        foreach ($ext in @("WixToolset.Bal.wixext/5.0.2", "WixToolset.Netfx.wixext/5.0.2", "WixToolset.UI.wixext/5.0.2", "WixToolset.Util.wixext/5.0.2")) {
+          & wix.exe extension add -g $ext
+          if ($LASTEXITCODE -ne 0) { throw "Failed to add wix extension $ext" }
+        }
 
     - name: scripts/Release.ps1
       id: release
@@ -74,6 +83,7 @@ jobs:
         $ErrorActionPreference = "Stop"
 
         $env:EV_CERTIFICATE_PATH = Join-Path $env:TEMP "ev_cert.pem"
+        Set-Content -Path $env:EV_CERTIFICATE_PATH -Value $env:EV_SIGNING_CERT
         $env:JSIGN_PATH = Join-Path $env:TEMP "jsign-6.0.jar"
         Invoke-WebRequest -Uri "https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar" -OutFile $env:JSIGN_PATH
 
