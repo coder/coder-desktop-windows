@@ -256,7 +256,9 @@ public class Program
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryPath",
                 $"[INSTALLFOLDER]{opts.VpnDir}\\coder-vpn.exe"),
             new RegValue(RegistryHive, RegistryKey, "Manager:LogFileLocation",
-                @"[INSTALLFOLDER]coder-desktop-service.log"));
+                @"[INSTALLFOLDER]coder-desktop-service.log"),
+            new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinarySignatureSigner", "Coder Technologies Inc."),
+            new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryAllowVersionMismatch", "false"));
 
         // Note: most of this control panel info will not be visible as this
         // package is usually hidden in favor of the bootstrapper showing

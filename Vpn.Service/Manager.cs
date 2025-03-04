@@ -417,15 +417,30 @@ public class Manager : IManager
         _logger.LogInformation("Downloading VPN binary from '{url}' to '{DestinationPath}'", url,
             _config.TunnelBinaryPath);
         var req = new HttpRequestMessage(HttpMethod.Get, url);
-        var validators = new NullDownloadValidator();
-        // TODO: re-enable when the binaries are signed and have versions
-        /*
-        var validators = new CombinationDownloadValidator(
-            AuthenticodeDownloadValidator.Coder,
-            new AssemblyVersionDownloadValidator(
-                $"{expectedVersion.Major}.{expectedVersion.Minor}.{expectedVersion.Patch}.0")
-        );
-        */
+
+        var validators = new CombinationDownloadValidator();
+        if (!string.IsNullOrEmpty(_config.TunnelBinarySignatureSigner))
+        {
+            _logger.LogDebug("Adding Authenticode signature validator for signer '{Signer}'",
+                _config.TunnelBinarySignatureSigner);
+            validators.Add(new AuthenticodeDownloadValidator(_config.TunnelBinarySignatureSigner));
+        }
+        else
+        {
+            _logger.LogDebug("Skipping Authenticode signature validation");
+        }
+
+        if (!_config.TunnelBinaryAllowVersionMismatch)
+        {
+            _logger.LogDebug("Adding version validator for version '{ExpectedVersion}'", expectedVersion);
+            validators.Add(new AssemblyVersionDownloadValidator((int)expectedVersion.Major, (int)expectedVersion.Minor,
+                (int)expectedVersion.Patch, -1));
+        }
+        else
+        {
+            _logger.LogDebug("Skipping tunnel binary version validation");
+        }
+
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 
         // TODO: monitor and report progress when we have a mechanism to do so

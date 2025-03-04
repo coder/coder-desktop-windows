@@ -10,8 +10,10 @@ public static class Program
 {
 #if !DEBUG
     private const string ServiceName = "Coder Desktop";
+    private const string ManagerConfigSection = "Manager";
 #else
     private const string ServiceName = "Coder Desktop (Debug)";
+    private const string ManagerConfigSection = "DebugManager";
 #endif
 
     private const string ConsoleOutputTemplate =
@@ -61,7 +63,7 @@ public static class Program
 
         // Options types (these get registered as IOptions<T> singletons)
         builder.Services.AddOptions<ManagerConfig>()
-            .Bind(builder.Configuration.GetSection("Manager"))
+            .Bind(builder.Configuration.GetSection(ManagerConfigSection))
             .ValidateDataAnnotations()
             .PostConfigure(config =>
             {

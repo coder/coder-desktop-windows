@@ -1,24 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <AssemblyName>Coder.Desktop.Installer</AssemblyName>
-    <RootNamespace>Coder.Desktop.Installer</RootNamespace>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net481</TargetFramework>
-    <LangVersion>13.0</LangVersion>
-  </PropertyGroup>
+    <PropertyGroup>
+        <AssemblyName>Coder.Desktop.Installer</AssemblyName>
+        <RootNamespace>Coder.Desktop.Installer</RootNamespace>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net481</TargetFramework>
+        <LangVersion>13.0</LangVersion>
+    </PropertyGroup>
 
-  <ItemGroup>
-    <None Remove="*.msi" />
-    <None Remove="*.exe" />
-    <None Remove="*.wxs" />
-    <None Remove="*.wixpdb" />
-    <None Remove="*.wixobj" />
-  </ItemGroup>
+    <ItemGroup>
+        <None Remove="*.msi" />
+        <None Remove="*.exe" />
+        <None Remove="*.wxs" />
+        <None Remove="*.wixpdb" />
+        <None Remove="*.wixobj" />
+    </ItemGroup>
 
-  <ItemGroup>
-    <PackageReference Include="WixSharp_wix4" Version="2.6.0" />
-    <PackageReference Include="WixSharp_wix4.bin" Version="2.6.0" />
-    <PackageReference Include="CommandLineParser" Version="2.9.1" />
-  </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="WixSharp_wix4" Version="2.6.0" />
+        <PackageReference Include="WixSharp_wix4.bin" Version="2.6.0" />
+        <PackageReference Include="CommandLineParser" Version="2.9.1" />
+    </ItemGroup>
 </Project>
