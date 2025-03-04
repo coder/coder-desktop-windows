@@ -96,6 +96,11 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
         if (_expectedBuild == -1 && _expectedRevision != -1)
             throw new ArgumentException("Build must be set if Revision is set", nameof(expectedRevision));
 
+        // Unfortunately the Version constructor throws an exception if the
+        // build or revision is -1. You need to use the specific constructor
+        // with the correct number of parameters.
+        //
+        // This is only for error rendering purposes anyways.
         if (_expectedBuild == -1)
             _expectedVersion = new Version(_expectedMajor, _expectedMinor);
         else if (_expectedRevision == -1)
