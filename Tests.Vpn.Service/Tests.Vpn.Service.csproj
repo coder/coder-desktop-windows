@@ -13,20 +13,20 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <None Remove="testdata\hello.go" />
-      <None Remove="testdata\winres.json" />
-      <None Update="testdata\hello.exe">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="testdata\hello-invalid-version.exe">
-          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="testdata\hello-self-signed.exe">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="testdata\hello-versioned-signed.exe">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
+        <None Remove="testdata\hello.go" />
+        <None Remove="testdata\winres.json" />
+        <None Update="testdata\hello.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="testdata\hello-invalid-version.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="testdata\hello-self-signed.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="testdata\hello-versioned-signed.exe">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <ItemGroup>

@@ -30,17 +30,22 @@ public class AuthenticodeDownloadValidatorTest
         var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello.exe");
         var ex = Assert.ThrowsAsync<Exception>(() =>
             AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct));
-        Assert.That(ex.Message, Does.Contain("File is not signed and trusted with an Authenticode signature: State=Unsigned, StateReason=None"));
+        Assert.That(ex.Message,
+            Does.Contain(
+                "File is not signed and trusted with an Authenticode signature: State=Unsigned, StateReason=None"));
     }
 
     [Test(Description = "Test an untrusted binary")]
     [CancelAfter(30_000)]
     public void Untrusted(CancellationToken ct)
     {
-        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-self-signed.exe");
+        var testBinaryPath =
+            Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-self-signed.exe");
         var ex = Assert.ThrowsAsync<Exception>(() =>
             AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct));
-        Assert.That(ex.Message, Does.Contain("File is not signed and trusted with an Authenticode signature: State=Unsigned, StateReason=UntrustedRoot"));
+        Assert.That(ex.Message,
+            Does.Contain(
+                "File is not signed and trusted with an Authenticode signature: State=Unsigned, StateReason=UntrustedRoot"));
     }
 
     [Test(Description = "Test an binary with a detached signature (catalog file)")]
@@ -62,14 +67,17 @@ public class AuthenticodeDownloadValidatorTest
         // this is installed.
         var ex = Assert.ThrowsAsync<Exception>(() =>
             AuthenticodeDownloadValidator.Coder.ValidateAsync(@"C:\Program Files\dotnet\dotnet.exe", ct));
-        Assert.That(ex.Message, Does.Contain("File is signed by an unexpected certificate: ExpectedName='Coder Technologies Inc.', ActualName='.NET"));
+        Assert.That(ex.Message,
+            Does.Contain(
+                "File is signed by an unexpected certificate: ExpectedName='Coder Technologies Inc.', ActualName='.NET"));
     }
 
     [Test(Description = "Test a binary signed by Coder's certificate")]
     [CancelAfter(30_000)]
     public async Task CoderSigned(CancellationToken ct)
     {
-        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-versioned-signed.exe");
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata",
+            "hello-versioned-signed.exe");
         await AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct);
     }
 }
@@ -91,7 +99,8 @@ public class AssemblyVersionDownloadValidatorTest
     [CancelAfter(30_000)]
     public void InvalidVersion(CancellationToken ct)
     {
-        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-invalid-version.exe");
+        var testBinaryPath =
+            Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-invalid-version.exe");
         var ex = Assert.ThrowsAsync<Exception>(() =>
             new AssemblyVersionDownloadValidator(1, 2, 3, 4).ValidateAsync(testBinaryPath, ct));
         Assert.That(ex.Message, Does.Contain("File ProductVersion '1-2-3-4' is not a valid version string"));
@@ -101,7 +110,8 @@ public class AssemblyVersionDownloadValidatorTest
     [CancelAfter(30_000)]
     public void VersionMismatchFull(CancellationToken ct)
     {
-        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-versioned-signed.exe");
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata",
+            "hello-versioned-signed.exe");
 
         // Try changing each version component one at a time
         var expectedVersions = new[] { 1, 2, 3, 4 };
@@ -124,7 +134,8 @@ public class AssemblyVersionDownloadValidatorTest
     [CancelAfter(30_000)]
     public async Task VersionMatch(CancellationToken ct)
     {
-        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-versioned-signed.exe");
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata",
+            "hello-versioned-signed.exe");
 
         // Test with just major.minor
         await new AssemblyVersionDownloadValidator(1, 2).ValidateAsync(testBinaryPath, ct);

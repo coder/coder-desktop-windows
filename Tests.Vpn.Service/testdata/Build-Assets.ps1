@@ -55,7 +55,7 @@ try {
     }
 }
 
-# hello-versioned-signed.exe is used for testing versioned binariess and
+# hello-versioned-signed.exe is used for testing versioned binaries and
 # binaries signed by a real EV certificate.
 Copy-Item hello.exe hello-versioned-signed.exe
 

@@ -434,7 +434,7 @@ public class Manager : IManager
         {
             _logger.LogDebug("Adding version validator for version '{ExpectedVersion}'", expectedVersion);
             validators.Add(new AssemblyVersionDownloadValidator((int)expectedVersion.Major, (int)expectedVersion.Minor,
-                (int)expectedVersion.Patch, -1));
+                (int)expectedVersion.Patch));
         }
         else
         {
