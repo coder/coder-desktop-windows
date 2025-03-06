@@ -62,7 +62,7 @@ public partial class TrayWindowViewModel : ObservableObject
         UpdateFromRpcModel(_rpcController.GetState());
 
         _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialsModel(credentialModel);
-        UpdateFromCredentialsModel(_credentialManager.GetCredentials());
+        UpdateFromCredentialsModel(_credentialManager.GetCachedCredentials());
     }
 
     private void UpdateFromRpcModel(RpcModel rpcModel)
@@ -89,7 +89,7 @@ public partial class TrayWindowViewModel : ObservableObject
         VpnSwitchActive = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
 
         // Get the current dashboard URL.
-        var credentialModel = _credentialManager.GetCredentials();
+        var credentialModel = _credentialManager.GetCachedCredentials();
         Uri? coderUri = null;
         if (credentialModel.State == CredentialState.Valid && !string.IsNullOrWhiteSpace(credentialModel.CoderUrl))
             try

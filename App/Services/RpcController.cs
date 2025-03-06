@@ -155,9 +155,10 @@ public class RpcController : IRpcController
         using var _ = await AcquireOperationLockNowAsync();
         AssertRpcConnected();
 
-        var credentials = _credentialManager.GetCredentials();
+        var credentials = _credentialManager.GetCachedCredentials();
         if (credentials.State != CredentialState.Valid)
-            throw new RpcOperationException("Cannot start VPN without valid credentials");
+            throw new RpcOperationException(
+                $"Cannot start VPN without valid credentials, current state: {credentials.State}");
 
         MutateState(state => { state.VpnLifecycle = VpnLifecycle.Starting; });
 

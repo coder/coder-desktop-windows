@@ -26,6 +26,7 @@ public partial class App : Application
         services.AddTransient<SignInWindow>();
 
         // TrayWindow views and view models
+        services.AddTransient<TrayWindowLoadingPage>();
         services.AddTransient<TrayWindowDisconnectedViewModel>();
         services.AddTransient<TrayWindowDisconnectedPage>();
         services.AddTransient<TrayWindowLoginRequiredViewModel>();

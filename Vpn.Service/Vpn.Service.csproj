@@ -20,7 +20,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <Content Include="coder.ico" />
+        <Content Include="coder.ico" />
     </ItemGroup>
 
     <ItemGroup>

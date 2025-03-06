@@ -6,6 +6,7 @@ using Coder.Desktop.App.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.ViewModels;
 
@@ -32,8 +33,6 @@ public partial class SignInViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ApiTokenError))]
     public partial bool ApiTokenTouched { get; set; } = false;
-
-    [ObservableProperty] public partial string? SignInError { get; set; } = null;
 
     [ObservableProperty] public partial bool SignInLoading { get; set; } = false;
 
@@ -80,6 +79,8 @@ public partial class SignInViewModel : ObservableObject
     public SignInViewModel(ICredentialManager credentialManager)
     {
         _credentialManager = credentialManager;
+        CoderUrl = _credentialManager.GetSignInUri() ?? "";
+        if (!string.IsNullOrWhiteSpace(CoderUrl)) CoderUrlTouched = true;
     }
 
     public void CoderUrl_FocusLost(object sender, RoutedEventArgs e)
@@ -117,7 +118,6 @@ public partial class SignInViewModel : ObservableObject
         try
         {
             SignInLoading = true;
-            SignInError = null;
 
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             await _credentialManager.SetCredentials(CoderUrl.Trim(), ApiToken.Trim(), cts.Token);
@@ -126,7 +126,14 @@ public partial class SignInViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            SignInError = $"Failed to sign in: {e}";
+            var dialog = new ContentDialog
+            {
+                Title = "Failed to sign in",
+                Content = $"{e}",
+                CloseButtonText = "Ok",
+                XamlRoot = signInWindow.Content.XamlRoot,
+            };
+            _ = await dialog.ShowAsync();
         }
         finally
         {

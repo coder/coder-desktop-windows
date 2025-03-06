@@ -71,6 +71,11 @@
         "resolved": "9.0.1",
         "contentHash": "Tr74eP0oQ3AyC24ch17N8PuEkrPbD0JqIfENCYqmgKYNOmL8wQKzLJu3ObxTUDrjnn4rHoR1qKa37/eQyHmCDA=="
       },
+      "Microsoft.Extensions.Primitives": {
+        "type": "Transitive",
+        "resolved": "5.0.1",
+        "contentHash": "5WPSmL4YeP7eW+Vc8XZ4DwjYWBAiSwDV9Hm63JJWcz1Ie3Xjv4KuJXzgCstj48LkLfVCYa7mLcx7y+q6yqVvtw=="
+      },
       "Microsoft.Web.WebView2": {
         "type": "Transitive",
         "resolved": "1.0.2651.64",
@@ -85,6 +90,14 @@
         "type": "Transitive",
         "resolved": "10.0.22621.756",
         "contentHash": "7ZL2sFSioYm1Ry067Kw1hg0SCcW5kuVezC2SwjGbcPE61Nn+gTbH86T73G3LcEOVj0S3IZzNuE/29gZvOLS7VA=="
+      },
+      "Semver": {
+        "type": "Transitive",
+        "resolved": "3.0.0",
+        "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA==",
+        "dependencies": {
+          "Microsoft.Extensions.Primitives": "5.0.1"
+        }
       },
       "System.Collections.Immutable": {
         "type": "Transitive",
@@ -119,6 +132,7 @@
         "type": "Project",
         "dependencies": {
           "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
+          "Semver": "[3.0.0, )",
           "System.IO.Pipelines": "[9.0.1, )"
         }
       },

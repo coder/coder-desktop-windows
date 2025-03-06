@@ -28,16 +28,19 @@ public sealed partial class TrayWindow : Window
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+    private readonly TrayWindowLoadingPage _loadingPgae;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
 
     public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
+        TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
     {
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _loadingPgae = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
         _mainPage = mainPage;
@@ -49,9 +52,15 @@ public sealed partial class TrayWindow : Window
 
         rpcController.StateChanged += RpcController_StateChanged;
         credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
-        SetPageByState(rpcController.GetState(), credentialManager.GetCredentials());
+        SetPageByState(rpcController.GetState(), credentialManager.GetCachedCredentials());
 
-        _rpcController.Reconnect(CancellationToken.None);
+        // Start connecting in the background.
+        if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
+            _ = _rpcController.Reconnect(CancellationToken.None);
+
+        // Load the credentials in the background. Even though we pass a CT with no cancellation, the method itself will
+        // impose a timeout on the HTTP portion.
+        _ = _credentialManager.LoadCredentials(CancellationToken.None);
 
         // Setting OpenCommand and ExitCommand directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
@@ -78,6 +87,12 @@ public sealed partial class TrayWindow : Window
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel)
     {
+        if (credentialModel.State == CredentialState.Unknown)
+        {
+            SetRootFrame(_loadingPgae);
+            return;
+        }
+
         switch (rpcModel.RpcLifecycle)
         {
             case RpcLifecycle.Connected:
@@ -96,7 +111,7 @@ public sealed partial class TrayWindow : Window
 
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
-        SetPageByState(model, _credentialManager.GetCredentials());
+        SetPageByState(model, _credentialManager.GetCachedCredentials());
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)

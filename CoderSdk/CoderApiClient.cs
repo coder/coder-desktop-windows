@@ -19,9 +19,7 @@ internal class SnakeCaseNamingPolicy : JsonNamingPolicy
 
 [JsonSerializable(typeof(BuildInfo))]
 [JsonSerializable(typeof(User))]
-public partial class CoderSdkJsonContext : JsonSerializerContext
-{
-}
+public partial class CoderSdkJsonContext : JsonSerializerContext;
 
 /// <summary>
 ///     Provides a limited selection of API methods for a Coder instance.

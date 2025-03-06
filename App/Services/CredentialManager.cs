@@ -18,15 +18,27 @@ public class RawCredentials
 }
 
 [JsonSerializable(typeof(RawCredentials))]
-public partial class RawCredentialsJsonContext : JsonSerializerContext
-{
-}
+public partial class RawCredentialsJsonContext : JsonSerializerContext;
 
 public interface ICredentialManager
 {
     public event EventHandler<CredentialModel> CredentialsChanged;
 
-    public CredentialModel GetCredentials();
+    /// <summary>
+    ///     Returns cached credentials or an invalid credential model if none are cached. It's preferable to use
+    ///     LoadCredentials if you are operating in an async context.
+    /// </summary>
+    public CredentialModel GetCachedCredentials();
+
+    /// <summary>
+    ///     Get any sign-in URL. The returned value is not parsed to check if it's a valid URI.
+    /// </summary>
+    public string? GetSignInUri();
+
+    /// <summary>
+    ///     Returns cached credentials or loads/verifies them from storage if not cached.
+    /// </summary>
+    public Task<CredentialModel> LoadCredentials(CancellationToken ct = default);
 
     public Task SetCredentials(string coderUrl, string apiToken, CancellationToken ct = default);
 
@@ -37,30 +49,65 @@ public class CredentialManager : ICredentialManager
 {
     private const string CredentialsTargetName = "Coder.Desktop.App.Credentials";
 
-    private readonly RaiiSemaphoreSlim _lock = new(1, 1);
+    private readonly RaiiSemaphoreSlim _loadLock = new(1, 1);
+    private readonly RaiiSemaphoreSlim _stateLock = new(1, 1);
     private CredentialModel? _latestCredentials;
 
     public event EventHandler<CredentialModel>? CredentialsChanged;
 
-    public CredentialModel GetCredentials()
+    public CredentialModel GetCachedCredentials()
     {
-        using var _ = _lock.Lock();
+        using var _ = _stateLock.Lock();
         if (_latestCredentials != null) return _latestCredentials.Clone();
 
-        var rawCredentials = ReadCredentials();
-        if (rawCredentials is null)
-            _latestCredentials = new CredentialModel
+        return new CredentialModel
+        {
+            State = CredentialState.Unknown,
+        };
+    }
+
+    public string? GetSignInUri()
+    {
+        try
+        {
+            var raw = ReadCredentials();
+            if (raw is not null && !string.IsNullOrWhiteSpace(raw.CoderUrl)) return raw.CoderUrl;
+        }
+        catch
+        {
+            // ignored
+        }
+
+        return null;
+    }
+
+    public async Task<CredentialModel> LoadCredentials(CancellationToken ct = default)
+    {
+        using var _ = await _loadLock.LockAsync(ct);
+        using (await _stateLock.LockAsync(ct))
+        {
+            if (_latestCredentials != null) return _latestCredentials.Clone();
+        }
+
+        CredentialModel model;
+        try
+        {
+            var raw = ReadCredentials();
+            model = await PopulateModel(raw, ct);
+        }
+        catch (Exception e)
+        {
+            // We don't need to clear the credentials here, the app will think
+            // they're unset and any subsequent SetCredentials call after the
+            // user signs in again will overwrite the old invalid ones.
+            model = new CredentialModel
             {
                 State = CredentialState.Invalid,
             };
-        else
-            _latestCredentials = new CredentialModel
-            {
-                State = CredentialState.Valid,
-                CoderUrl = rawCredentials.CoderUrl,
-                ApiToken = rawCredentials.ApiToken,
-            };
-        return _latestCredentials.Clone();
+        }
+
+        UpdateState(model.Clone());
+        return model.Clone();
     }
 
     public async Task SetCredentials(string coderUrl, string apiToken, CancellationToken ct = default)
@@ -73,37 +120,15 @@ public class CredentialManager : ICredentialManager
         if (uri.PathAndQuery != "/") throw new ArgumentException("Coder URL must be the root URL", nameof(coderUrl));
         if (string.IsNullOrWhiteSpace(apiToken)) throw new ArgumentException("API token is required", nameof(apiToken));
         apiToken = apiToken.Trim();
-        if (apiToken.Length != 33)
-            throw new ArgumentOutOfRangeException(nameof(apiToken), "API token must be 33 characters long");
 
-        try
-        {
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(15));
-            var sdkClient = new CoderApiClient(uri);
-            sdkClient.SetSessionToken(apiToken);
-            // TODO: we should probably perform a version check here too,
-            // rather than letting the service do it on Start
-            _ = await sdkClient.GetBuildInfo(cts.Token);
-            _ = await sdkClient.GetUser(User.Me, cts.Token);
-        }
-        catch (Exception e)
-        {
-            throw new InvalidOperationException("Could not connect to or verify Coder server", e);
-        }
-
-        WriteCredentials(new RawCredentials
+        var raw = new RawCredentials
         {
             CoderUrl = coderUrl,
             ApiToken = apiToken,
-        });
-
-        UpdateState(new CredentialModel
-        {
-            State = CredentialState.Valid,
-            CoderUrl = coderUrl,
-            ApiToken = apiToken,
-        });
+        };
+        var model = await PopulateModel(raw, ct);
+        WriteCredentials(raw);
+        UpdateState(model);
     }
 
     public void ClearCredentials()
@@ -112,14 +137,47 @@ public class CredentialManager : ICredentialManager
         UpdateState(new CredentialModel
         {
             State = CredentialState.Invalid,
-            CoderUrl = null,
-            ApiToken = null,
         });
+    }
+
+    private async Task<CredentialModel> PopulateModel(RawCredentials? credentials, CancellationToken ct = default)
+    {
+        if (credentials is null || string.IsNullOrWhiteSpace(credentials.CoderUrl) ||
+            string.IsNullOrWhiteSpace(credentials.ApiToken))
+            return new CredentialModel
+            {
+                State = CredentialState.Invalid,
+            };
+
+        BuildInfo buildInfo;
+        User me;
+        try
+        {
+            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+            var sdkClient = new CoderApiClient(credentials.CoderUrl);
+            sdkClient.SetSessionToken(credentials.ApiToken);
+            buildInfo = await sdkClient.GetBuildInfo(cts.Token);
+            me = await sdkClient.GetUser(User.Me, cts.Token);
+        }
+        catch (Exception e)
+        {
+            throw new InvalidOperationException("Could not connect to or verify Coder server", e);
+        }
+
+        ServerVersionUtilities.ParseAndValidateServerVersion(buildInfo.Version);
+        return new CredentialModel
+        {
+            State = CredentialState.Valid,
+            CoderUrl = credentials.CoderUrl,
+            ApiToken = credentials.ApiToken,
+            Username = me.Username,
+        };
     }
 
     private void UpdateState(CredentialModel newModel)
     {
-        using (_lock.Lock())
+        using (_stateLock.Lock())
         {
             _latestCredentials = newModel.Clone();
         }
