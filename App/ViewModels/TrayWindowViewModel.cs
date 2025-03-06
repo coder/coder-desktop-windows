@@ -30,7 +30,6 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowWorkspacesHeader))]
     [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
     [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
-    [NotifyPropertyChangedFor(nameof(ShowFailedSection))]
     public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
     // This is a separate property because we need the switch to be 2-way.
