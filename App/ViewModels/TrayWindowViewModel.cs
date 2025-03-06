@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.Vpn.Proto;
@@ -10,6 +11,7 @@ using Google.Protobuf;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Exception = System.Exception;
 
 namespace Coder.Desktop.App.ViewModels;
 
@@ -23,22 +25,45 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private DispatcherQueue? _dispatcherQueue;
 
-    [ObservableProperty] public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEnableSection))]
+    [NotifyPropertyChangedFor(nameof(ShowWorkspacesHeader))]
+    [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
+    [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
+    public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
     // This is a separate property because we need the switch to be 2-way.
     [ObservableProperty] public partial bool VpnSwitchActive { get; set; } = false;
 
-    [ObservableProperty] public partial string? VpnFailedMessage { get; set; } = null;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowEnableSection))]
+    [NotifyPropertyChangedFor(nameof(ShowWorkspacesHeader))]
+    [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
+    [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
+    [NotifyPropertyChangedFor(nameof(ShowAgentOverflowButton))]
+    [NotifyPropertyChangedFor(nameof(ShowFailedSection))]
+    public partial string? VpnFailedMessage { get; set; } = null;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NoAgents))]
-    [NotifyPropertyChangedFor(nameof(AgentOverflow))]
     [NotifyPropertyChangedFor(nameof(VisibleAgents))]
+    [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
+    [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
+    [NotifyPropertyChangedFor(nameof(ShowAgentOverflowButton))]
     public partial List<AgentViewModel> Agents { get; set; } = [];
 
-    public bool NoAgents => Agents.Count == 0;
+    public bool ShowEnableSection => VpnFailedMessage is null && VpnLifecycle is not VpnLifecycle.Started;
 
-    public bool AgentOverflow => Agents.Count > MaxAgents;
+    public bool ShowWorkspacesHeader => VpnFailedMessage is null && VpnLifecycle is VpnLifecycle.Started;
+
+    public bool ShowNoAgentsSection =>
+        VpnFailedMessage is null && Agents.Count == 0 && VpnLifecycle is VpnLifecycle.Started;
+
+    public bool ShowAgentsSection =>
+        VpnFailedMessage is null && Agents.Count > 0 && VpnLifecycle is VpnLifecycle.Started;
+
+    public bool ShowFailedSection => VpnFailedMessage is not null;
+
+    public bool ShowAgentOverflowButton => VpnFailedMessage is null && Agents.Count > MaxAgents;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VisibleAgents))]
@@ -190,22 +215,45 @@ public partial class TrayWindowViewModel : ObservableObject
     {
         if (sender is not ToggleSwitch toggleSwitch) return;
 
-        VpnFailedMessage = "";
+        VpnFailedMessage = null;
+
+        // The start/stop methods will call back to update the state.
+        if (toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Stopped)
+            _ = StartVpn(); // in the background
+        else if (!toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Started)
+            _ = StopVpn(); // in the background
+        else
+            toggleSwitch.IsOn = VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
+    }
+
+    private async Task StartVpn()
+    {
         try
         {
-            // The start/stop methods will call back to update the state.
-            if (toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Stopped)
-                _rpcController.StartVpn();
-            else if (!toggleSwitch.IsOn && VpnLifecycle is VpnLifecycle.Started)
-                _rpcController.StopVpn();
-            else
-                toggleSwitch.IsOn = VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
+            await _rpcController.StartVpn();
         }
-        catch
+        catch (Exception e)
         {
-            // TODO: display error
-            VpnFailedMessage = e.ToString();
+            VpnFailedMessage = "Failed to start CoderVPN: " + MaybeUnwrapTunnelError(e);
         }
+    }
+
+    private async Task StopVpn()
+    {
+        try
+        {
+            await _rpcController.StopVpn();
+        }
+        catch (Exception e)
+        {
+            VpnFailedMessage = "Failed to stop CoderVPN: " + MaybeUnwrapTunnelError(e);
+        }
+    }
+
+    private static string MaybeUnwrapTunnelError(Exception e)
+    {
+        if (e is VpnLifecycleException vpnError) return vpnError.Message;
+        return e.ToString();
     }
 
     [RelayCommand]
