@@ -122,6 +122,7 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to build Vpn.Service" }
 $appPublishDir = Join-Path $buildPath "app"
 $msbuildBinary = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
 if ($LASTEXITCODE -ne 0) { throw "Failed to find MSBuild" }
+if (-not (Test-Path $msbuildBinary)) { throw "Failed to find MSBuild at $msbuildBinary" }
 & $msbuildBinary .\App\App.csproj /p:Configuration=Release /p:Platform=$arch /p:OutputPath=$appPublishDir
 if ($LASTEXITCODE -ne 0) { throw "Failed to build App" }
 

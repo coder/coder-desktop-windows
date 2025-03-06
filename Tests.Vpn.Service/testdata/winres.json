@@ -1,0 +1,44 @@
+{
+  "RT_MANIFEST": {
+    "#1": {
+      "0409": {
+        "identity": {},
+        "description": "",
+        "minimum-os": "win7",
+        "execution-level": "",
+        "ui-access": false,
+        "auto-elevate": false,
+        "dpi-awareness": "system",
+        "disable-theming": false,
+        "disable-window-filtering": false,
+        "high-resolution-scrolling-aware": false,
+        "ultra-high-resolution-scrolling-aware": false,
+        "long-path-aware": false,
+        "printer-driver-isolation": false,
+        "gdi-scaling": false,
+        "segment-heap": false,
+        "use-common-controls-v6": false
+      }
+    }
+  },
+  "RT_VERSION": {
+    "#1": {
+      "0409": {
+        "fixed": {
+          "file_version": "1.2.3.4",
+          "product_version": "1.2.3.4"
+        },
+        "info": {
+          "0409": {
+            "FileDescription": "Coder",
+            "FileVersion": "1.2.3.4",
+            "LegalCopyright": "Copyright 2025 Coder Technologies Inc.",
+            "OriginalFilename": "coder.exe",
+            "ProductName": "Coder",
+            "ProductVersion": "1.2.3.4"
+          }
+        }
+      }
+    }
+  }
+}

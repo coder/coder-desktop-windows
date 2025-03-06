@@ -27,23 +27,29 @@ public class AuthenticodeDownloadValidatorTest
     [CancelAfter(30_000)]
     public void Unsigned(CancellationToken ct)
     {
-        // TODO: this
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello.exe");
+        var ex = Assert.ThrowsAsync<Exception>(() =>
+            AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct));
+        Assert.That(ex.Message, Does.Contain("File is not signed and trusted with an Authenticode signature: State=Unsigned, StateReason=None"));
     }
 
     [Test(Description = "Test an untrusted binary")]
     [CancelAfter(30_000)]
     public void Untrusted(CancellationToken ct)
     {
-        // TODO: this
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-self-signed.exe");
+        var ex = Assert.ThrowsAsync<Exception>(() =>
+            AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct));
+        Assert.That(ex.Message, Does.Contain("File is not signed and trusted with an Authenticode signature: State=Unsigned, StateReason=UntrustedRoot"));
     }
 
     [Test(Description = "Test an binary with a detached signature (catalog file)")]
     [CancelAfter(30_000)]
     public void DifferentCertTrusted(CancellationToken ct)
     {
-        // notepad.exe uses a catalog file for its signature.
+        // rundll32.exe uses a catalog file for its signature.
         var ex = Assert.ThrowsAsync<Exception>(() =>
-            AuthenticodeDownloadValidator.Coder.ValidateAsync(@"C:\Windows\System32\notepad.exe", ct));
+            AuthenticodeDownloadValidator.Coder.ValidateAsync(@"C:\Windows\System32\rundll32.exe", ct));
         Assert.That(ex.Message,
             Does.Contain("File is not signed with an embedded Authenticode signature: Kind=Catalog"));
     }
@@ -52,15 +58,19 @@ public class AuthenticodeDownloadValidatorTest
     [CancelAfter(30_000)]
     public void DifferentCertUntrusted(CancellationToken ct)
     {
-        // TODO: this
+        // dotnet.exe is signed by .NET. During tests we can be pretty sure
+        // this is installed.
+        var ex = Assert.ThrowsAsync<Exception>(() =>
+            AuthenticodeDownloadValidator.Coder.ValidateAsync(@"C:\Program Files\dotnet\dotnet.exe", ct));
+        Assert.That(ex.Message, Does.Contain("File is signed by an unexpected certificate: ExpectedName='Coder Technologies Inc.', ActualName='.NET"));
     }
 
     [Test(Description = "Test a binary signed by Coder's certificate")]
     [CancelAfter(30_000)]
     public async Task CoderSigned(CancellationToken ct)
     {
-        // TODO: this
-        await Task.CompletedTask;
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-versioned-signed.exe");
+        await AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct);
     }
 }
 
@@ -71,22 +81,57 @@ public class AssemblyVersionDownloadValidatorTest
     [CancelAfter(30_000)]
     public void NoVersion(CancellationToken ct)
     {
-        // TODO: this
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello.exe");
+        var ex = Assert.ThrowsAsync<Exception>(() =>
+            new AssemblyVersionDownloadValidator(1, 2, 3, 4).ValidateAsync(testBinaryPath, ct));
+        Assert.That(ex.Message, Does.Contain("File ProductVersion is empty or null"));
     }
 
-    [Test(Description = "Version mismatch")]
+    [Test(Description = "Invalid version on binary")]
     [CancelAfter(30_000)]
-    public void VersionMismatch(CancellationToken ct)
+    public void InvalidVersion(CancellationToken ct)
     {
-        // TODO: this
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-invalid-version.exe");
+        var ex = Assert.ThrowsAsync<Exception>(() =>
+            new AssemblyVersionDownloadValidator(1, 2, 3, 4).ValidateAsync(testBinaryPath, ct));
+        Assert.That(ex.Message, Does.Contain("File ProductVersion '1-2-3-4' is not a valid version string"));
     }
 
-    [Test(Description = "Version match")]
+    [Test(Description = "Version mismatch with full version check")]
+    [CancelAfter(30_000)]
+    public void VersionMismatchFull(CancellationToken ct)
+    {
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-versioned-signed.exe");
+
+        // Try changing each version component one at a time
+        var expectedVersions = new[] { 1, 2, 3, 4 };
+        for (var i = 0; i < 4; i++)
+        {
+            var testVersions = (int[])expectedVersions.Clone();
+            testVersions[i]++; // Increment this component to make it wrong
+
+            var ex = Assert.ThrowsAsync<Exception>(() =>
+                new AssemblyVersionDownloadValidator(
+                    testVersions[0], testVersions[1], testVersions[2], testVersions[3]
+                ).ValidateAsync(testBinaryPath, ct));
+
+            Assert.That(ex.Message, Does.Contain(
+                $"File ProductVersion does not match expected version: Actual='1.2.3.4', Expected='{string.Join(".", testVersions)}'"));
+        }
+    }
+
+    [Test(Description = "Version match with and without partial version check")]
     [CancelAfter(30_000)]
     public async Task VersionMatch(CancellationToken ct)
     {
-        // TODO: this
-        await Task.CompletedTask;
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "hello-versioned-signed.exe");
+
+        // Test with just major.minor
+        await new AssemblyVersionDownloadValidator(1, 2).ValidateAsync(testBinaryPath, ct);
+        // Test with major.minor.patch
+        await new AssemblyVersionDownloadValidator(1, 2, 3).ValidateAsync(testBinaryPath, ct);
+        // Test with major.minor.patch.build
+        await new AssemblyVersionDownloadValidator(1, 2, 3, 4).ValidateAsync(testBinaryPath, ct);
     }
 }
 

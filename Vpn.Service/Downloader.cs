@@ -60,14 +60,12 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 
         if (fileSigInfo.State != SignatureState.SignedAndTrusted)
             throw new Exception(
-                $"File is not signed and trusted with an Authenticode signature: State={fileSigInfo.State}");
+                $"File is not signed and trusted with an Authenticode signature: State={fileSigInfo.State}, StateReason={fileSigInfo.StateReason}");
 
         // Coder will only use embedded signatures because we are downloading
         // individual binaries and not installers which can ship catalog files.
         if (fileSigInfo.Kind != SignatureKind.Embedded)
             throw new Exception($"File is not signed with an embedded Authenticode signature: Kind={fileSigInfo.Kind}");
-
-        // TODO: check that it's an extended validation certificate
 
         var actualName = fileSigInfo.SigningCertificate.GetNameInfo(X509NameType.SimpleName, false);
         if (actualName != _expectedName)
@@ -86,8 +84,8 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
     private readonly Version _expectedVersion;
 
     // ReSharper disable once ConvertToPrimaryConstructor
-    public AssemblyVersionDownloadValidator(int expectedMajor, int expectedMinor, int expectedBuild,
-        int expectedRevision)
+    public AssemblyVersionDownloadValidator(int expectedMajor, int expectedMinor, int expectedBuild = -1,
+        int expectedRevision = -1)
     {
         _expectedMajor = expectedMajor;
         _expectedMinor = expectedMinor;
@@ -122,7 +120,7 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
             (_expectedBuild != -1 && productVersion.Build != _expectedBuild) ||
             (_expectedRevision != -1 && productVersion.Revision != _expectedRevision))
             throw new Exception(
-                $"File ProductVersion is '{info.ProductVersion}', but expected '{_expectedVersion}'");
+                $"File ProductVersion does not match expected version: Actual='{info.ProductVersion}', Expected='{_expectedVersion}'");
 
         return Task.CompletedTask;
     }
