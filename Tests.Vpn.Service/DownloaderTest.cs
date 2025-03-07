@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Coder.Desktop.Vpn.Service;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -59,9 +61,9 @@ public class AuthenticodeDownloadValidatorTest
             Does.Contain("File is not signed with an embedded Authenticode signature: Kind=Catalog"));
     }
 
-    [Test(Description = "Test a binary signed by a different certificate")]
+    [Test(Description = "Test a binary signed by a non-EV certificate")]
     [CancelAfter(30_000)]
-    public void DifferentCertUntrusted(CancellationToken ct)
+    public void NonEvCert(CancellationToken ct)
     {
         // dotnet.exe is signed by .NET. During tests we can be pretty sure
         // this is installed.
@@ -69,7 +71,20 @@ public class AuthenticodeDownloadValidatorTest
             AuthenticodeDownloadValidator.Coder.ValidateAsync(@"C:\Program Files\dotnet\dotnet.exe", ct));
         Assert.That(ex.Message,
             Does.Contain(
-                "File is signed by an unexpected certificate: ExpectedName='Coder Technologies Inc.', ActualName='.NET"));
+                "File is not signed with an Extended Validation Code Signing certificate"));
+    }
+
+    [Test(Description = "Test a binary signed by an EV certificate with a different name")]
+    [CancelAfter(30_000)]
+    public void EvDifferentCertName(CancellationToken ct)
+    {
+        var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata",
+            "hello-versioned-signed.exe");
+        var ex = Assert.ThrowsAsync<Exception>(() =>
+            new AuthenticodeDownloadValidator("Acme Corporation").ValidateAsync(testBinaryPath, ct));
+        Assert.That(ex.Message,
+            Does.Contain(
+                "File is signed by an unexpected certificate: ExpectedName='Acme Corporation', ActualName='Coder Technologies Inc.'"));
     }
 
     [Test(Description = "Test a binary signed by Coder's certificate")]
@@ -79,6 +94,37 @@ public class AuthenticodeDownloadValidatorTest
         var testBinaryPath = Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata",
             "hello-versioned-signed.exe");
         await AuthenticodeDownloadValidator.Coder.ValidateAsync(testBinaryPath, ct);
+    }
+
+    [Test(Description = "Test if the EV check works")]
+    public void IsEvCert()
+    {
+        // To avoid potential API misuse the function is private.
+        var method = typeof(AuthenticodeDownloadValidator).GetMethod("IsExtendedValidationCertificate",
+            BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.That(method, Is.Not.Null, "Could not find IsExtendedValidationCertificate method");
+
+        // Call it with various certificates.
+        var certs = new List<(string, bool)>
+        {
+            // EV:
+            (Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "coder-ev.crt"), true),
+            (Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "google-llc-ev.crt"), true),
+            (Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "self-signed-ev.crt"), true),
+            // Not EV:
+            (Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "mozilla-corporation.crt"), false),
+            (Path.Combine(TestContext.CurrentContext.TestDirectory, "testdata", "self-signed.crt"), false),
+        };
+
+        foreach (var (certPath, isEv) in certs)
+        {
+            var x509Cert = new X509Certificate2(certPath);
+            var result = (bool?)method!.Invoke(null, [x509Cert]);
+            Assert.That(result, Is.Not.Null,
+                $"IsExtendedValidationCertificate returned null for {Path.GetFileName(certPath)}");
+            Assert.That(result, Is.EqualTo(isEv),
+                $"IsExtendedValidationCertificate returned wrong result for {Path.GetFileName(certPath)}");
+        }
     }
 }
 

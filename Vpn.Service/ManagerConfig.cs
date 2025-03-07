@@ -2,6 +2,11 @@ using System.ComponentModel.DataAnnotations;
 
 namespace Coder.Desktop.Vpn.Service;
 
+// These values are the config option names used in the registry. Any option
+// here can be configured with `(Debug)?Manager:OptionName` in the registry.
+//
+// They should not be changed without backwards compatibility considerations.
+// If changed here, they should also be changed in the installer.
 public class ManagerConfig
 {
     [Required]

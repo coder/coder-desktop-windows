@@ -250,7 +250,9 @@ public class Program
         programFiles64Folder.AddDir(installDir);
         project.AddDir(programFiles64Folder);
 
-        // Add registry values that are consumed by the manager.
+        // Add registry values that are consumed by the manager. Note that these
+        // should not be changed. See Vpn.Service/Program.cs and
+        // Vpn.Service/ManagerConfig.cs for more details.
         project.AddRegValues(
             new RegValue(RegistryHive, RegistryKey, "Manager:ServiceRpcPipeName", "Coder.Desktop.Vpn"),
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryPath",

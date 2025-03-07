@@ -8,10 +8,15 @@ namespace Coder.Desktop.Vpn.Service;
 
 public static class Program
 {
+    // These values are the service name and the prefix on registry value names.
+    // They should not be changed without backwards compatibility
+    // considerations. If changed here, they should also be changed in the
+    // installer.
 #if !DEBUG
     private const string ServiceName = "Coder Desktop";
     private const string ManagerConfigSection = "Manager";
 #else
+    // This value matches Create-Service.ps1.
     private const string ServiceName = "Coder Desktop (Debug)";
     private const string ManagerConfigSection = "DebugManager";
 #endif

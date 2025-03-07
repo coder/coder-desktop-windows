@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Formats.Asn1;
 using System.Net;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -42,6 +43,11 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 {
     public static readonly AuthenticodeDownloadValidator Coder = new("Coder Technologies Inc.");
 
+    private static readonly Oid CertificatePoliciesOid = new("2.5.29.32", "Certificate Policies");
+
+    private static readonly Oid ExtendedValidationCodeSigningOid =
+        new("2.23.140.1.3", "Extended Validation (EV) code signing");
+
     private readonly string _expectedName;
 
     // ReSharper disable once ConvertToPrimaryConstructor
@@ -67,10 +73,89 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
         if (fileSigInfo.Kind != SignatureKind.Embedded)
             throw new Exception($"File is not signed with an embedded Authenticode signature: Kind={fileSigInfo.Kind}");
 
+        // We want to wrap any exception from IsExtendedValidationCertificate
+        // with a nicer error message, but we don't want to wrap the "false"
+        // result exception.
+        bool isExtendedValidation;
+        try
+        {
+            isExtendedValidation = IsExtendedValidationCertificate(fileSigInfo.SigningCertificate);
+        }
+        catch (Exception e)
+        {
+            throw new Exception(
+                "Could not check if file is signed with an Extended Validation Code Signing certificate", e);
+        }
+
+        if (!isExtendedValidation)
+            throw new Exception(
+                $"File is not signed with an Extended Validation Code Signing certificate (missing policy {ExtendedValidationCodeSigningOid.Value} - {ExtendedValidationCodeSigningOid.FriendlyName})");
+
         var actualName = fileSigInfo.SigningCertificate.GetNameInfo(X509NameType.SimpleName, false);
         if (actualName != _expectedName)
             throw new Exception(
                 $"File is signed by an unexpected certificate: ExpectedName='{_expectedName}', ActualName='{actualName}'");
+    }
+
+    /// <summary>
+    ///     Checks if the given certificate is an Extended Validation Code Signing certificate.
+    /// </summary>
+    /// <param name="cert">The cert to test</param>
+    /// <returns>Whether the certificate is an Extended Validation Code Signing certificate</returns>
+    /// <exception cref="Exception">If the certificate extensions could not be parsed</exception>
+    private static bool IsExtendedValidationCertificate(X509Certificate2 cert)
+    {
+        ArgumentNullException.ThrowIfNull(cert);
+
+        // RFC 5280 4.2: "A certificate MUST NOT include more than one instance
+        // of a particular extension."
+        var certificatePoliciesExt = cert.Extensions.FirstOrDefault(e => e.Oid?.Value == CertificatePoliciesOid.Value);
+        if (certificatePoliciesExt == null)
+            return false;
+
+        // RFC 5280 4.2.1.4
+        // certificatePolicies ::= SEQUENCE SIZE (1..MAX) OF PolicyInformation
+        //
+        // PolicyInformation ::= SEQUENCE {
+        //   policyIdentifier   CertPolicyId,
+        //   policyQualifiers   SEQUENCE SIZE (1..MAX) OF PolicyQualifierInfo OPTIONAL
+        // }
+        try
+        {
+            AsnDecoder.ReadSequence(certificatePoliciesExt.RawData, AsnEncodingRules.DER, out var contentOffset,
+                out _, out var bytesConsumed);
+            if (bytesConsumed != certificatePoliciesExt.RawData.Length)
+                throw new Exception(
+                    $"Parsed Certificate Policies sequence length is incorrect: Consumed={bytesConsumed}, Expected={certificatePoliciesExt.RawData.Length}");
+
+            // For each policy...
+            while (contentOffset < certificatePoliciesExt.RawData.Length)
+            {
+                // Parse a sequence from [contentOffset:].
+                var slice = certificatePoliciesExt.RawData.AsSpan(contentOffset);
+                AsnDecoder.ReadSequence(slice, AsnEncodingRules.DER, out var innerContentOffset,
+                    out var innerContentLength, out var innerBytesConsumed);
+                // Advance the outer offset by the consumed bytes.
+                contentOffset += innerBytesConsumed;
+
+                // Parse the first value in the sequence as an Oid.
+                slice = slice.Slice(innerContentOffset, innerContentLength);
+                var oid = AsnDecoder.ReadObjectIdentifier(slice, AsnEncodingRules.DER, out _);
+                if (oid == ExtendedValidationCodeSigningOid.Value)
+                    return true;
+
+                // We don't need to parse the rest of the data in the sequence,
+                // we can just move on to the next iteration.
+            }
+        }
+        catch (Exception e)
+        {
+            throw new Exception(
+                $"Could not parse {CertificatePoliciesOid.Value} ({CertificatePoliciesOid.FriendlyName}) extension in certificate",
+                e);
+        }
+
+        return false;
     }
 }
 
@@ -79,20 +164,20 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
     private readonly int _expectedMajor;
     private readonly int _expectedMinor;
     private readonly int _expectedBuild;
-    private readonly int _expectedRevision;
+    private readonly int _expectedPrivate;
 
     private readonly Version _expectedVersion;
 
     // ReSharper disable once ConvertToPrimaryConstructor
     public AssemblyVersionDownloadValidator(int expectedMajor, int expectedMinor, int expectedBuild = -1,
-        int expectedRevision = -1)
+        int expectedPrivate = -1)
     {
         _expectedMajor = expectedMajor;
         _expectedMinor = expectedMinor;
         _expectedBuild = expectedBuild < 0 ? -1 : expectedBuild;
-        _expectedRevision = expectedRevision < 0 ? -1 : expectedRevision;
-        if (_expectedBuild == -1 && _expectedRevision != -1)
-            throw new ArgumentException("Build must be set if Revision is set", nameof(expectedRevision));
+        _expectedPrivate = expectedPrivate < 0 ? -1 : expectedPrivate;
+        if (_expectedBuild == -1 && _expectedPrivate != -1)
+            throw new ArgumentException("Build must be set if Private is set", nameof(expectedPrivate));
 
         // Unfortunately the Version constructor throws an exception if the
         // build or revision is -1. You need to use the specific constructor
@@ -101,10 +186,10 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
         // This is only for error rendering purposes anyways.
         if (_expectedBuild == -1)
             _expectedVersion = new Version(_expectedMajor, _expectedMinor);
-        else if (_expectedRevision == -1)
+        else if (_expectedPrivate == -1)
             _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild);
         else
-            _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild, _expectedRevision);
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild, _expectedPrivate);
     }
 
     public Task ValidateAsync(string path, CancellationToken ct = default)
@@ -115,10 +200,10 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
         if (!Version.TryParse(info.ProductVersion, out var productVersion))
             throw new Exception($"File ProductVersion '{info.ProductVersion}' is not a valid version string");
 
-        // If the build or revision are -1 on the expected version, they are ignored.
+        // If the build or private are -1 on the expected version, they are ignored.
         if (productVersion.Major != _expectedMajor || productVersion.Minor != _expectedMinor ||
             (_expectedBuild != -1 && productVersion.Build != _expectedBuild) ||
-            (_expectedRevision != -1 && productVersion.Revision != _expectedRevision))
+            (_expectedPrivate != -1 && productVersion.Revision != _expectedPrivate))
             throw new Exception(
                 $"File ProductVersion does not match expected version: Actual='{info.ProductVersion}', Expected='{_expectedVersion}'");
 
