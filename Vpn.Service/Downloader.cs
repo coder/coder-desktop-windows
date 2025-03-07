@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Formats.Asn1;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Coder.Desktop.Vpn.Utilities;
@@ -109,9 +110,11 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 
         // RFC 5280 4.2: "A certificate MUST NOT include more than one instance
         // of a particular extension."
-        var certificatePoliciesExt = cert.Extensions.FirstOrDefault(e => e.Oid?.Value == CertificatePoliciesOid.Value);
-        if (certificatePoliciesExt == null)
+        var policyExtensions = cert.Extensions.Where(e => e.Oid?.Value == CertificatePoliciesOid.Value).ToList();
+        if (policyExtensions.Count == 0)
             return false;
+        Assert(policyExtensions.Count == 1, "certificate contains more than one CertificatePolicies extension");
+        var certificatePoliciesExt = policyExtensions[0];
 
         // RFC 5280 4.2.1.4
         // certificatePolicies ::= SEQUENCE SIZE (1..MAX) OF PolicyInformation
@@ -122,25 +125,36 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
         // }
         try
         {
-            AsnDecoder.ReadSequence(certificatePoliciesExt.RawData, AsnEncodingRules.DER, out var contentOffset,
-                out _, out var bytesConsumed);
-            if (bytesConsumed != certificatePoliciesExt.RawData.Length)
-                throw new Exception(
-                    $"Parsed Certificate Policies sequence length is incorrect: Consumed={bytesConsumed}, Expected={certificatePoliciesExt.RawData.Length}");
+            AsnDecoder.ReadSequence(certificatePoliciesExt.RawData, AsnEncodingRules.DER, out var originalContentOffset,
+                out var contentLength, out var bytesConsumed);
+            Assert(bytesConsumed == certificatePoliciesExt.RawData.Length, "incorrect outer sequence length");
+            Assert(originalContentOffset >= 0, "invalid outer sequence content offset");
+            Assert(contentLength > 0, "invalid outer sequence content length");
+
+            var contentOffset = originalContentOffset;
+            var endOffset = originalContentOffset + contentLength;
+            Assert(endOffset <= certificatePoliciesExt.RawData.Length, "invalid outer sequence end offset");
 
             // For each policy...
-            while (contentOffset < certificatePoliciesExt.RawData.Length)
+            while (contentOffset < endOffset)
             {
                 // Parse a sequence from [contentOffset:].
-                var slice = certificatePoliciesExt.RawData.AsSpan(contentOffset);
+                var slice = certificatePoliciesExt.RawData.AsSpan(contentOffset, endOffset - contentOffset);
                 AsnDecoder.ReadSequence(slice, AsnEncodingRules.DER, out var innerContentOffset,
                     out var innerContentLength, out var innerBytesConsumed);
+                Assert(innerBytesConsumed <= slice.Length, "incorrect inner sequence length");
+                Assert(innerContentOffset >= 0, "invalid inner sequence content offset");
+                Assert(innerContentLength > 0, "invalid inner sequence content length");
+                Assert(innerContentOffset + innerContentLength <= slice.Length, "invalid inner sequence end offset");
+
                 // Advance the outer offset by the consumed bytes.
                 contentOffset += innerBytesConsumed;
 
                 // Parse the first value in the sequence as an Oid.
                 slice = slice.Slice(innerContentOffset, innerContentLength);
-                var oid = AsnDecoder.ReadObjectIdentifier(slice, AsnEncodingRules.DER, out _);
+                var oid = AsnDecoder.ReadObjectIdentifier(slice, AsnEncodingRules.DER, out var oidBytesConsumed);
+                Assert(oidBytesConsumed > 0, "invalid inner sequence OID length");
+                Assert(oidBytesConsumed <= slice.Length, "invalid inner sequence OID length");
                 if (oid == ExtendedValidationCodeSigningOid.Value)
                     return true;
 
@@ -156,6 +170,13 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
         }
 
         return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Assert(bool condition, string message)
+    {
+        if (!condition)
+            throw new Exception("Failed certificate parse assertion: " + message);
     }
 }
 
