@@ -11,7 +11,7 @@ public class ServerVersion
 public static class ServerVersionUtilities
 {
     // The -0 allows pre-release versions.
-    private static readonly SemVersionRange ServerVersionRange = SemVersionRange.Parse("^2.20.0-0",
+    private static readonly SemVersionRange ServerVersionRange = SemVersionRange.Parse(">= 2.20.0-0",
         SemVersionRangeOptions.IncludeAllPrerelease | SemVersionRangeOptions.AllowV |
         SemVersionRangeOptions.AllowMetadata);
 

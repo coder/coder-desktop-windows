@@ -95,7 +95,7 @@ public class CredentialManager : ICredentialManager
             var raw = ReadCredentials();
             model = await PopulateModel(raw, ct);
         }
-        catch (Exception e)
+        catch
         {
             // We don't need to clear the credentials here, the app will think
             // they're unset and any subsequent SetCredentials call after the

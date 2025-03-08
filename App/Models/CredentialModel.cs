@@ -14,12 +14,12 @@ public enum CredentialState
 
 public class CredentialModel
 {
-    public CredentialState State { get; set; } = CredentialState.Unknown;
+    public CredentialState State { get; init; } = CredentialState.Unknown;
 
-    public string? CoderUrl { get; set; }
-    public string? ApiToken { get; set; }
+    public string? CoderUrl { get; init; }
+    public string? ApiToken { get; init; }
 
-    public string? Username { get; set; }
+    public string? Username { get; init; }
 
     public CredentialModel Clone()
     {
