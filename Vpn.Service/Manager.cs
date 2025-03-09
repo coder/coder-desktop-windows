@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Utilities;
-using CoderSdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Semver;

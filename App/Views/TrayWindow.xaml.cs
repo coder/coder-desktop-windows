@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Threading;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.System;
@@ -28,7 +27,7 @@ public sealed partial class TrayWindow : Window
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
-    private readonly TrayWindowLoadingPage _loadingPgae;
+    private readonly TrayWindowLoadingPage _loadingPage;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
@@ -40,7 +39,7 @@ public sealed partial class TrayWindow : Window
     {
         _rpcController = rpcController;
         _credentialManager = credentialManager;
-        _loadingPgae = loadingPage;
+        _loadingPage = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
         _mainPage = mainPage;
@@ -53,14 +52,6 @@ public sealed partial class TrayWindow : Window
         rpcController.StateChanged += RpcController_StateChanged;
         credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
         SetPageByState(rpcController.GetState(), credentialManager.GetCachedCredentials());
-
-        // Start connecting in the background.
-        if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
-            _ = _rpcController.Reconnect(CancellationToken.None);
-
-        // Load the credentials in the background. Even though we pass a CT with no cancellation, the method itself will
-        // impose a timeout on the HTTP portion.
-        _ = _credentialManager.LoadCredentials(CancellationToken.None);
 
         // Setting OpenCommand and ExitCommand directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
@@ -89,7 +80,7 @@ public sealed partial class TrayWindow : Window
     {
         if (credentialModel.State == CredentialState.Unknown)
         {
-            SetRootFrame(_loadingPgae);
+            SetRootFrame(_loadingPage);
             return;
         }
 

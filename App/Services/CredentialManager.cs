@@ -6,8 +6,8 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Utilities;
-using CoderSdk;
 
 namespace Coder.Desktop.App.Services;
 
@@ -33,7 +33,7 @@ public interface ICredentialManager
     /// <summary>
     ///     Get any sign-in URL. The returned value is not parsed to check if it's a valid URI.
     /// </summary>
-    public string? GetSignInUri();
+    public Task<string?> GetSignInUri();
 
     /// <summary>
     ///     Returns cached credentials or loads/verifies them from storage if not cached.
@@ -42,23 +42,64 @@ public interface ICredentialManager
 
     public Task SetCredentials(string coderUrl, string apiToken, CancellationToken ct = default);
 
-    public void ClearCredentials();
+    public Task ClearCredentials(CancellationToken ct = default);
 }
 
+public interface ICredentialBackend
+{
+    public Task<RawCredentials?> ReadCredentials(CancellationToken ct = default);
+    public Task WriteCredentials(RawCredentials credentials, CancellationToken ct = default);
+    public Task DeleteCredentials(CancellationToken ct = default);
+}
+
+/// <summary>
+///     Implements ICredentialManager using the Windows Credential Manager to
+///     store credentials.
+/// </summary>
 public class CredentialManager : ICredentialManager
 {
     private const string CredentialsTargetName = "Coder.Desktop.App.Credentials";
 
-    private readonly RaiiSemaphoreSlim _loadLock = new(1, 1);
-    private readonly RaiiSemaphoreSlim _stateLock = new(1, 1);
-    private CredentialModel? _latestCredentials;
+    // _opLock is held for the full duration of SetCredentials, and partially
+    // during LoadCredentials. _lock protects _inFlightLoad, _loadCts, and
+    // writes to _latestCredentials.
+    private readonly RaiiSemaphoreSlim _opLock = new(1, 1);
+
+    // _inFlightLoad and _loadCts are set at the beginning of a LoadCredentials
+    // call.
+    private Task<CredentialModel>? _inFlightLoad;
+    private CancellationTokenSource? _loadCts;
+
+    // Reading and writing a reference in C# is always atomic, so this doesn't
+    // need to be protected on reads with a lock in GetCachedCredentials.
+    //
+    // The volatile keyword disables optimizations on reads/writes which helps
+    // other threads see the new value quickly (no guarantee that it's
+    // immediate).
+    private volatile CredentialModel? _latestCredentials;
+
+    private ICredentialBackend Backend { get; } = new WindowsCredentialBackend(CredentialsTargetName);
+
+    private ICoderApiClientFactory CoderApiClientFactory { get; } = new CoderApiClientFactory();
+
+    public CredentialManager()
+    {
+    }
+
+    public CredentialManager(ICredentialBackend backend, ICoderApiClientFactory coderApiClientFactory)
+    {
+        Backend = backend;
+        CoderApiClientFactory = coderApiClientFactory;
+    }
 
     public event EventHandler<CredentialModel>? CredentialsChanged;
 
     public CredentialModel GetCachedCredentials()
     {
-        using var _ = _stateLock.Lock();
-        if (_latestCredentials != null) return _latestCredentials.Clone();
+        // No lock required to read the reference.
+        var latestCreds = _latestCredentials;
+        // No clone needed as the model is immutable.
+        if (latestCreds != null) return latestCreds;
 
         return new CredentialModel
         {
@@ -66,11 +107,11 @@ public class CredentialManager : ICredentialManager
         };
     }
 
-    public string? GetSignInUri()
+    public async Task<string?> GetSignInUri()
     {
         try
         {
-            var raw = ReadCredentials();
+            var raw = await Backend.ReadCredentials();
             if (raw is not null && !string.IsNullOrWhiteSpace(raw.CoderUrl)) return raw.CoderUrl;
         }
         catch
@@ -81,42 +122,50 @@ public class CredentialManager : ICredentialManager
         return null;
     }
 
-    public async Task<CredentialModel> LoadCredentials(CancellationToken ct = default)
+    // LoadCredentials may be preempted by SetCredentials.
+    public Task<CredentialModel> LoadCredentials(CancellationToken ct = default)
     {
-        using var _ = await _loadLock.LockAsync(ct);
-        using (await _stateLock.LockAsync(ct))
-        {
-            if (_latestCredentials != null) return _latestCredentials.Clone();
-        }
+        // This function is not `async` because we may return an existing task.
+        // However, we still want to acquire the lock with the
+        // CancellationToken so it can be canceled if needed.
+        using var _ = _opLock.LockAsync(ct).Result;
 
-        CredentialModel model;
-        try
-        {
-            var raw = ReadCredentials();
-            model = await PopulateModel(raw, ct);
-        }
-        catch
-        {
-            // We don't need to clear the credentials here, the app will think
-            // they're unset and any subsequent SetCredentials call after the
-            // user signs in again will overwrite the old invalid ones.
-            model = new CredentialModel
-            {
-                State = CredentialState.Invalid,
-            };
-        }
+        // If we already have a cached value, return it.
+        var latestCreds = _latestCredentials;
+        if (latestCreds != null) return Task.FromResult(latestCreds);
 
-        UpdateState(model.Clone());
-        return model.Clone();
+        // If we are already loading, return the existing task.
+        if (_inFlightLoad != null) return _inFlightLoad;
+
+        // Otherwise, kick off a new load.
+        // Note: subsequent loads returned from above will ignore the passed in
+        // CancellationToken. We set a maximum timeout of 15 seconds anyway.
+        _loadCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        _loadCts.CancelAfter(TimeSpan.FromSeconds(15));
+        _inFlightLoad = LoadCredentialsInner(_loadCts.Token);
+        return _inFlightLoad;
     }
 
-    public async Task SetCredentials(string coderUrl, string apiToken, CancellationToken ct = default)
+    public async Task SetCredentials(string coderUrl, string apiToken, CancellationToken ct)
     {
+        using var _ = await _opLock.LockAsync(ct);
+
+        // If there's an ongoing load, cancel it.
+        if (_loadCts != null)
+        {
+            await _loadCts.CancelAsync();
+            _loadCts.Dispose();
+            _loadCts = null;
+            _inFlightLoad = null;
+        }
+
         if (string.IsNullOrWhiteSpace(coderUrl)) throw new ArgumentException("Coder URL is required", nameof(coderUrl));
         coderUrl = coderUrl.Trim();
-        if (coderUrl.Length > 128) throw new ArgumentOutOfRangeException(nameof(coderUrl), "Coder URL is too long");
+        if (coderUrl.Length > 128) throw new ArgumentException("Coder URL is too long", nameof(coderUrl));
         if (!Uri.TryCreate(coderUrl, UriKind.Absolute, out var uri))
             throw new ArgumentException($"Coder URL '{coderUrl}' is not a valid URL", nameof(coderUrl));
+        if (uri.Scheme != "http" && uri.Scheme != "https")
+            throw new ArgumentException("Coder URL must be HTTP or HTTPS", nameof(coderUrl));
         if (uri.PathAndQuery != "/") throw new ArgumentException("Coder URL must be the root URL", nameof(coderUrl));
         if (string.IsNullOrWhiteSpace(apiToken)) throw new ArgumentException("API token is required", nameof(apiToken));
         apiToken = apiToken.Trim();
@@ -126,21 +175,66 @@ public class CredentialManager : ICredentialManager
             CoderUrl = coderUrl,
             ApiToken = apiToken,
         };
-        var model = await PopulateModel(raw, ct);
-        WriteCredentials(raw);
+        var populateCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        populateCts.CancelAfter(TimeSpan.FromSeconds(15));
+        var model = await PopulateModel(raw, populateCts.Token);
+        await Backend.WriteCredentials(raw, ct);
         UpdateState(model);
     }
 
-    public void ClearCredentials()
+    public async Task ClearCredentials(CancellationToken ct = default)
     {
-        NativeApi.DeleteCredentials(CredentialsTargetName);
+        using var _ = await _opLock.LockAsync(ct);
+        await Backend.DeleteCredentials(ct);
         UpdateState(new CredentialModel
         {
             State = CredentialState.Invalid,
         });
     }
 
-    private async Task<CredentialModel> PopulateModel(RawCredentials? credentials, CancellationToken ct = default)
+    private async Task<CredentialModel> LoadCredentialsInner(CancellationToken ct)
+    {
+        CredentialModel model;
+        try
+        {
+            var raw = await Backend.ReadCredentials(ct);
+            model = await PopulateModel(raw, ct);
+        }
+        catch
+        {
+            // This catch will be hit if a SetCredentials operation started, or
+            // if the read/populate failed for some other reason (e.g. HTTP
+            // timeout).
+            //
+            // We don't need to clear the credentials here, the app will think
+            // they're unset and any subsequent SetCredentials call after the
+            // user signs in again will overwrite the old invalid ones.
+            model = new CredentialModel
+            {
+                State = CredentialState.Invalid,
+            };
+        }
+
+        // Grab the lock again so we can update the state. If we got cancelled
+        // due to a SetCredentials call, _latestCredentials will be populated so
+        // we just return that instead.
+        using (await _opLock.LockAsync(ct))
+        {
+            var latestCreds = _latestCredentials;
+            if (latestCreds != null) return latestCreds;
+            if (_loadCts != null)
+            {
+                _loadCts.Dispose();
+                _loadCts = null;
+                _inFlightLoad = null;
+            }
+
+            UpdateState(model);
+            return model;
+        }
+    }
+
+    private async Task<CredentialModel> PopulateModel(RawCredentials? credentials, CancellationToken ct)
     {
         if (credentials is null || string.IsNullOrWhiteSpace(credentials.CoderUrl) ||
             string.IsNullOrWhiteSpace(credentials.ApiToken))
@@ -153,12 +247,11 @@ public class CredentialManager : ICredentialManager
         User me;
         try
         {
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            cts.CancelAfter(TimeSpan.FromSeconds(15));
-            var sdkClient = new CoderApiClient(credentials.CoderUrl);
+            var sdkClient = CoderApiClientFactory.Create(credentials.CoderUrl);
+            // BuildInfo does not require authentication.
+            buildInfo = await sdkClient.GetBuildInfo(ct);
             sdkClient.SetSessionToken(credentials.ApiToken);
-            buildInfo = await sdkClient.GetBuildInfo(cts.Token);
-            me = await sdkClient.GetUser(User.Me, cts.Token);
+            me = await sdkClient.GetUser(User.Me, ct);
         }
         catch (Exception e)
         {
@@ -166,6 +259,9 @@ public class CredentialManager : ICredentialManager
         }
 
         ServerVersionUtilities.ParseAndValidateServerVersion(buildInfo.Version);
+        if (string.IsNullOrWhiteSpace(me.Username))
+            throw new InvalidOperationException("Could not retrieve user information, username is empty");
+
         return new CredentialModel
         {
             State = CredentialState.Valid,
@@ -175,20 +271,27 @@ public class CredentialManager : ICredentialManager
         };
     }
 
+    // Lock must be held when calling this function.
     private void UpdateState(CredentialModel newModel)
     {
-        using (_stateLock.Lock())
-        {
-            _latestCredentials = newModel.Clone();
-        }
-
+        _latestCredentials = newModel;
         CredentialsChanged?.Invoke(this, newModel.Clone());
     }
+}
 
-    private static RawCredentials? ReadCredentials()
+public class WindowsCredentialBackend : ICredentialBackend
+{
+    private readonly string _credentialsTargetName;
+
+    public WindowsCredentialBackend(string credentialsTargetName)
     {
-        var raw = NativeApi.ReadCredentials(CredentialsTargetName);
-        if (raw == null) return null;
+        _credentialsTargetName = credentialsTargetName;
+    }
+
+    public Task<RawCredentials?> ReadCredentials(CancellationToken ct = default)
+    {
+        var raw = NativeApi.ReadCredentials(_credentialsTargetName);
+        if (raw == null) return Task.FromResult<RawCredentials?>(null);
 
         RawCredentials? credentials;
         try
@@ -197,19 +300,23 @@ public class CredentialManager : ICredentialManager
         }
         catch (JsonException)
         {
-            return null;
+            credentials = null;
         }
 
-        if (credentials is null || string.IsNullOrWhiteSpace(credentials.CoderUrl) ||
-            string.IsNullOrWhiteSpace(credentials.ApiToken)) return null;
-
-        return credentials;
+        return Task.FromResult(credentials);
     }
 
-    private static void WriteCredentials(RawCredentials credentials)
+    public Task WriteCredentials(RawCredentials credentials, CancellationToken ct = default)
     {
         var raw = JsonSerializer.Serialize(credentials, RawCredentialsJsonContext.Default.RawCredentials);
-        NativeApi.WriteCredentials(CredentialsTargetName, raw);
+        NativeApi.WriteCredentials(_credentialsTargetName, raw);
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteCredentials(CancellationToken ct = default)
+    {
+        NativeApi.DeleteCredentials(_credentialsTargetName);
+        return Task.CompletedTask;
     }
 
     private static class NativeApi

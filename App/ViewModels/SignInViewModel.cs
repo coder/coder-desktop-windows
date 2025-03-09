@@ -79,8 +79,29 @@ public partial class SignInViewModel : ObservableObject
     public SignInViewModel(ICredentialManager credentialManager)
     {
         _credentialManager = credentialManager;
-        CoderUrl = _credentialManager.GetSignInUri() ?? "";
-        if (!string.IsNullOrWhiteSpace(CoderUrl)) CoderUrlTouched = true;
+    }
+
+    // When the URL box loads, get the old URI from the credential manager.
+    // This is an async operation on paper, but we would expect it to be
+    // synchronous or extremely quick in practice.
+    public void CoderUrl_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox) return;
+
+        var dispatcherQueue = textBox.DispatcherQueue;
+        _credentialManager.GetSignInUri().ContinueWith(t =>
+        {
+            if (t.IsCompleted && !string.IsNullOrWhiteSpace(t.Result))
+                dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!CoderUrlTouched)
+                    {
+                        CoderUrl = t.Result;
+                        CoderUrlTouched = true;
+                        textBox.SelectionStart = CoderUrl.Length;
+                    }
+                });
+        });
     }
 
     public void CoderUrl_FocusLost(object sender, RoutedEventArgs e)

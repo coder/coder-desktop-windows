@@ -1,5 +1,7 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
+using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
@@ -46,17 +48,29 @@ public partial class App : Application
     {
         _handleWindowClosed = false;
         Exit();
-        var rpcManager = _services.GetRequiredService<IRpcController>();
+        var rpcController = _services.GetRequiredService<IRpcController>();
         // TODO: send a StopRequest if we're connected???
-        await rpcManager.DisposeAsync();
+        await rpcController.DisposeAsync();
         Environment.Exit(0);
     }
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        var trayWindow = _services.GetRequiredService<TrayWindow>();
+        // Start connecting to the manager in the background.
+        var rpcController = _services.GetRequiredService<IRpcController>();
+        if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
+            // Passing in a CT with no cancellation is desired here, because
+            // the named pipe open will block until the pipe comes up.
+            _ = rpcController.Reconnect(CancellationToken.None);
+
+        // Load the credentials in the background. Even though we pass a CT
+        // with no cancellation, the method itself will impose a timeout on the
+        // HTTP portion.
+        var credentialManager = _services.GetRequiredService<ICredentialManager>();
+        _ = credentialManager.LoadCredentials(CancellationToken.None);
 
         // Prevent the TrayWindow from closing, just hide it.
+        var trayWindow = _services.GetRequiredService<TrayWindow>();
         trayWindow.Closed += (sender, args) =>
         {
             if (!_handleWindowClosed) return;

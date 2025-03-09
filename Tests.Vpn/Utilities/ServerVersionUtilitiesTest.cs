@@ -30,7 +30,8 @@ public class ServerVersionUtilitiesTest
 
         foreach (var (version, expectedErrorMessage) in invalidVersions)
         {
-            var ex = Assert.Throws<ArgumentException>(() => ServerVersionUtilities.ParseAndValidateServerVersion(version));
+            var ex = Assert.Throws<ArgumentException>(() =>
+                ServerVersionUtilities.ParseAndValidateServerVersion(version));
             Assert.That(ex.Message, Does.Contain(expectedErrorMessage));
         }
     }
