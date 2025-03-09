@@ -220,8 +220,14 @@ public class CredentialManager : ICredentialManager
         // we just return that instead.
         using (await _opLock.LockAsync(ct))
         {
+            ct.ThrowIfCancellationRequested();
+
+            // _latestCredentials will be set if we were preempted.
             var latestCreds = _latestCredentials;
             if (latestCreds != null) return latestCreds;
+
+            // Prevent new LoadCredentials calls from returning this task since
+            // it's pretty much done.
             if (_loadCts != null)
             {
                 _loadCts.Dispose();
