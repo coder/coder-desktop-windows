@@ -1,4 +1,4 @@
-﻿using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
 using Grpc.Core;
 using Grpc.Net.Client;
 
