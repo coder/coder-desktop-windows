@@ -41,11 +41,11 @@ public class CredentialManagerTest
 
             // Load credentials from backend. No credentials are stored so it
             // should be invalid.
-            cred = await manager1.LoadCredentials(ct);
+            cred = await manager1.LoadCredentials(ct).WaitAsync(ct);
             Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
 
             // SetCredentials should succeed.
-            await manager1.SetCredentials(TestServerUrl, TestApiToken, ct);
+            await manager1.SetCredentials(TestServerUrl, TestApiToken, ct).WaitAsync(ct);
 
             // Cached credential should be valid.
             cred = manager1.GetCachedCredentials();
@@ -55,25 +55,25 @@ public class CredentialManagerTest
             Assert.That(cred.Username, Is.EqualTo(TestUsername));
 
             // Load credentials should return the same reference.
-            var loadedCred = await manager1.LoadCredentials(ct);
+            var loadedCred = await manager1.LoadCredentials(ct).WaitAsync(ct);
             Assert.That(ReferenceEquals(cred, loadedCred), Is.True);
 
             // A second manager should be able to load the same credentials.
             var manager2 = new CredentialManager(credentialBackend, apiClientFactory.Object);
-            cred = await manager2.LoadCredentials(ct);
+            cred = await manager2.LoadCredentials(ct).WaitAsync(ct);
             Assert.That(cred.State, Is.EqualTo(CredentialState.Valid));
             Assert.That(cred.CoderUrl, Is.EqualTo(TestServerUrl));
             Assert.That(cred.ApiToken, Is.EqualTo(TestApiToken));
             Assert.That(cred.Username, Is.EqualTo(TestUsername));
 
             // Clearing the credentials should make them invalid.
-            await manager1.ClearCredentials(ct);
+            await manager1.ClearCredentials(ct).WaitAsync(ct);
             cred = manager1.GetCachedCredentials();
             Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
 
             // And loading them in a new manager should also be invalid.
             var manager3 = new CredentialManager(credentialBackend, apiClientFactory.Object);
-            cred = await manager3.LoadCredentials(ct);
+            cred = await manager3.LoadCredentials(ct).WaitAsync(ct);
             Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
         }
         finally
@@ -258,7 +258,7 @@ public class CredentialManagerTest
         apiClient.Setup(x => x.GetBuildInfo(It.IsAny<CancellationToken>()))
             .Returns(async (CancellationToken _) =>
             {
-                await tcs.Task;
+                await tcs.Task.WaitAsync(ct);
                 return new BuildInfo { Version = "v2.20.0" };
             })
             .Verifiable(Times.Exactly(1));
@@ -276,8 +276,8 @@ public class CredentialManagerTest
         var cred2Task = manager.LoadCredentials(ct);
         Assert.That(ReferenceEquals(cred1Task, cred2Task), Is.True);
         tcs.SetResult();
-        var cred1 = await cred1Task;
-        var cred2 = await cred2Task;
+        var cred1 = await cred1Task.WaitAsync(ct);
+        var cred2 = await cred2Task.WaitAsync(ct);
         Assert.That(ReferenceEquals(cred1, cred2), Is.True);
 
         credentialBackend.Verify();
@@ -294,7 +294,7 @@ public class CredentialManagerTest
         credentialBackend.Setup(x => x.ReadCredentials(It.IsAny<CancellationToken>()))
             .Returns(async (CancellationToken innerCt) =>
             {
-                await Task.Delay(Timeout.Infinite, innerCt);
+                await Task.Delay(Timeout.Infinite, innerCt).WaitAsync(ct);
                 throw new UnreachableException();
             });
         credentialBackend.Setup(x =>
@@ -316,7 +316,7 @@ public class CredentialManagerTest
         // Start a load...
         var loadTask = manager.LoadCredentials(ct);
         // Then fully perform a set.
-        await manager.SetCredentials(TestServerUrl, TestApiToken, ct);
+        await manager.SetCredentials(TestServerUrl, TestApiToken, ct).WaitAsync(ct);
         // The load should have been cancelled.
         Assert.ThrowsAsync<TaskCanceledException>(() => loadTask);
     }
