@@ -1,0 +1,58 @@
+/**
+ * This file was taken from 
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/rsync/receive.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package rsync;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Rsync";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/rsync";
+
+// ReceiverState encodes that status of an rsync receiver. It should be
+// considered immutable.
+message ReceiverState {
+    // Path is the path currently being received.
+    string path = 1;
+    // ReceivedSize is the number of bytes that have been received for the
+    // current path from both block and data operations.
+    uint64 receivedSize = 2;
+    // ExpectedSize is the number of bytes expected for the current path.
+    uint64 expectedSize = 3;
+    // ReceivedFiles is the number of files that have already been received.
+    uint64 receivedFiles = 4;
+    // ExpectedFiles is the total number of files expected.
+    uint64 expectedFiles = 5;
+    // TotalReceivedSize is the total number of bytes that have been received
+    // for all files from both block and data operations.
+    uint64 totalReceivedSize = 6;
+    // TODO: We may want to add statistics on the speedup offered by the rsync
+    // algorithm in terms of data volume, though obviously this can't account
+    // for any savings that might come from compression at the transport layer.
+    // It would also be really nice to have TotalExpectedSize, but this is
+    // prohibitively difficult and expensive to compute.
+}
+

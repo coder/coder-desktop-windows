@@ -1,0 +1,111 @@
+/**
+ * This file was taken from 
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/entry.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package core;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Core";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/core";
+
+// EntryKind encodes the type of entry represented by an Entry object.
+enum EntryKind {
+    // EntryKind_Directory indicates a directory.
+    Directory = 0;
+    // EntryKind_File indicates a regular file.
+    File = 1;
+    // EntryKind_SymbolicLink indicates a symbolic link.
+    SymbolicLink = 2;
+
+    // Values 3-99 are reserved for future synchronizable entry types.
+
+    // EntryKind_Untracked indicates content (or the root of content) that is
+    // intentionally excluded from synchronization by Mutagen. This includes
+    // explicitly ignored content, content that is ignored due to settings (such
+    // as symbolic links in the "ignore" symbolic link mode), as well as content
+    // types that Mutagen doesn't understand and/or have a way to propagate
+    // (such as FIFOs and Unix domain sockets). This type of entry is not
+    // synchronizable.
+    Untracked = 100;
+    // EntryKind_Problematic indicates content (or the root of content) that
+    // would normally be synchronized, but which is currently inaccessible to
+    // scanning. This includes (but is not limited to) content that is modified
+    // concurrently with scanning, content that is inaccessible due to
+    // permissions, content that can't be read due to filesystem errors, content
+    // that cannot be properly encoded given the current settings (such as
+    // absolute symbolic links found when using the "portable" symbolic link
+    // mode), and content that Mutagen cannot scan or watch reliably (such as
+    // directories that are also mount points). This type of entry is not
+    // synchronizable.
+    Problematic = 101;
+    // EntryKind_PhantomDirectory indicates a directory that was recorded with
+    // an ignore mask. This type is used to support Docker-style ignore syntax
+    // and semantics, which allow directories to be unignored by child content
+    // that is explicitly unignored. This type is pseudo-synchronizable; entries
+    // containing phantom contents must have those contents reified (to tracked
+    // or ignored directories) using ReifyPhantomDirectories before Reconcile.
+    PhantomDirectory = 102;
+
+    // Values 102 - 199 are reserved for future unsynchronizable entry types.
+}
+
+// Entry encodes a filesystem entry (e.g. a directory, a file, or a symbolic
+// link). A nil Entry represents an absence of content. An zero-value Entry
+// represents an empty Directory. Entry objects should be considered immutable
+// and must not be modified.
+message Entry {
+    // Kind encodes the type of filesystem entry being represented.
+    EntryKind kind = 1;
+
+    // Fields 2-4 are reserved for future common entry data.
+
+    // Contents represents a directory entry's contents. It must only be non-nil
+    // for directory entries.
+    map<string, Entry> contents = 5;
+
+    // Fields 6-7 are reserved for future directory entry data.
+
+    // Digest represents the hash of a file entry's contents. It must only be
+    // non-nil for file entries.
+    bytes digest = 8;
+    // Executable indicates whether or not a file entry is marked as executable.
+    // It must only be set (if appropriate) for file entries.
+    bool executable = 9;
+
+    // Fields 10-11 are reserved for future file entry data.
+
+    // Target is the symbolic link target for symbolic link entries. It must be
+    // non-empty if and only if the entry is a symbolic link.
+    string target = 12;
+
+    // Fields 13-14 are reserved for future symbolic link entry data.
+
+    // Problem indicates the relevant error for problematic content. It must be
+    // non-empty if and only if the entry represents problematic content.
+    string problem = 15;
+}
+

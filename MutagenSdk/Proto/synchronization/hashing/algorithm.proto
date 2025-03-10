@@ -1,0 +1,48 @@
+/**
+ * This file was taken from 
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/hashing/algorithm.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package hashing;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Hashing";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/hashing";
+
+// Algorithm specifies a hashing algorithm.
+enum Algorithm {
+    // Algorithm_AlgorithmDefault represents an unspecified hashing algorithm.
+    // It should be converted to one of the following values based on the
+    // desired default behavior.
+    AlgorithmDefault = 0;
+    // Algorithm_AlgorithmSHA1 specifies that SHA-1 hashing should be used.
+    AlgorithmSHA1 = 1;
+    // Algorithm_AlgorithmSHA256 specifies that SHA-256 hashing should be used.
+    AlgorithmSHA256 = 2;
+    // Algorithm_AlgorithmXXH128 specifies that XXH128 hashing should be used.
+    AlgorithmXXH128 = 3;
+}
+

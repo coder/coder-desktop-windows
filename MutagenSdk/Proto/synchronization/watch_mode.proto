@@ -1,0 +1,55 @@
+/**
+ * This file was taken from 
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/watch_mode.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package synchronization;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization";
+
+// WatchMode specifies the mode for filesystem watching.
+enum WatchMode {
+    // WatchMode_WatchModeDefault represents an unspecified watch mode. It
+    // should be converted to one of the following values based on the desired
+    // default behavior.
+    WatchModeDefault = 0;
+    // WatchMode_WatchModePortable specifies that native recursive watching
+    // should be used to monitor paths on systems that support it if those paths
+    // fall under the home directory. In these cases, a watch on the entire home
+    // directory is established and filtered for events pertaining to the
+    // specified path. On all other systems and for all other paths, poll-based
+    // watching is used.
+    WatchModePortable = 1;
+    // WatchMode_WatchModeForcePoll specifies that only poll-based watching
+    // should be used.
+    WatchModeForcePoll = 2;
+    // WatchMode_WatchModeNoWatch specifies that no watching should be used
+    // (i.e. no events should be generated).
+    WatchModeNoWatch = 3;
+}
+
