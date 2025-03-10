@@ -40,12 +40,16 @@ jobs:
         run: dotnet restore --locked-mode
       - name: dotnet test
         run: dotnet test --no-restore --blame-hang --blame-hang-dump-type full --blame-hang-timeout 2m -p:Platform=x64
-      - name: Upload TestResults
-        if: always()
+      - name: Upload test binaries and TestResults
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: test-results
-          path: ./**/TestResults
+          retention-days: 1
+          path: |
+            ./**/bin
+            ./**/obj
+            ./**/TestResults
 
   build:
     runs-on: windows-latest
