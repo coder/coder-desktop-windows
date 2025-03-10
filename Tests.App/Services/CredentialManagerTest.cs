@@ -79,12 +79,15 @@ public class CredentialManagerTest
         finally
         {
             // In case something goes wrong, make sure to clean up.
-            await credentialBackend.DeleteCredentials(CancellationToken.None);
+            using var cts = new CancellationTokenSource();
+            cts.CancelAfter(15_000);
+            await credentialBackend.DeleteCredentials(cts.Token);
         }
     }
 
     [Test(Description = "Test SetCredentials with invalid URL or token")]
-    public void SetCredentialsInvalidUrlOrToken()
+    [CancelAfter(30_000)]
+    public void SetCredentialsInvalidUrlOrToken(CancellationToken ct)
     {
         var credentialBackend = new Mock<ICredentialBackend>(MockBehavior.Strict);
         var apiClientFactory = new Mock<ICoderApiClientFactory>(MockBehavior.Strict);
@@ -107,13 +110,14 @@ public class CredentialManagerTest
         foreach (var (url, token, expectedMessage) in cases)
         {
             var ex = Assert.ThrowsAsync<ArgumentException>(() =>
-                manager.SetCredentials(url, token, CancellationToken.None));
+                manager.SetCredentials(url, token, ct));
             Assert.That(ex.Message, Does.Contain(expectedMessage));
         }
     }
 
     [Test(Description = "Invalid server buildinfo response")]
-    public void InvalidServerBuildInfoResponse()
+    [CancelAfter(30_000)]
+    public void InvalidServerBuildInfoResponse(CancellationToken ct)
     {
         var credentialBackend = new Mock<ICredentialBackend>(MockBehavior.Strict);
         var apiClient = new Mock<ICoderApiClient>(MockBehavior.Strict);
@@ -126,7 +130,7 @@ public class CredentialManagerTest
         // Attempt a set.
         var manager = new CredentialManager(credentialBackend.Object, apiClientFactory.Object);
         var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            manager.SetCredentials(TestServerUrl, TestApiToken, CancellationToken.None));
+            manager.SetCredentials(TestServerUrl, TestApiToken, ct));
         Assert.That(ex.Message, Does.Contain("Could not connect to or verify Coder server"));
 
         // Attempt a load.
@@ -136,12 +140,13 @@ public class CredentialManagerTest
                 CoderUrl = TestServerUrl,
                 ApiToken = TestApiToken,
             });
-        var cred = manager.LoadCredentials(CancellationToken.None).Result;
+        var cred = manager.LoadCredentials(ct).Result;
         Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
     }
 
     [Test(Description = "Invalid server version")]
-    public void InvalidServerVersion()
+    [CancelAfter(30_000)]
+    public void InvalidServerVersion(CancellationToken ct)
     {
         var credentialBackend = new Mock<ICredentialBackend>(MockBehavior.Strict);
         var apiClient = new Mock<ICoderApiClient>(MockBehavior.Strict);
@@ -157,7 +162,7 @@ public class CredentialManagerTest
         // Attempt a set.
         var manager = new CredentialManager(credentialBackend.Object, apiClientFactory.Object);
         var ex = Assert.ThrowsAsync<ArgumentException>(() =>
-            manager.SetCredentials(TestServerUrl, TestApiToken, CancellationToken.None));
+            manager.SetCredentials(TestServerUrl, TestApiToken, ct));
         Assert.That(ex.Message, Does.Contain("not within required server version range"));
 
         // Attempt a load.
@@ -167,12 +172,13 @@ public class CredentialManagerTest
                 CoderUrl = TestServerUrl,
                 ApiToken = TestApiToken,
             });
-        var cred = manager.LoadCredentials(CancellationToken.None).Result;
+        var cred = manager.LoadCredentials(ct).Result;
         Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
     }
 
     [Test(Description = "Invalid server user response")]
-    public void InvalidServerUserResponse()
+    [CancelAfter(30_000)]
+    public void InvalidServerUserResponse(CancellationToken ct)
     {
         var credentialBackend = new Mock<ICredentialBackend>(MockBehavior.Strict);
         var apiClient = new Mock<ICoderApiClient>(MockBehavior.Strict);
@@ -188,7 +194,7 @@ public class CredentialManagerTest
         // Attempt a set.
         var manager = new CredentialManager(credentialBackend.Object, apiClientFactory.Object);
         var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            manager.SetCredentials(TestServerUrl, TestApiToken, CancellationToken.None));
+            manager.SetCredentials(TestServerUrl, TestApiToken, ct));
         Assert.That(ex.Message, Does.Contain("Could not connect to or verify Coder server"));
 
         // Attempt a load.
@@ -198,12 +204,13 @@ public class CredentialManagerTest
                 CoderUrl = TestServerUrl,
                 ApiToken = TestApiToken,
             });
-        var cred = manager.LoadCredentials(CancellationToken.None).Result;
+        var cred = manager.LoadCredentials(ct).Result;
         Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
     }
 
     [Test(Description = "Invalid username")]
-    public void InvalidUsername()
+    [CancelAfter(30_000)]
+    public void InvalidUsername(CancellationToken ct)
     {
         var credentialBackend = new Mock<ICredentialBackend>(MockBehavior.Strict);
         var apiClient = new Mock<ICoderApiClient>(MockBehavior.Strict);
@@ -219,7 +226,7 @@ public class CredentialManagerTest
         // Attempt a set.
         var manager = new CredentialManager(credentialBackend.Object, apiClientFactory.Object);
         var ex = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            manager.SetCredentials(TestServerUrl, TestApiToken, CancellationToken.None));
+            manager.SetCredentials(TestServerUrl, TestApiToken, ct));
         Assert.That(ex.Message, Does.Contain("username is empty"));
 
         // Attempt a load.
@@ -229,7 +236,7 @@ public class CredentialManagerTest
                 CoderUrl = TestServerUrl,
                 ApiToken = TestApiToken,
             });
-        var cred = manager.LoadCredentials(CancellationToken.None).Result;
+        var cred = manager.LoadCredentials(ct).Result;
         Assert.That(cred.State, Is.EqualTo(CredentialState.Invalid));
     }
 

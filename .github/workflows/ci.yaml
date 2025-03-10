@@ -11,6 +11,7 @@ on:
 jobs:
   fmt:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -26,6 +27,7 @@ jobs:
 
   test:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -41,6 +43,7 @@ jobs:
 
   build:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
