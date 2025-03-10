@@ -83,6 +83,29 @@ function Add-CoderSignature([string] $path) {
     }
 }
 
+function Download-File([string] $url, [string] $outputPath, [string] $etagFile) {
+    Write-Host "Downloading '$url' to '$outputPath'"
+    & curl.exe `
+        --progress-bar `
+        --show-error `
+        --fail `
+        --location `
+        --etag-compare $etagFile `
+        --etag-save $etagFile `
+        --output $outputPath `
+        $url
+    if ($LASTEXITCODE -ne 0) { throw "Failed to download $url" }
+    if (!(Test-Path $outputPath) -or (Get-Item $outputPath).Length -eq 0) {
+        throw "Failed to download '$url', output file '$outputPath' is missing or empty"
+    }
+}
+
+$goArch = switch ($arch) {
+    "x64" { "amd64" }
+    "arm64" { "arm64" }
+    default { throw "Unsupported architecture: $arch" }
+}
+
 # CD to the root of the repo
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
@@ -144,6 +167,25 @@ if ($null -eq $wintunDllSrc) {
 }
 $wintunDllDest = Join-Path $vpnFilesPath "wintun.dll"
 Copy-Item $wintunDllSrc $wintunDllDest
+
+# Download the mutagen binary from our bucket for this platform if we don't have
+# it yet (or it's different). We use `curl.exe` here because `Invoke-WebRequest`
+# is notoriously slow.
+$mutagenVersion = "v0.18.1"
+$mutagenSrcPath = Join-Path $repoRoot "scripts\files\mutagen-windows-$($goArch).exe"
+$mutagenSrcUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-windows-$($goArch).exe"
+$mutagenEtagFile = $mutagenSrcPath + ".etag"
+Download-File $mutagenSrcUrl $mutagenSrcPath $mutagenEtagFile
+$mutagenDestPath = Join-Path $vpnFilesPath "mutagen.exe"
+Copy-Item $mutagenSrcPath $mutagenDestPath
+
+# Download mutagen agents tarball.
+$mutagenAgentsSrcPath = Join-Path $repoRoot "scripts\files\mutagen-agents.tar.gz"
+$mutagenAgentsSrcUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-agents.tar.gz"
+$mutagenAgentsEtagFile = $mutagenAgentsSrcPath + ".etag"
+Download-File $mutagenAgentsSrcUrl $mutagenAgentsSrcPath $mutagenAgentsEtagFile
+$mutagenAgentsDestPath = Join-Path $vpnFilesPath "mutagen-agents.tar.gz"
+Copy-Item $mutagenAgentsSrcPath $mutagenAgentsDestPath
 
 # Build the MSI installer
 & dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
