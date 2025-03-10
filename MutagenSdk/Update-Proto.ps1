@@ -52,7 +52,7 @@ $licenseContent = Get-Content (Join-Path $cloneDir "LICENSE")
 $mitStartIndex = $licenseContent.IndexOf("MIT License")
 $licenseHeader = ($licenseContent[$mitStartIndex..($licenseContent.Length - 1)] | ForEach-Object { (" * " + $_).TrimEnd() }) -join "`n"
 
-$entryFilePath = Join-Path $cloneDir (Join-Path $protoPrefix $entryFile)
+$entryFilePath = Join-Path $cloneDir $protoPrefix $entryFile
 if (-not (Test-Path $entryFilePath)) {
     throw "Failed to find $entryFilePath in mutagen repo"
 }
@@ -77,7 +77,7 @@ function Add-ImportedFiles([string] $path) {
 
             # Mutagen generates from within the pkg directory, so we need to add
             # the prefix.
-            $filePath = Join-Path $cloneDir (Join-Path $protoPrefix $importPath)
+            $filePath = Join-Path $cloneDir $protoPrefix $importPath
             if (-not $filesToCopy.ContainsKey($filePath)) {
                 Write-Host "Adding $filePath $importPath"
                 $filesToCopy[$filePath] = $importPath
@@ -107,7 +107,7 @@ try {
         Copy-Item -Force $filePath $dstPath
 
         # Determine the license header.
-        $fileHeader = "/**`n" +
+        $fileHeader = "/*`n" +
         " * This file was taken from `n" +
         " * https://github.com/mutagen-io/mutagen/tree/$mutagenTag/$protoPrefix/$protoPath`n" +
         " *`n" +
