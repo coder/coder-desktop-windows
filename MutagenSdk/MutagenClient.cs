@@ -8,7 +8,7 @@ public class MutagenClient : IDisposable
 {
     private readonly GrpcChannel _channel;
 
-    public Synchronization.SynchronizationClient Client { get; }
+    public readonly Synchronization.SynchronizationClient Synchronization;
 
     public MutagenClient(string dataDir)
     {
@@ -44,7 +44,7 @@ public class MutagenClient : IDisposable
             Credentials = ChannelCredentials.Insecure,
             HttpHandler = socketsHttpHandler,
         });
-        Client = new Synchronization.SynchronizationClient(_channel);
+        Synchronization = new Synchronization.SynchronizationClient(_channel);
     }
 
     public void Dispose()
