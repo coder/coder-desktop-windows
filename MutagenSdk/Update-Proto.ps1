@@ -6,6 +6,7 @@ param (
 
 $ErrorActionPreference = "Stop"
 
+$repo = "mutagen-io/mutagen"
 $protoPrefix = "pkg"
 $entryFile = "service\synchronization\synchronization.proto"
 
@@ -42,7 +43,7 @@ else {
     & git.exe clone `
         --depth 1 `
         --branch $mutagenTag `
-        "https://github.com/mutagen-io/mutagen.git" `
+        "https://github.com/$repo.git" `
         $cloneDir
 }
 
@@ -52,7 +53,7 @@ $licenseContent = Get-Content (Join-Path $cloneDir "LICENSE")
 $mitStartIndex = $licenseContent.IndexOf("MIT License")
 $licenseHeader = ($licenseContent[$mitStartIndex..($licenseContent.Length - 1)] | ForEach-Object { (" * " + $_).TrimEnd() }) -join "`n"
 
-$entryFilePath = Join-Path $cloneDir $protoPrefix $entryFile
+$entryFilePath = Join-Path $cloneDir (Join-Path $protoPrefix $entryFile)
 if (-not (Test-Path $entryFilePath)) {
     throw "Failed to find $entryFilePath in mutagen repo"
 }
@@ -77,7 +78,7 @@ function Add-ImportedFiles([string] $path) {
 
             # Mutagen generates from within the pkg directory, so we need to add
             # the prefix.
-            $filePath = Join-Path $cloneDir $protoPrefix $importPath
+            $filePath = Join-Path $cloneDir (Join-Path $protoPrefix $importPath)
             if (-not $filesToCopy.ContainsKey($filePath)) {
                 Write-Host "Adding $filePath $importPath"
                 $filesToCopy[$filePath] = $importPath
@@ -108,8 +109,8 @@ try {
 
         # Determine the license header.
         $fileHeader = "/*`n" +
-        " * This file was taken from `n" +
-        " * https://github.com/mutagen-io/mutagen/tree/$mutagenTag/$protoPrefix/$protoPath`n" +
+        " * This file was taken from`n" +
+        " * https://github.com/$repo/tree/$mutagenTag/$protoPrefix/$protoPath`n" +
         " *`n" +
         $licenseHeader +
         "`n */`n`n"
@@ -128,7 +129,10 @@ try {
         $content = Get-Content $dstPath -Raw
         $content = $fileHeader + $content
         $content = $content -replace '(?m)^(package .*?;)', "`$1`noption csharp_namespace = `"$csharpNamespace`";"
-        Set-Content -Path $dstPath -Value $content
+
+        # Replace all LF with CRLF to avoid spurious diffs in git.
+        $content = $content -replace "(?<!`r)`n", "`r`n"
+        Set-Content -Path $dstPath -Value $content -Encoding UTF8
     }
 }
 finally {
