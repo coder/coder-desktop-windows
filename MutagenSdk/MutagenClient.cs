@@ -1,3 +1,4 @@
+using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
 using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -8,6 +9,7 @@ public class MutagenClient : IDisposable
 {
     private readonly GrpcChannel _channel;
 
+    public readonly Daemon.DaemonClient Daemon;
     public readonly Synchronization.SynchronizationClient Synchronization;
 
     public MutagenClient(string dataDir)
@@ -39,11 +41,15 @@ public class MutagenClient : IDisposable
             ConnectCallback = connectionFactory.ConnectAsync,
         };
 
+        // http://localhost is fake address. The HttpHandler will be used to
+        // open a socket to the named pipe.
         _channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
         {
             Credentials = ChannelCredentials.Insecure,
             HttpHandler = socketsHttpHandler,
         });
+
+        Daemon = new Daemon.DaemonClient(_channel);
         Synchronization = new Synchronization.SynchronizationClient(_channel);
     }
 
