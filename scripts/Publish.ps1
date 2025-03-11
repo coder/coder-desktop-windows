@@ -85,6 +85,7 @@ function Add-CoderSignature([string] $path) {
 
 function Download-File([string] $url, [string] $outputPath, [string] $etagFile) {
     Write-Host "Downloading '$url' to '$outputPath'"
+    # We use `curl.exe` here because `Invoke-WebRequest` is notoriously slow.
     & curl.exe `
         --progress-bar `
         --show-error `
@@ -169,8 +170,7 @@ $wintunDllDest = Join-Path $vpnFilesPath "wintun.dll"
 Copy-Item $wintunDllSrc $wintunDllDest
 
 # Download the mutagen binary from our bucket for this platform if we don't have
-# it yet (or it's different). We use `curl.exe` here because `Invoke-WebRequest`
-# is notoriously slow.
+# it yet (or it's different).
 $mutagenVersion = "v0.18.1"
 $mutagenSrcPath = Join-Path $repoRoot "scripts\files\mutagen-windows-$($goArch).exe"
 $mutagenSrcUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-windows-$($goArch).exe"
