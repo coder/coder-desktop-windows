@@ -1,0 +1,55 @@
+﻿/*
+ * This file was taken from
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/symbolic_link_mode.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package core;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Core";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/core";
+
+// SymbolicLinkMode specifies the mode for handling symbolic links.
+enum SymbolicLinkMode {
+    // SymbolicLinkMode_SymbolicLinkModeDefault represents an unspecified
+    // symbolic link mode. It is not valid for use with Scan or Transition. It
+    // should be converted to one of the following values based on the desired
+    // default behavior.
+    SymbolicLinkModeDefault = 0;
+    // SymbolicLinkMode_SymbolicLinkModeIgnore specifies that all symbolic links
+    // should be ignored.
+    SymbolicLinkModeIgnore = 1;
+    // SymbolicLinkMode_SymbolicLinkModePortable specifies that only portable
+    // symbolic links should be synchronized. Any absolute symbolic links or
+    // symbolic links which are otherwise non-portable will be treate as
+    // problematic content.
+    SymbolicLinkModePortable = 2;
+    // SymbolicLinkMode_SymbolicLinkModePOSIXRaw specifies that symbolic links
+    // should be propagated in their raw form. It is only valid on POSIX systems
+    // and only makes sense in the context of POSIX-to-POSIX synchronization.
+    SymbolicLinkModePOSIXRaw = 3;
+}
+

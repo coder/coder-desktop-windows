@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Formats.Asn1;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Coder.Desktop.Vpn.Utilities;
@@ -42,6 +44,11 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 {
     public static readonly AuthenticodeDownloadValidator Coder = new("Coder Technologies Inc.");
 
+    private static readonly Oid CertificatePoliciesOid = new("2.5.29.32", "Certificate Policies");
+
+    private static readonly Oid ExtendedValidationCodeSigningOid =
+        new("2.23.140.1.3", "Extended Validation (EV) code signing");
+
     private readonly string _expectedName;
 
     // ReSharper disable once ConvertToPrimaryConstructor
@@ -60,30 +67,150 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
 
         if (fileSigInfo.State != SignatureState.SignedAndTrusted)
             throw new Exception(
-                $"File is not signed and trusted with an Authenticode signature: State={fileSigInfo.State}");
+                $"File is not signed and trusted with an Authenticode signature: State={fileSigInfo.State}, StateReason={fileSigInfo.StateReason}");
 
         // Coder will only use embedded signatures because we are downloading
         // individual binaries and not installers which can ship catalog files.
         if (fileSigInfo.Kind != SignatureKind.Embedded)
             throw new Exception($"File is not signed with an embedded Authenticode signature: Kind={fileSigInfo.Kind}");
 
-        // TODO: check that it's an extended validation certificate
+        // We want to wrap any exception from IsExtendedValidationCertificate
+        // with a nicer error message, but we don't want to wrap the "false"
+        // result exception.
+        bool isExtendedValidation;
+        try
+        {
+            isExtendedValidation = IsExtendedValidationCertificate(fileSigInfo.SigningCertificate);
+        }
+        catch (Exception e)
+        {
+            throw new Exception(
+                "Could not check if file is signed with an Extended Validation Code Signing certificate", e);
+        }
+
+        if (!isExtendedValidation)
+            throw new Exception(
+                $"File is not signed with an Extended Validation Code Signing certificate (missing policy {ExtendedValidationCodeSigningOid.Value} - {ExtendedValidationCodeSigningOid.FriendlyName})");
 
         var actualName = fileSigInfo.SigningCertificate.GetNameInfo(X509NameType.SimpleName, false);
         if (actualName != _expectedName)
             throw new Exception(
                 $"File is signed by an unexpected certificate: ExpectedName='{_expectedName}', ActualName='{actualName}'");
     }
+
+    /// <summary>
+    ///     Checks if the given certificate is an Extended Validation Code Signing certificate.
+    /// </summary>
+    /// <param name="cert">The cert to test</param>
+    /// <returns>Whether the certificate is an Extended Validation Code Signing certificate</returns>
+    /// <exception cref="Exception">If the certificate extensions could not be parsed</exception>
+    private static bool IsExtendedValidationCertificate(X509Certificate2 cert)
+    {
+        ArgumentNullException.ThrowIfNull(cert);
+
+        // RFC 5280 4.2: "A certificate MUST NOT include more than one instance
+        // of a particular extension."
+        var policyExtensions = cert.Extensions.Where(e => e.Oid?.Value == CertificatePoliciesOid.Value).ToList();
+        if (policyExtensions.Count == 0)
+            return false;
+        Assert(policyExtensions.Count == 1, "certificate contains more than one CertificatePolicies extension");
+        var certificatePoliciesExt = policyExtensions[0];
+
+        // RFC 5280 4.2.1.4
+        // certificatePolicies ::= SEQUENCE SIZE (1..MAX) OF PolicyInformation
+        //
+        // PolicyInformation ::= SEQUENCE {
+        //   policyIdentifier   CertPolicyId,
+        //   policyQualifiers   SEQUENCE SIZE (1..MAX) OF PolicyQualifierInfo OPTIONAL
+        // }
+        try
+        {
+            AsnDecoder.ReadSequence(certificatePoliciesExt.RawData, AsnEncodingRules.DER, out var originalContentOffset,
+                out var contentLength, out var bytesConsumed);
+            Assert(bytesConsumed == certificatePoliciesExt.RawData.Length, "incorrect outer sequence length");
+            Assert(originalContentOffset >= 0, "invalid outer sequence content offset");
+            Assert(contentLength > 0, "invalid outer sequence content length");
+
+            var contentOffset = originalContentOffset;
+            var endOffset = originalContentOffset + contentLength;
+            Assert(endOffset <= certificatePoliciesExt.RawData.Length, "invalid outer sequence end offset");
+
+            // For each policy...
+            while (contentOffset < endOffset)
+            {
+                // Parse a sequence from [contentOffset:].
+                var slice = certificatePoliciesExt.RawData.AsSpan(contentOffset, endOffset - contentOffset);
+                AsnDecoder.ReadSequence(slice, AsnEncodingRules.DER, out var innerContentOffset,
+                    out var innerContentLength, out var innerBytesConsumed);
+                Assert(innerBytesConsumed <= slice.Length, "incorrect inner sequence length");
+                Assert(innerContentOffset >= 0, "invalid inner sequence content offset");
+                Assert(innerContentLength > 0, "invalid inner sequence content length");
+                Assert(innerContentOffset + innerContentLength <= slice.Length, "invalid inner sequence end offset");
+
+                // Advance the outer offset by the consumed bytes.
+                contentOffset += innerBytesConsumed;
+
+                // Parse the first value in the sequence as an Oid.
+                slice = slice.Slice(innerContentOffset, innerContentLength);
+                var oid = AsnDecoder.ReadObjectIdentifier(slice, AsnEncodingRules.DER, out var oidBytesConsumed);
+                Assert(oidBytesConsumed > 0, "invalid inner sequence OID length");
+                Assert(oidBytesConsumed <= slice.Length, "invalid inner sequence OID length");
+                if (oid == ExtendedValidationCodeSigningOid.Value)
+                    return true;
+
+                // We don't need to parse the rest of the data in the sequence,
+                // we can just move on to the next iteration.
+            }
+        }
+        catch (Exception e)
+        {
+            throw new Exception(
+                $"Could not parse {CertificatePoliciesOid.Value} ({CertificatePoliciesOid.FriendlyName}) extension in certificate",
+                e);
+        }
+
+        return false;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Assert(bool condition, string message)
+    {
+        if (!condition)
+            throw new Exception("Failed certificate parse assertion: " + message);
+    }
 }
 
 public class AssemblyVersionDownloadValidator : IDownloadValidator
 {
-    private readonly string _expectedAssemblyVersion;
+    private readonly int _expectedMajor;
+    private readonly int _expectedMinor;
+    private readonly int _expectedBuild;
+    private readonly int _expectedPrivate;
+
+    private readonly Version _expectedVersion;
 
     // ReSharper disable once ConvertToPrimaryConstructor
-    public AssemblyVersionDownloadValidator(string expectedAssemblyVersion)
+    public AssemblyVersionDownloadValidator(int expectedMajor, int expectedMinor, int expectedBuild = -1,
+        int expectedPrivate = -1)
     {
-        _expectedAssemblyVersion = expectedAssemblyVersion;
+        _expectedMajor = expectedMajor;
+        _expectedMinor = expectedMinor;
+        _expectedBuild = expectedBuild < 0 ? -1 : expectedBuild;
+        _expectedPrivate = expectedPrivate < 0 ? -1 : expectedPrivate;
+        if (_expectedBuild == -1 && _expectedPrivate != -1)
+            throw new ArgumentException("Build must be set if Private is set", nameof(expectedPrivate));
+
+        // Unfortunately the Version constructor throws an exception if the
+        // build or revision is -1. You need to use the specific constructor
+        // with the correct number of parameters.
+        //
+        // This is only for error rendering purposes anyways.
+        if (_expectedBuild == -1)
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor);
+        else if (_expectedPrivate == -1)
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild);
+        else
+            _expectedVersion = new Version(_expectedMajor, _expectedMinor, _expectedBuild, _expectedPrivate);
     }
 
     public Task ValidateAsync(string path, CancellationToken ct = default)
@@ -91,9 +218,16 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
         var info = FileVersionInfo.GetVersionInfo(path);
         if (string.IsNullOrEmpty(info.ProductVersion))
             throw new Exception("File ProductVersion is empty or null, was the binary compiled correctly?");
-        if (info.ProductVersion != _expectedAssemblyVersion)
+        if (!Version.TryParse(info.ProductVersion, out var productVersion))
+            throw new Exception($"File ProductVersion '{info.ProductVersion}' is not a valid version string");
+
+        // If the build or private are -1 on the expected version, they are ignored.
+        if (productVersion.Major != _expectedMajor || productVersion.Minor != _expectedMinor ||
+            (_expectedBuild != -1 && productVersion.Build != _expectedBuild) ||
+            (_expectedPrivate != -1 && productVersion.Revision != _expectedPrivate))
             throw new Exception(
-                $"File ProductVersion is '{info.ProductVersion}', but expected '{_expectedAssemblyVersion}'");
+                $"File ProductVersion does not match expected version: Actual='{info.ProductVersion}', Expected='{_expectedVersion}'");
+
         return Task.CompletedTask;
     }
 }
@@ -103,18 +237,23 @@ public class AssemblyVersionDownloadValidator : IDownloadValidator
 /// </summary>
 public class CombinationDownloadValidator : IDownloadValidator
 {
-    private readonly IDownloadValidator[] _validators;
+    private readonly List<IDownloadValidator> _validators;
 
     /// <param name="validators">Validators to run</param>
     public CombinationDownloadValidator(params IDownloadValidator[] validators)
     {
-        _validators = validators;
+        _validators = validators.ToList();
     }
 
     public async Task ValidateAsync(string path, CancellationToken ct = default)
     {
         foreach (var validator in _validators)
             await validator.ValidateAsync(path, ct);
+    }
+
+    public void Add(IDownloadValidator validator)
+    {
+        _validators.Add(validator);
     }
 }
 

@@ -146,7 +146,8 @@ public class RpcController : IRpcController
             Status = new StatusRequest(),
         }, ct);
         if (statusReply.MsgCase != ServiceMessage.MsgOneofCase.Status)
-            throw new InvalidOperationException($"Unexpected reply message type: {statusReply.MsgCase}");
+            throw new VpnLifecycleException(
+                $"Failed to get VPN status. Unexpected reply message type: {statusReply.MsgCase}");
         ApplyStatusUpdate(statusReply.Status);
     }
 
@@ -173,8 +174,6 @@ public class RpcController : IRpcController
                     ApiToken = credentials.ApiToken,
                 },
             }, ct);
-            if (reply.MsgCase != ServiceMessage.MsgOneofCase.Start)
-                throw new InvalidOperationException($"Unexpected reply message type: {reply.MsgCase}");
         }
         catch (Exception e)
         {
@@ -182,11 +181,19 @@ public class RpcController : IRpcController
             throw new RpcOperationException("Failed to send start command to service", e);
         }
 
+        if (reply.MsgCase != ServiceMessage.MsgOneofCase.Start)
+        {
+            MutateState(state => { state.VpnLifecycle = VpnLifecycle.Unknown; });
+            throw new VpnLifecycleException($"Failed to start VPN. Unexpected reply message type: {reply.MsgCase}");
+        }
+
         if (!reply.Start.Success)
         {
+            // We use Stopped instead of Unknown here as it's usually the case
+            // that a failed start got cleaned up successfully.
             MutateState(state => { state.VpnLifecycle = VpnLifecycle.Stopped; });
-            throw new VpnLifecycleException("Failed to start VPN",
-                new InvalidOperationException($"Service reported failure: {reply.Start.ErrorMessage}"));
+            throw new VpnLifecycleException(
+                $"Failed to start VPN. Service reported failure: {reply.Start.ErrorMessage}");
         }
 
         MutateState(state => { state.VpnLifecycle = VpnLifecycle.Started; });
@@ -213,16 +220,20 @@ public class RpcController : IRpcController
         }
         finally
         {
-            // Technically the state is unknown now.
-            MutateState(state => { state.VpnLifecycle = VpnLifecycle.Stopped; });
+            MutateState(state => { state.VpnLifecycle = VpnLifecycle.Unknown; });
         }
 
         if (reply.MsgCase != ServiceMessage.MsgOneofCase.Stop)
-            throw new VpnLifecycleException("Failed to stop VPN",
-                new InvalidOperationException($"Unexpected reply message type: {reply.MsgCase}"));
+        {
+            MutateState(state => { state.VpnLifecycle = VpnLifecycle.Unknown; });
+            throw new VpnLifecycleException($"Failed to stop VPN. Unexpected reply message type: {reply.MsgCase}");
+        }
+
         if (!reply.Stop.Success)
-            throw new VpnLifecycleException("Failed to stop VPN",
-                new InvalidOperationException($"Service reported failure: {reply.Stop.ErrorMessage}"));
+        {
+            MutateState(state => { state.VpnLifecycle = VpnLifecycle.Unknown; });
+            throw new VpnLifecycleException($"Failed to stop VPN. Service reported failure: {reply.Stop.ErrorMessage}");
+        }
     }
 
     public async ValueTask DisposeAsync()

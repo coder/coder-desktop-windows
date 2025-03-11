@@ -1,0 +1,54 @@
+﻿/*
+ * This file was taken from
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/conflict.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package core;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Core";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/core";
+
+import "synchronization/core/change.proto";
+
+// Conflict encodes conflicting changes on alpha and beta that prevent
+// synchronization of a particular path. Conflict objects should be considered
+// immutable and must not be modified.
+message Conflict {
+    // Root is the root path for the conflict (relative to the synchronization
+    // root). While this can (in theory) be computed based on the change lists
+    // contained within the conflict, doing so relies on those change lists
+    // being constructed and ordered in a particular manner that's not possible
+    // to enforce. Additionally, conflicts are often sorted by their root path,
+    // and dynamically computing it on every sort comparison operation would be
+    // prohibitively expensive.
+    string root = 1;
+    // AlphaChanges are the relevant changes on alpha.
+    repeated Change alphaChanges = 2;
+    // BetaChanges are the relevant changes on beta.
+    repeated Change betaChanges = 3;
+}
+
