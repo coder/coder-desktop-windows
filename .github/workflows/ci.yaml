@@ -36,6 +36,18 @@ jobs:
           dotnet-version: 8.0.x
           cache: true
           cache-dependency-path: '**/packages.lock.json'
+      - name: Install Windows App SDK Runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $filename = ".\WindowsAppRuntimeInstall-x64.exe"
+          $url = "https://download.microsoft.com/download/7a3a6a44-b07e-4ca5-8b63-2de185769dbc/WindowsAppRuntimeInstall-x64.exe" # 1.6.5 (1.6.250205002)
+          & curl.exe --progress-bar --show-error --fail --location --output $filename $url
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download Windows App SDK" }
+
+          $process = Start-Process -FilePath $filename -ArgumentList "--quiet --force" -NoNewWindow -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Failed to install Windows App SDK: exit code is $($process.ExitCode)" }
       - name: dotnet restore
         run: dotnet restore --locked-mode
       - name: dotnet test
