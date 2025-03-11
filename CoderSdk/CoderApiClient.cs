@@ -36,7 +36,9 @@ internal class SnakeCaseNamingPolicy : JsonNamingPolicy
 }
 
 [JsonSerializable(typeof(BuildInfo))]
+[JsonSerializable(typeof(Response))]
 [JsonSerializable(typeof(User))]
+[JsonSerializable(typeof(ValidationError))]
 public partial class CoderSdkJsonContext : JsonSerializerContext;
 
 /// <summary>
@@ -97,17 +99,21 @@ public partial class CoderApiClient : ICoderApiClient
             }
 
             var res = await _httpClient.SendAsync(request, ct);
-            // TODO: this should be improved to try and parse a codersdk.Error response
-            res.EnsureSuccessStatusCode();
+            if (!res.IsSuccessStatusCode)
+                throw await CoderApiHttpException.FromResponse(res, ct);
 
             var content = await res.Content.ReadAsStringAsync(ct);
             var data = JsonSerializer.Deserialize<TResponse>(content, JsonOptions);
             if (data is null) throw new JsonException("Deserialized response is null");
             return data;
         }
+        catch (CoderApiHttpException)
+        {
+            throw;
+        }
         catch (Exception e)
         {
-            throw new Exception($"API Request: {method} {path} (req body: {payload is not null})", e);
+            throw new Exception($"Coder API Request failed: {method} {path}", e);
         }
     }
 }

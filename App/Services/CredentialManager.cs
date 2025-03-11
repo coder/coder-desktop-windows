@@ -53,15 +53,15 @@ public interface ICredentialBackend
 }
 
 /// <summary>
-///     Implements ICredentialManager using the Windows Credential Manager to
-///     store credentials.
+///     Implements ICredentialManager using an ICredentialBackend to store
+///     credentials.
 /// </summary>
 public class CredentialManager : ICredentialManager
 {
     private const string CredentialsTargetName = "Coder.Desktop.App.Credentials";
 
     // _opLock is held for the full duration of SetCredentials, and partially
-    // during LoadCredentials. _lock protects _inFlightLoad, _loadCts, and
+    // during LoadCredentials. _opLock protects _inFlightLoad, _loadCts, and
     // writes to _latestCredentials.
     private readonly RaiiSemaphoreSlim _opLock = new(1, 1);
 
@@ -215,25 +215,28 @@ public class CredentialManager : ICredentialManager
             };
         }
 
-        // Grab the lock again so we can update the state. If we got cancelled
-        // due to a SetCredentials call, _latestCredentials will be populated so
-        // we just return that instead.
+        // Grab the lock again so we can update the state.
         using (await _opLock.LockAsync(ct))
         {
-            ct.ThrowIfCancellationRequested();
-
-            // _latestCredentials will be set if we were preempted.
-            var latestCreds = _latestCredentials;
-            if (latestCreds != null) return latestCreds;
-
-            // Prevent new LoadCredentials calls from returning this task since
-            // it's pretty much done.
+            // Prevent new LoadCredentials calls from returning this task.
             if (_loadCts != null)
             {
                 _loadCts.Dispose();
                 _loadCts = null;
                 _inFlightLoad = null;
             }
+
+            // If we were canceled but made it this far, try to return the
+            // latest credentials instead.
+            if (ct.IsCancellationRequested)
+            {
+                var latestCreds = _latestCredentials;
+                if (latestCreds is not null) return latestCreds;
+            }
+
+            // If there aren't any latest credentials after a cancellation, we
+            // most likely timed out and should throw.
+            ct.ThrowIfCancellationRequested();
 
             UpdateState(model);
             return model;
@@ -259,6 +262,10 @@ public class CredentialManager : ICredentialManager
             sdkClient.SetSessionToken(credentials.ApiToken);
             me = await sdkClient.GetUser(User.Me, ct);
         }
+        catch (CoderApiHttpException)
+        {
+            throw;
+        }
         catch (Exception e)
         {
             throw new InvalidOperationException("Could not connect to or verify Coder server", e);
@@ -281,7 +288,10 @@ public class CredentialManager : ICredentialManager
     private void UpdateState(CredentialModel newModel)
     {
         _latestCredentials = newModel;
-        CredentialsChanged?.Invoke(this, newModel.Clone());
+        // Since the event handlers could block (or call back the
+        // CredentialManager and deadlock), we run these in a new task.
+        if (CredentialsChanged == null) return;
+        Task.Run(() => { CredentialsChanged?.Invoke(this, newModel); });
     }
 }
 
