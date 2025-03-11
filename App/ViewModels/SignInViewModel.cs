@@ -6,6 +6,7 @@ using Coder.Desktop.App.Views;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.ViewModels;
 
@@ -32,8 +33,6 @@ public partial class SignInViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ApiTokenError))]
     public partial bool ApiTokenTouched { get; set; } = false;
-
-    [ObservableProperty] public partial string? SignInError { get; set; } = null;
 
     [ObservableProperty] public partial bool SignInLoading { get; set; } = false;
 
@@ -82,6 +81,29 @@ public partial class SignInViewModel : ObservableObject
         _credentialManager = credentialManager;
     }
 
+    // When the URL box loads, get the old URI from the credential manager.
+    // This is an async operation on paper, but we would expect it to be
+    // synchronous or extremely quick in practice.
+    public void CoderUrl_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox textBox) return;
+
+        var dispatcherQueue = textBox.DispatcherQueue;
+        _credentialManager.GetSignInUri().ContinueWith(t =>
+        {
+            if (t.IsCompleted && !string.IsNullOrWhiteSpace(t.Result))
+                dispatcherQueue.TryEnqueue(() =>
+                {
+                    if (!CoderUrlTouched)
+                    {
+                        CoderUrl = t.Result;
+                        CoderUrlTouched = true;
+                        textBox.SelectionStart = CoderUrl.Length;
+                    }
+                });
+        });
+    }
+
     public void CoderUrl_FocusLost(object sender, RoutedEventArgs e)
     {
         CoderUrlTouched = true;
@@ -117,7 +139,6 @@ public partial class SignInViewModel : ObservableObject
         try
         {
             SignInLoading = true;
-            SignInError = null;
 
             var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
             await _credentialManager.SetCredentials(CoderUrl.Trim(), ApiToken.Trim(), cts.Token);
@@ -126,7 +147,14 @@ public partial class SignInViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            SignInError = $"Failed to sign in: {e}";
+            var dialog = new ContentDialog
+            {
+                Title = "Failed to sign in",
+                Content = $"{e}",
+                CloseButtonText = "Ok",
+                XamlRoot = signInWindow.Content.XamlRoot,
+            };
+            _ = await dialog.ShowAsync();
         }
         finally
         {

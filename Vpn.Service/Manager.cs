@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Utilities;
-using CoderSdk;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Semver;
@@ -16,12 +16,6 @@ public enum TunnelStatus
     Stopped,
 }
 
-public class ServerVersion
-{
-    public required string String { get; set; }
-    public required SemVersion SemVersion { get; set; }
-}
-
 public interface IManager : IDisposable
 {
     public Task StopAsync(CancellationToken ct = default);
@@ -32,9 +26,6 @@ public interface IManager : IDisposable
 /// </summary>
 public class Manager : IManager
 {
-    // TODO: determine a suitable value for this
-    private static readonly SemVersionRange ServerVersionRange = SemVersionRange.All;
-
     private readonly ManagerConfig _config;
     private readonly IDownloader _downloader;
     private readonly ILogger<Manager> _logger;
@@ -141,7 +132,7 @@ public class Manager : IManager
                 var serverVersion =
                     await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
                 if (_status == TunnelStatus.Started && _lastStartRequest != null &&
-                    _lastStartRequest.Equals(message.Start) && _lastServerVersion?.String == serverVersion.String)
+                    _lastStartRequest.Equals(message.Start) && _lastServerVersion?.RawString == serverVersion.RawString)
                 {
                     // The client is requesting to start an identical tunnel while
                     // we're already running it.
@@ -373,20 +364,11 @@ public class Manager : IManager
 
         var buildInfo = await client.GetBuildInfo(ct);
         _logger.LogInformation("Fetched server version '{ServerVersion}'", buildInfo.Version);
-        if (buildInfo.Version.StartsWith('v')) buildInfo.Version = buildInfo.Version[1..];
-        var serverVersion = SemVersion.Parse(buildInfo.Version);
-        if (!serverVersion.Satisfies(ServerVersionRange))
-            throw new InvalidOperationException(
-                $"Server version '{serverVersion}' is not within required server version range '{ServerVersionRange}'");
-
+        var serverVersion = ServerVersionUtilities.ParseAndValidateServerVersion(buildInfo.Version);
         var user = await client.GetUser(User.Me, ct);
         _logger.LogInformation("Authenticated to server as '{Username}'", user.Username);
 
-        return new ServerVersion
-        {
-            String = buildInfo.Version,
-            SemVersion = serverVersion,
-        };
+        return serverVersion;
     }
 
     /// <summary>

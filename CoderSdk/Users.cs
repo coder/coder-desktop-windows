@@ -1,10 +1,14 @@
-namespace CoderSdk;
+namespace Coder.Desktop.CoderSdk;
+
+public partial interface ICoderApiClient
+{
+    public Task<User> GetUser(string user, CancellationToken ct = default);
+}
 
 public class User
 {
     public const string Me = "me";
 
-    // TODO: fill out more fields
     public string Username { get; set; } = "";
 }
 

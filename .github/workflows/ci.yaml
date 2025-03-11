@@ -11,6 +11,7 @@ on:
 jobs:
   fmt:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -26,6 +27,7 @@ jobs:
 
   test:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -34,13 +36,36 @@ jobs:
           dotnet-version: 8.0.x
           cache: true
           cache-dependency-path: '**/packages.lock.json'
+      - name: Install Windows App SDK Runtime
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          $filename = ".\WindowsAppRuntimeInstall-x64.exe"
+          $url = "https://download.microsoft.com/download/7a3a6a44-b07e-4ca5-8b63-2de185769dbc/WindowsAppRuntimeInstall-x64.exe" # 1.6.5 (1.6.250205002)
+          & curl.exe --progress-bar --show-error --fail --location --output $filename $url
+          if ($LASTEXITCODE -ne 0) { throw "Failed to download Windows App SDK" }
+
+          $process = Start-Process -FilePath $filename -ArgumentList "--quiet --force" -NoNewWindow -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Failed to install Windows App SDK: exit code is $($process.ExitCode)" }
       - name: dotnet restore
         run: dotnet restore --locked-mode
       - name: dotnet test
-        run: dotnet test --no-restore
+        run: dotnet test --no-restore --blame-hang --blame-hang-dump-type full --blame-hang-timeout 2m -p:Platform=x64
+      - name: Upload test binaries and TestResults
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          retention-days: 1
+          path: |
+            ./**/bin
+            ./**/obj
+            ./**/TestResults
 
   build:
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet

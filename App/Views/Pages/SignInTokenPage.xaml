@@ -95,10 +95,5 @@
                 Command="{x:Bind ViewModel.TokenPage_SignInCommand, Mode=OneWay}"
                 CommandParameter="{x:Bind SignInWindow, Mode=OneWay}" />
         </StackPanel>
-
-        <TextBlock
-            Text="{x:Bind ViewModel.SignInError, Mode=OneWay}"
-            HorizontalAlignment="Center"
-            Foreground="Red" />
     </StackPanel>
 </Page>

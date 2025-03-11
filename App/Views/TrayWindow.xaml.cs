@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using System.Threading;
 using Windows.Foundation;
 using Windows.Graphics;
 using Windows.System;
@@ -28,16 +27,19 @@ public sealed partial class TrayWindow : Window
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+    private readonly TrayWindowLoadingPage _loadingPage;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
 
     public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
+        TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
     {
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _loadingPage = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
         _mainPage = mainPage;
@@ -49,9 +51,7 @@ public sealed partial class TrayWindow : Window
 
         rpcController.StateChanged += RpcController_StateChanged;
         credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
-        SetPageByState(rpcController.GetState(), credentialManager.GetCredentials());
-
-        _rpcController.Reconnect(CancellationToken.None);
+        SetPageByState(rpcController.GetState(), credentialManager.GetCachedCredentials());
 
         // Setting OpenCommand and ExitCommand directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
@@ -78,6 +78,12 @@ public sealed partial class TrayWindow : Window
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel)
     {
+        if (credentialModel.State == CredentialState.Unknown)
+        {
+            SetRootFrame(_loadingPage);
+            return;
+        }
+
         switch (rpcModel.RpcLifecycle)
         {
             case RpcLifecycle.Connected:
@@ -96,7 +102,7 @@ public sealed partial class TrayWindow : Window
 
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
-        SetPageByState(model, _credentialManager.GetCredentials());
+        SetPageByState(model, _credentialManager.GetCachedCredentials());
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)

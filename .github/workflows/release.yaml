@@ -18,6 +18,7 @@ permissions:
 jobs:
   release:
     runs-on: ${{ github.repository_owner == 'coder' && 'windows-latest-16-cores' || 'windows-latest' }}
+    timeout-minutes: 15
 
     steps:
     - uses: actions/checkout@v4

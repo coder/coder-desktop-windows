@@ -2,7 +2,25 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace CoderSdk;
+namespace Coder.Desktop.CoderSdk;
+
+public interface ICoderApiClientFactory
+{
+    public ICoderApiClient Create(string baseUrl);
+}
+
+public class CoderApiClientFactory : ICoderApiClientFactory
+{
+    public ICoderApiClient Create(string baseUrl)
+    {
+        return new CoderApiClient(baseUrl);
+    }
+}
+
+public partial interface ICoderApiClient
+{
+    public void SetSessionToken(string token);
+}
 
 /// <summary>
 ///     Changes names from PascalCase to snake_case.
@@ -18,19 +36,26 @@ internal class SnakeCaseNamingPolicy : JsonNamingPolicy
 }
 
 [JsonSerializable(typeof(BuildInfo))]
+[JsonSerializable(typeof(Response))]
 [JsonSerializable(typeof(User))]
-public partial class CoderSdkJsonContext : JsonSerializerContext
-{
-}
+[JsonSerializable(typeof(ValidationError))]
+public partial class CoderSdkJsonContext : JsonSerializerContext;
 
 /// <summary>
 ///     Provides a limited selection of API methods for a Coder instance.
 /// </summary>
-public partial class CoderApiClient
+public partial class CoderApiClient : ICoderApiClient
 {
+    public static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        TypeInfoResolver = CoderSdkJsonContext.Default,
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     // TODO: allow adding headers
     private readonly HttpClient _httpClient = new();
-    private readonly JsonSerializerOptions _jsonOptions;
 
     public CoderApiClient(string baseUrl) : this(new Uri(baseUrl, UriKind.Absolute))
     {
@@ -41,13 +66,6 @@ public partial class CoderApiClient
         if (baseUrl.PathAndQuery != "/")
             throw new ArgumentException($"Base URL '{baseUrl}' must not contain a path", nameof(baseUrl));
         _httpClient.BaseAddress = baseUrl;
-        _jsonOptions = new JsonSerializerOptions
-        {
-            TypeInfoResolver = CoderSdkJsonContext.Default,
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-        };
     }
 
     public CoderApiClient(string baseUrl, string token) : this(baseUrl)
@@ -76,22 +94,26 @@ public partial class CoderApiClient
 
             if (payload is not null)
             {
-                var json = JsonSerializer.Serialize(payload, typeof(TRequest), _jsonOptions);
+                var json = JsonSerializer.Serialize(payload, typeof(TRequest), JsonOptions);
                 request.Content = new StringContent(json, Encoding.UTF8, "application/json");
             }
 
             var res = await _httpClient.SendAsync(request, ct);
-            // TODO: this should be improved to try and parse a codersdk.Error response
-            res.EnsureSuccessStatusCode();
+            if (!res.IsSuccessStatusCode)
+                throw await CoderApiHttpException.FromResponse(res, ct);
 
             var content = await res.Content.ReadAsStringAsync(ct);
-            var data = JsonSerializer.Deserialize<TResponse>(content, _jsonOptions);
+            var data = JsonSerializer.Deserialize<TResponse>(content, JsonOptions);
             if (data is null) throw new JsonException("Deserialized response is null");
             return data;
         }
+        catch (CoderApiHttpException)
+        {
+            throw;
+        }
         catch (Exception e)
         {
-            throw new Exception($"API Request: {method} {path} (req body: {payload is not null})", e);
+            throw new Exception($"Coder API Request failed: {method} {path}", e);
         }
     }
 }
