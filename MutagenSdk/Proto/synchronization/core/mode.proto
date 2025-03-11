@@ -1,0 +1,71 @@
+﻿/*
+ * This file was taken from
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/mode.proto
+ *
+ * MIT License
+ *
+ * Copyright (c) 2016-present Docker, Inc.
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+syntax = "proto3";
+
+package core;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Core";
+
+option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/core";
+
+// SynchronizationMode specifies the mode for synchronization, encoding both
+// directionality and conflict resolution behavior.
+enum SynchronizationMode {
+    // SynchronizationMode_SynchronizationModeDefault represents an unspecified
+    // synchronization mode. It is not valid for use with Reconcile. It should
+    // be converted to one of the following values based on the desired default
+    // behavior.
+    SynchronizationModeDefault = 0;
+
+    // SynchronizationMode_SynchronizationModeTwoWaySafe represents a
+    // bidirectional synchronization mode where automatic conflict resolution is
+    // performed only in cases where no data would be lost. Specifically, this
+    // means that modified contents are allowed to propagate to the opposite
+    // endpoint if the corresponding contents on the opposite endpoint are
+    // unmodified or deleted. All other conflicts are left unresolved.
+    SynchronizationModeTwoWaySafe = 1;
+
+    // SynchronizationMode_SynchronizationModeTwoWayResolved is the same as
+    // SynchronizationMode_SynchronizationModeTwoWaySafe, but specifies that the
+    // alpha endpoint should win automatically in any conflict between alpha and
+    // beta, including cases where alpha has deleted contents that beta has
+    // modified.
+    SynchronizationModeTwoWayResolved = 2;
+
+    // SynchronizationMode_SynchronizationModeOneWaySafe represents a
+    // unidirectional synchronization mode where contents and changes propagate
+    // from alpha to beta, but won't overwrite any creations or modifications on
+    // beta.
+    SynchronizationModeOneWaySafe = 3;
+
+    // SynchronizationMode_SynchronizationModeOneWayReplica represents a
+    // unidirectional synchronization mode where contents on alpha are mirrored
+    // (verbatim) to beta, overwriting any conflicting contents on beta and
+    // deleting any extraneous contents on beta.
+    SynchronizationModeOneWayReplica = 4;
+}
+
