@@ -1,6 +1,6 @@
 /*
  * This file was taken from
- * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/hashing/algorithm.proto
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/service/daemon/daemon.proto
  *
  * MIT License
  *
@@ -27,21 +27,27 @@
 
 syntax = "proto3";
 
-package hashing;
-option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Synchronization.Hashing";
+package daemon;
+option csharp_namespace = "Coder.Desktop.MutagenSdk.Proto.Service.Daemon";
 
-option go_package = "github.com/mutagen-io/mutagen/pkg/synchronization/hashing";
+option go_package = "github.com/mutagen-io/mutagen/pkg/service/daemon";
 
-// Algorithm specifies a hashing algorithm.
-enum Algorithm {
-    // Algorithm_AlgorithmDefault represents an unspecified hashing algorithm.
-    // It should be converted to one of the following values based on the
-    // desired default behavior.
-    AlgorithmDefault = 0;
-    // Algorithm_AlgorithmSHA1 specifies that SHA-1 hashing should be used.
-    AlgorithmSHA1 = 1;
-    // Algorithm_AlgorithmSHA256 specifies that SHA-256 hashing should be used.
-    AlgorithmSHA256 = 2;
-    // Algorithm_AlgorithmXXH128 specifies that XXH128 hashing should be used.
-    AlgorithmXXH128 = 3;
+message VersionRequest{}
+
+message VersionResponse {
+    // TODO: Should we encapsulate these inside a Version message type, perhaps
+    // in the mutagen package?
+    uint64 major = 1;
+    uint64 minor = 2;
+    uint64 patch = 3;
+    string tag = 4;
+}
+
+message TerminateRequest{}
+
+message TerminateResponse{}
+
+service Daemon {
+    rpc Version(VersionRequest) returns (VersionResponse) {}
+    rpc Terminate(TerminateRequest) returns (TerminateResponse) {}
 }

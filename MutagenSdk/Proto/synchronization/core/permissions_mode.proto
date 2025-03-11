@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/permissions_mode.proto
  *
@@ -49,4 +49,3 @@ enum PermissionsMode {
     // perform any propagation of permissions.
     PermissionsModeManual = 2;
 }
-

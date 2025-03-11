@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/entry.proto
  *
@@ -108,4 +108,3 @@ message Entry {
     // non-empty if and only if the entry represents problematic content.
     string problem = 15;
 }
-

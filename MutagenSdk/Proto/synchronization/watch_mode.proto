@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/watch_mode.proto
  *
@@ -52,4 +52,3 @@ enum WatchMode {
     // (i.e. no events should be generated).
     WatchModeNoWatch = 3;
 }
-

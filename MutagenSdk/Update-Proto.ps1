@@ -8,7 +8,10 @@ $ErrorActionPreference = "Stop"
 
 $repo = "mutagen-io/mutagen"
 $protoPrefix = "pkg"
-$entryFile = "service\synchronization\synchronization.proto"
+$entryFiles = @(
+    "service/synchronization/synchronization.proto",
+    "service/daemon/daemon.proto"
+)
 
 $outputNamespace = "Coder.Desktop.MutagenSdk.Proto"
 $outputDir = "MutagenSdk\Proto"
@@ -53,15 +56,8 @@ $licenseContent = Get-Content (Join-Path $cloneDir "LICENSE")
 $mitStartIndex = $licenseContent.IndexOf("MIT License")
 $licenseHeader = ($licenseContent[$mitStartIndex..($licenseContent.Length - 1)] | ForEach-Object { (" * " + $_).TrimEnd() }) -join "`n"
 
-$entryFilePath = Join-Path $cloneDir (Join-Path $protoPrefix $entryFile)
-if (-not (Test-Path $entryFilePath)) {
-    throw "Failed to find $entryFilePath in mutagen repo"
-}
-
 # Map of src (in the mutagen repo) to dst (within the $outputDir).
-$filesToCopy = @{
-    $entryFilePath = $entryFile
-}
+$filesToCopy = @{}
 
 function Add-ImportedFiles([string] $path) {
     $content = Get-Content $path
@@ -88,7 +84,14 @@ function Add-ImportedFiles([string] $path) {
     }
 }
 
-Add-ImportedFiles $entryFilePath
+foreach ($entryFile in $entryFiles) {
+    $entryFilePath = Join-Path $cloneDir (Join-Path $protoPrefix $entryFile)
+    if (-not (Test-Path $entryFilePath)) {
+        throw "Failed to find $entryFilePath in mutagen repo"
+    }
+    $filesToCopy[$entryFilePath] = $entryFile
+    Add-ImportedFiles $entryFilePath
+}
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
@@ -105,7 +108,6 @@ try {
         if (-not (Test-Path $destDir)) {
             New-Item -ItemType Directory -Path $destDir -Force
         }
-        Copy-Item -Force $filePath $dstPath
 
         # Determine the license header.
         $fileHeader = "/*`n" +
@@ -125,14 +127,18 @@ try {
             $csharpNamespace += ".$csharpNamespaceSuffix"
         }
 
-        # Add the csharp_namespace declaration.
-        $content = Get-Content $dstPath -Raw
+        # Add the license header and csharp_namespace declaration.
+        $content = Get-Content $filePath -Raw
         $content = $fileHeader + $content
         $content = $content -replace '(?m)^(package .*?;)', "`$1`noption csharp_namespace = `"$csharpNamespace`";"
 
         # Replace all LF with CRLF to avoid spurious diffs in git.
         $content = $content -replace "(?<!`r)`n", "`r`n"
-        Set-Content -Path $dstPath -Value $content -Encoding UTF8
+
+        # Instead of using Set-Content, we use System.IO.File.WriteAllText
+        # instead to avoid a byte order mark at the beginning of the file, as
+        # well as an extra newline at the end of the file.
+        [System.IO.File]::WriteAllText($dstPath, $content, [System.Text.UTF8Encoding]::new($false))
     }
 }
 finally {

@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/configuration.proto
  *
@@ -173,4 +173,3 @@ message Configuration {
     // Fields 82-90 are reserved for future compression configuration
     // parameters.
 }
-
