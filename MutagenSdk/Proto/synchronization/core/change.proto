@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/change.proto
  *
@@ -47,4 +47,3 @@ message Change {
     // nil if content has been deleted.
     Entry new = 3;
 }
-

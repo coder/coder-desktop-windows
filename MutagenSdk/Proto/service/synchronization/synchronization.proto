@@ -1,6 +1,6 @@
-﻿/*
+/*
  * This file was taken from
- * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/service\synchronization\synchronization.proto
+ * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/service/synchronization/synchronization.proto
  *
  * MIT License
  *
@@ -167,4 +167,3 @@ service Synchronization {
     // Terminate terminates sessions.
     rpc Terminate(TerminateRequest) returns (TerminateResponse) {}
 }
-

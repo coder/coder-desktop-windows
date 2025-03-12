@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/selection/selection.proto
  *
@@ -45,4 +45,3 @@ message Selection {
     // it indicates that this selector should be used to select sessions.
     string labelSelector = 3;
 }
-

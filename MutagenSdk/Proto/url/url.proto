@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/url/url.proto
  *
@@ -89,4 +89,3 @@ message URL {
     // required and their behavior is dependent on the transport implementation.
     map<string, string> parameters = 8;
 }
-

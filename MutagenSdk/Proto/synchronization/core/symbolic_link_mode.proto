@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/symbolic_link_mode.proto
  *
@@ -52,4 +52,3 @@ enum SymbolicLinkMode {
     // and only makes sense in the context of POSIX-to-POSIX synchronization.
     SymbolicLinkModePOSIXRaw = 3;
 }
-

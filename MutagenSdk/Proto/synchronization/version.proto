@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/version.proto
  *
@@ -42,4 +42,3 @@ enum Version {
     // Version1 represents session version 1.
     Version1 = 1;
 }
-

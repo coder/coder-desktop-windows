@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/state.proto
  *
@@ -158,4 +158,3 @@ message State {
     // BetaState encodes the state of the beta endpoint. It is always non-nil.
     EndpointState betaState = 8;
 }
-

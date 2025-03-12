@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/core/mode.proto
  *
@@ -68,4 +68,3 @@ enum SynchronizationMode {
     // deleting any extraneous contents on beta.
     SynchronizationModeOneWayReplica = 4;
 }
-

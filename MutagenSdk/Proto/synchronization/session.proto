@@ -1,4 +1,4 @@
-﻿/*
+/*
  * This file was taken from
  * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/session.proto
  *
@@ -99,4 +99,3 @@ message Session {
     // NOTE: Fields 11, 12, 13, and 14 are used above. They are out of order for
     // historical reasons.
 }
-
