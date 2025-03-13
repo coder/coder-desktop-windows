@@ -474,6 +474,7 @@
         "type": "Project",
         "dependencies": {
           "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
+          "Microsoft.Extensions.Configuration": "[9.0.1, )",
           "Semver": "[3.0.0, )",
           "System.IO.Pipelines": "[9.0.1, )"
         }

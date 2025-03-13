@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Win32;
 
-namespace Coder.Desktop.Vpn.Service;
+namespace Coder.Desktop.Vpn;
 
 public class RegistryConfigurationSource : IConfigurationSource
 {

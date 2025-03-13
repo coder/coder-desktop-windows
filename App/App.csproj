@@ -62,11 +62,14 @@
         </PackageReference>
         <PackageReference Include="H.NotifyIcon.WinUI" Version="2.2.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
+        <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.1" />
         <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\CoderSdk\CoderSdk.csproj" />
+        <ProjectReference Include="..\MutagenSdk\MutagenSdk.csproj" />
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
         <ProjectReference Include="..\Vpn\Vpn.csproj" />
     </ItemGroup>
