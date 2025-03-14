@@ -126,7 +126,7 @@ public sealed partial class TrayWindow : Window
 
     private void RootFrame_SizeChanged(object sender, SizedFrameEventArgs e)
     {
-        ResizeWindow(e.NewSize.Width);
+        ResizeWindow(e.NewSize.Height);
         MoveWindow();
     }
 

@@ -11,8 +11,11 @@ public class SizedFrameEventArgs : EventArgs
 }
 
 /// <summary>
-///     SizedFrame extends Frame by adding a SizeChanged event. Sadly this is necessary because
-///     Window.Content.SizeChanged doesn't trigger when the Page's content changes.
+///     SizedFrame extends Frame by adding a SizeChanged event, which will be triggered when:
+///       - The contained Page's content's size changes
+///       - We switch to a different page.
+///
+///     Sadly this is necessary because Window.Content.SizeChanged doesn't trigger when the Page's content changes.
 /// </summary>
 public class SizedFrame : Frame
 {
