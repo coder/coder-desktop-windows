@@ -1,9 +1,9 @@
 using System;
 using System.Runtime.InteropServices;
-using Windows.Foundation;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI.Core;
+using Coder.Desktop.App.Controls;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.Views.Pages;
@@ -48,6 +48,7 @@ public sealed partial class TrayWindow : Window
         AppWindow.Hide();
         SystemBackdrop = new DesktopAcrylicBackdrop();
         Activated += Window_Activated;
+        RootFrame.SizeChanged += RootFrame_SizeChanged;
 
         rpcController.StateChanged += RpcController_StateChanged;
         credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
@@ -120,55 +121,31 @@ public sealed partial class TrayWindow : Window
             return;
         }
 
-        if (ReferenceEquals(page, RootFrame.Content)) return;
-
-        if (page.Content is not FrameworkElement newElement)
-            throw new Exception("Failed to get Page.Content as FrameworkElement on RootFrame navigation");
-        newElement.SizeChanged += Content_SizeChanged;
-
-        // Unset the previous event listener.
-        if (RootFrame.Content is Page { Content: FrameworkElement oldElement })
-            oldElement.SizeChanged -= Content_SizeChanged;
-
-        // Swap them out and reconfigure the window.
-        // We don't use RootFrame.Navigate here because it doesn't let you
-        // instantiate the page yourself. We also don't need forwards/backwards
-        // capabilities.
-        RootFrame.Content = page;
-        ResizeWindow();
-        MoveWindow();
+        RootFrame.SetPage(page);
     }
 
-    private void Content_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void RootFrame_SizeChanged(object sender, SizedFrameEventArgs e)
     {
-        ResizeWindow();
+        ResizeWindow(e.NewSize.Height);
         MoveWindow();
     }
 
     private void ResizeWindow()
     {
-        if (RootFrame.Content is not Page { Content: FrameworkElement frameworkElement })
-            throw new Exception("Failed to get Content as FrameworkElement for window");
-
-        // Measure the desired size of the content
-        frameworkElement.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-
-        // Adjust the AppWindow size
-        var scale = GetDisplayScale();
-        var height = (int)(frameworkElement.ActualHeight * scale);
-        var width = (int)(WIDTH * scale);
-        AppWindow.Resize(new SizeInt32(width, height));
+        ResizeWindow(RootFrame.GetContentSize().Height);
     }
 
-    private double GetDisplayScale()
+    private void ResizeWindow(double height)
     {
-        var hwnd = WindowNative.GetWindowHandle(this);
-        var dpi = NativeApi.GetDpiForWindow(hwnd);
-        if (dpi == 0) return 1; // assume scale of 1
-        return dpi / 96.0; // 96 DPI == 1
+        if (height <= 0) height = 100; // will be resolved next frame typically
+
+        var scale = DisplayScale.WindowScale(this);
+        var newWidth = (int)(WIDTH * scale);
+        var newHeight = (int)(height * scale);
+        AppWindow.Resize(new SizeInt32(newWidth, newHeight));
     }
 
-    public void MoveResizeAndActivate()
+    private void MoveResizeAndActivate()
     {
         SaveCursorPos();
         ResizeWindow();
@@ -267,9 +244,6 @@ public sealed partial class TrayWindow : Window
 
         [DllImport("user32.dll")]
         public static extern bool SetForegroundWindow(IntPtr hwnd);
-
-        [DllImport("user32.dll")]
-        public static extern int GetDpiForWindow(IntPtr hwnd);
 
         public struct POINT
         {

@@ -19,6 +19,6 @@
         <controls:TrayIcon x:Name="TrayIcon" />
 
         <!-- This is where the current Page is displayed -->
-        <Frame x:Name="RootFrame" />
+        <controls:SizedFrame x:Name="RootFrame" />
     </Grid>
 </Window>
