@@ -17,11 +17,11 @@
         Spacing="10">
 
         <TextBlock
-            Text="CoderVPN"
+            Text="Coder Connect"
             FontSize="18"
             VerticalAlignment="Center" />
         <TextBlock
-            Text="Please sign in to use Coder VPN."
+            Text="Please sign in to use Coder Connect."
             Margin="0,0,0,10" />
 
         <controls:HorizontalRule />

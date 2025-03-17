@@ -40,7 +40,7 @@
 
             <TextBlock
                 Grid.Column="0"
-                Text="CoderVPN"
+                Text="Coder Connect"
                 FontSize="18"
                 VerticalAlignment="Center" />
             <ProgressRing
@@ -71,7 +71,7 @@
             Visibility="{x:Bind ViewModel.ShowFailedSection, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
 
         <TextBlock
-            Text="Enable CoderVPN to view your workspaces."
+            Text="Enable Coder Connect to view your workspaces."
             TextWrapping="Wrap"
             Margin="0,6,0,6"
             Visibility="{x:Bind ViewModel.ShowEnableSection, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
