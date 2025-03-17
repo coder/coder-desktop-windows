@@ -262,9 +262,10 @@ public class Program
                 @"[INSTALLFOLDER]coder-desktop-service.log"),
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinarySignatureSigner", "Coder Technologies Inc."),
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryAllowVersionMismatch", "false"),
-            // Add registry values that are consumed by the MutagenController.
-            new RegValue(RegistryHive, RegistryKey, "MutagenController:MutagenExecutablePath", @"[INSTALLFOLDER]mutagen.exe")
-            );
+            // Add registry values that are consumed by the MutagenController. See App/Services/MutagenController.cs
+            new RegValue(RegistryHive, RegistryKey, "MutagenController:MutagenExecutablePath",
+                @"[INSTALLFOLDER]mutagen.exe")
+        );
 
         // Note: most of this control panel info will not be visible as this
         // package is usually hidden in favor of the bootstrapper showing

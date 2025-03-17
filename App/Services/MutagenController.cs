@@ -46,7 +46,7 @@ public interface ISyncSessionController
 }
 
 // These values are the config option names used in the registry. Any option
-// here can be configured with `(Debug)?Mutagen:OptionName` in the registry.
+// here can be configured with `(Debug)?MutagenController:OptionName` in the registry.
 //
 // They should not be changed without backwards compatibility considerations.
 // If changed here, they should also be changed in the installer.
@@ -141,7 +141,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         // reads of _sessionCount are atomic, so don't bother locking for this quick check.
         switch (_sessionCount)
         {
-            case -1:
+            case < 0:
                 throw new InvalidOperationException("Controller must be Initialized first");
             case 0:
                 // If we already know there are no sessions, don't start up the daemon
@@ -162,33 +162,14 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             _sessionCount = -2; // in progress
         }
 
-        const int maxAttempts = 5;
-        ListResponse? sessions = null;
-        for (var attempts = 1; attempts <= maxAttempts; attempts++)
+        var client = await EnsureDaemon(ct);
+        var sessions = await client.Synchronization.ListAsync(new ListRequest
         {
-            ct.ThrowIfCancellationRequested();
-            try
+            Selection = new Selection
             {
-                var client = await EnsureDaemon(ct);
-                sessions = await client.Synchronization.ListAsync(new ListRequest
-                {
-                    Selection = new Selection
-                    {
-                        All = true,
-                    },
-                }, cancellationToken: ct);
-            }
-            catch (Exception e) when (e is not OperationCanceledException)
-            {
-                if (attempts == maxAttempts)
-                    throw;
-                // back off a little and try again.
-                await Task.Delay(100, ct);
-                continue;
-            }
-
-            break;
-        }
+                All = true,
+            },
+        }, cancellationToken: ct);
 
         using (_ = await _lock.LockAsync(ct))
         {
@@ -211,7 +192,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
 
     public async Task TerminateSyncSession(SyncSession session, CancellationToken ct)
     {
-        if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
+        if (_sessionCount < 0) throw new InvalidOperationException("Controller must be Initialized first");
         var client = await EnsureDaemon(ct);
         // TODO: implement
 
@@ -272,11 +253,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
     // </summary>
     private void RemoveTransition(Task<MutagenClient?> transition)
     {
-        using (_ = _lock.Lock())
-        {
-            ;
-        }
-
+        using var _ = _lock.Lock();
         if (_inProgressTransition == transition) _inProgressTransition = null;
     }
 
@@ -293,9 +270,31 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             // Mainline; no daemon running.
         }
 
-        using (_ = await _lock.LockAsync(ct))
+        // If we get some failure while creating the log file or starting the process, we'll retry
+        // it up to 5 times x 100ms. Those issues should resolve themselves quickly if they are
+        // going to at all.
+        const int maxAttempts = 5;
+        ListResponse? sessions = null;
+        for (var attempts = 1; attempts <= maxAttempts; attempts++)
         {
-            StartDaemonProcessLocked();
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                using (_ = await _lock.LockAsync(ct))
+                {
+                    StartDaemonProcessLocked();
+                }
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                if (attempts == maxAttempts)
+                    throw;
+                // back off a little and try again.
+                await Task.Delay(100, ct);
+                continue;
+            }
+
+            break;
         }
 
         return await WaitForDaemon(ct);
