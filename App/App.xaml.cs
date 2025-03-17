@@ -6,8 +6,12 @@ using Coder.Desktop.App.Services;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
 using Coder.Desktop.App.Views.Pages;
+using Coder.Desktop.Vpn;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Xaml;
+using Microsoft.Win32;
 
 namespace Coder.Desktop.App;
 
@@ -17,11 +21,27 @@ public partial class App : Application
 
     private bool _handleWindowClosed = true;
 
+#if !DEBUG
+    private const string MutagenControllerConfigSection = "AppMutagenController";
+#else
+    private const string MutagenControllerConfigSection = "DebugAppMutagenController";
+#endif
+
     public App()
     {
-        var services = new ServiceCollection();
+        var builder = Host.CreateApplicationBuilder();
+
+        (builder.Configuration as IConfigurationBuilder).Add(
+            new RegistryConfigurationSource(Registry.LocalMachine, @"SOFTWARE\Coder Desktop"));
+
+        var services = builder.Services;
+
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
+
+        services.AddOptions<MutagenControllerConfig>()
+            .Bind(builder.Configuration.GetSection(MutagenControllerConfigSection));
+        services.AddSingleton<ISyncSessionController, MutagenController>();
 
         // SignInWindow views and view models
         services.AddTransient<SignInViewModel>();

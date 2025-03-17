@@ -250,17 +250,22 @@ public class Program
         programFiles64Folder.AddDir(installDir);
         project.AddDir(programFiles64Folder);
 
-        // Add registry values that are consumed by the manager. Note that these
-        // should not be changed. See Vpn.Service/Program.cs and
-        // Vpn.Service/ManagerConfig.cs for more details.
+
         project.AddRegValues(
+            // Add registry values that are consumed by the manager. Note that these
+            // should not be changed. See Vpn.Service/Program.cs and
+            // Vpn.Service/ManagerConfig.cs for more details.
             new RegValue(RegistryHive, RegistryKey, "Manager:ServiceRpcPipeName", "Coder.Desktop.Vpn"),
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryPath",
                 $"[INSTALLFOLDER]{opts.VpnDir}\\coder-vpn.exe"),
             new RegValue(RegistryHive, RegistryKey, "Manager:LogFileLocation",
                 @"[INSTALLFOLDER]coder-desktop-service.log"),
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinarySignatureSigner", "Coder Technologies Inc."),
-            new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryAllowVersionMismatch", "false"));
+            new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryAllowVersionMismatch", "false"),
+            // Add registry values that are consumed by the App MutagenController. See App/Services/MutagenController.cs
+            new RegValue(RegistryHive, RegistryKey, "AppMutagenController:MutagenExecutablePath",
+                @"[INSTALLFOLDER]mutagen.exe")
+        );
 
         // Note: most of this control panel info will not be visible as this
         // package is usually hidden in favor of the bootstrapper showing
