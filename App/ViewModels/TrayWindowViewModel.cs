@@ -234,7 +234,7 @@ public partial class TrayWindowViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            VpnFailedMessage = "Failed to start CoderVPN: " + MaybeUnwrapTunnelError(e);
+            VpnFailedMessage = "Failed to start Coder Connect: " + MaybeUnwrapTunnelError(e);
         }
     }
 
@@ -246,7 +246,7 @@ public partial class TrayWindowViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            VpnFailedMessage = "Failed to stop CoderVPN: " + MaybeUnwrapTunnelError(e);
+            VpnFailedMessage = "Failed to stop Coder Connect: " + MaybeUnwrapTunnelError(e);
         }
     }
 

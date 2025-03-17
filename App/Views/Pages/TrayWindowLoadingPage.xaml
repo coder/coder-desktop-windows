@@ -16,7 +16,7 @@
         Spacing="10">
 
         <TextBlock
-            Text="CoderVPN"
+            Text="Coder Connect"
             FontSize="18"
             VerticalAlignment="Center" />
         <TextBlock
