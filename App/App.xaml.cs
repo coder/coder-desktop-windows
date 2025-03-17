@@ -22,9 +22,9 @@ public partial class App : Application
     private bool _handleWindowClosed = true;
 
 #if !DEBUG
-    private const string MutagenControllerConfigSection = "MutagenController";
+    private const string MutagenControllerConfigSection = "AppMutagenController";
 #else
-    private const string MutagenControllerConfigSection = "DebugMutagenController";
+    private const string MutagenControllerConfigSection = "DebugAppMutagenController";
 #endif
 
     public App()

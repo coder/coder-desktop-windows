@@ -46,7 +46,7 @@ public interface ISyncSessionController
 }
 
 // These values are the config option names used in the registry. Any option
-// here can be configured with `(Debug)?MutagenController:OptionName` in the registry.
+// here can be configured with `(Debug)?AppMutagenController:OptionName` in the registry.
 //
 // They should not be changed without backwards compatibility considerations.
 // If changed here, they should also be changed in the installer.
