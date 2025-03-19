@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Views;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -204,6 +205,14 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private void UpdateFromCredentialsModel(CredentialModel credentialModel)
     {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialsModel(credentialModel));
+            return;
+        }
+
         // HACK: the HyperlinkButton crashes the whole app if the initial URI
         // or this URI is invalid. CredentialModel.CoderUrl should never be
         // null while the Page is active as the Page is only displayed when
@@ -234,7 +243,7 @@ public partial class TrayWindowViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            VpnFailedMessage = "Failed to start Coder Connect: " + MaybeUnwrapTunnelError(e);
+            VpnFailedMessage = "Failed to start CoderVPN: " + MaybeUnwrapTunnelError(e);
         }
     }
 
@@ -246,7 +255,7 @@ public partial class TrayWindowViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            VpnFailedMessage = "Failed to stop Coder Connect: " + MaybeUnwrapTunnelError(e);
+            VpnFailedMessage = "Failed to stop CoderVPN: " + MaybeUnwrapTunnelError(e);
         }
     }
 
@@ -265,6 +274,14 @@ public partial class TrayWindowViewModel : ObservableObject
     [RelayCommand]
     public void SignOut()
     {
+        // TODO: Remove this debug workaround once we have a real UI to open
+        //       the sync window. This lets us open the file sync list window
+        //       in debug builds.
+#if DEBUG
+        new FileSyncListWindow(new FileSyncListViewModel(_rpcController, _credentialManager)).Activate();
+        return;
+#endif
+
         if (VpnLifecycle is not VpnLifecycle.Stopped)
             return;
         _credentialManager.ClearCredentials();

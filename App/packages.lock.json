@@ -85,6 +85,15 @@
           "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
         }
       },
+      "WinUIEx": {
+        "type": "Direct",
+        "requested": "[2.5.1, )",
+        "resolved": "2.5.1",
+        "contentHash": "ihW4bA2quKbwWBOl5Uu80jBZagc4cT4E6CdExmvSZ05Qwz0jgoGyZuSTKcU9Uz7lZlQij3KxNor0dGXNUyIV9Q==",
+        "dependencies": {
+          "Microsoft.WindowsAppSDK": "1.6.240829007"
+        }
+      },
       "Google.Protobuf": {
         "type": "Transitive",
         "resolved": "3.29.3",
