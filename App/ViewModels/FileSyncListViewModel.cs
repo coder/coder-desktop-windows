@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage.Pickers;
 using Coder.Desktop.App.Models;
@@ -21,10 +23,23 @@ public partial class FileSyncListViewModel : ObservableObject
 
     private DispatcherQueue? _dispatcherQueue;
 
+    private readonly ISyncSessionController _syncSessionController;
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
 
-    [ObservableProperty] public partial List<MutagenSessionModel> Sessions { get; set; } = [];
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLoading))]
+    [NotifyPropertyChangedFor(nameof(ShowError))]
+    [NotifyPropertyChangedFor(nameof(ShowSessions))]
+    public partial bool Loading { get; set; } = true;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLoading))]
+    [NotifyPropertyChangedFor(nameof(ShowError))]
+    [NotifyPropertyChangedFor(nameof(ShowSessions))]
+    public partial string? Error { get; set; } = null;
+
+    [ObservableProperty] public partial List<SyncSessionModel> Sessions { get; set; } = [];
 
     [ObservableProperty] public partial bool CreatingNewSession { get; set; } = false;
 
@@ -57,24 +72,31 @@ public partial class FileSyncListViewModel : ObservableObject
         }
     }
 
-    public FileSyncListViewModel(IRpcController rpcController, ICredentialManager credentialManager)
+    public bool ShowLoading => Loading && Error == null;
+    public bool ShowError => Error != null;
+    public bool ShowSessions => !Loading && Error == null;
+
+    public FileSyncListViewModel(ISyncSessionController syncSessionController, IRpcController rpcController,
+        ICredentialManager credentialManager)
     {
+        _syncSessionController = syncSessionController;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
 
         Sessions =
         [
-            new MutagenSessionModel(@"C:\Users\dean\git\coder-desktop-windows", "pog", "~/repos/coder-desktop-windows",
-                MutagenSessionStatus.Ok, "Watching", "Some description", []),
-            new MutagenSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", MutagenSessionStatus.Paused, "Paused",
+            new SyncSessionModel(@"C:\Users\dean\git\coder-desktop-windows", "pog", "~/repos/coder-desktop-windows",
+                SyncSessionStatusCategory.Ok, "Watching", "Some description", []),
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Paused,
+                "Paused",
                 "Some description", []),
-            new MutagenSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", MutagenSessionStatus.NeedsAttention,
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Conflicts,
                 "Conflicts", "Some description", []),
-            new MutagenSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", MutagenSessionStatus.Error,
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Error,
                 "Halted on root emptied", "Some description", []),
-            new MutagenSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", MutagenSessionStatus.Unknown,
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Unknown,
                 "Unknown", "Some description", []),
-            new MutagenSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", MutagenSessionStatus.Working,
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Working,
                 "Reconciling", "Some description", []),
         ];
     }
@@ -88,7 +110,11 @@ public partial class FileSyncListViewModel : ObservableObject
 
         var rpcModel = _rpcController.GetState();
         var credentialModel = _credentialManager.GetCachedCredentials();
-        MaybeSendStaleEvent(rpcModel, credentialModel);
+        // TODO: fix this
+        //if (MaybeSendStaleEvent(rpcModel, credentialModel)) return;
+
+        // TODO: Simulate loading until we have real data.
+        Task.Delay(TimeSpan.FromSeconds(3)).ContinueWith(_ => _dispatcherQueue.TryEnqueue(() => Loading = false));
     }
 
     private void UpdateFromRpcModel(RpcModel rpcModel)
@@ -119,22 +145,55 @@ public partial class FileSyncListViewModel : ObservableObject
         MaybeSendStaleEvent(rpcModel, credentialModel);
     }
 
-    private void MaybeSendStaleEvent(RpcModel rpcModel, CredentialModel credentialModel)
+    private bool MaybeSendStaleEvent(RpcModel rpcModel, CredentialModel credentialModel)
     {
         var ok = rpcModel.RpcLifecycle is RpcLifecycle.Connected
                  && rpcModel.VpnLifecycle is VpnLifecycle.Started
                  && credentialModel.State == CredentialState.Valid;
 
         if (!ok) OnFileSyncListStale?.Invoke();
+        return !ok;
     }
 
     private void ClearNewForm()
     {
         CreatingNewSession = false;
         NewSessionLocalPath = "";
-        // TODO: close the dialog somehow
         NewSessionRemoteName = "";
         NewSessionRemotePath = "";
+    }
+
+    [RelayCommand]
+    private void ReloadSessions()
+    {
+        Loading = true;
+        Error = null;
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        _ = _syncSessionController.ListSyncSessions(cts.Token).ContinueWith(HandleList, cts.Token);
+    }
+
+    private void HandleList(Task<IEnumerable<SyncSessionModel>> t)
+    {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => HandleList(t));
+            return;
+        }
+
+        if (t.IsCompletedSuccessfully)
+        {
+            Sessions = t.Result.ToList();
+            Loading = false;
+            return;
+        }
+
+        Error = "Could not list sync sessions: ";
+        if (t.IsCanceled) Error += new TaskCanceledException();
+        else if (t.IsFaulted) Error += t.Exception;
+        else Error += "no successful result or error";
+        Loading = false;
     }
 
     [RelayCommand]
@@ -149,8 +208,6 @@ public partial class FileSyncListViewModel : ObservableObject
         var picker = new FolderPicker
         {
             SuggestedStartLocation = PickerLocationId.ComputerFolder,
-            // TODO: Needed?
-            //FileTypeFilter = { "*" },
         };
 
         var hwnd = WindowNative.GetWindowHandle(window);

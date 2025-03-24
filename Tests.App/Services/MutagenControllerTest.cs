@@ -90,12 +90,12 @@ public class MutagenControllerTest
         await using (var controller = new MutagenController(_mutagenBinaryPath, dataDirectory))
         {
             await controller.Initialize(ct);
-            await controller.CreateSyncSession(new SyncSession(), ct);
+            await controller.CreateSyncSession(new CreateSyncSessionRequest(), ct);
         }
 
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));
-        var logLines = File.ReadAllLines(logPath);
+        var logLines = await File.ReadAllLinesAsync(logPath, ct);
 
         // Here we're going to use the log to verify the daemon was started 2 times.
         // slightly brittle, but unlikely this log line will change.
@@ -114,7 +114,7 @@ public class MutagenControllerTest
         {
             controller1 = new MutagenController(_mutagenBinaryPath, dataDirectory);
             await controller1.Initialize(ct);
-            await controller1.CreateSyncSession(new SyncSession(), ct);
+            await controller1.CreateSyncSession(new CreateSyncSessionRequest(), ct);
 
             controller2 = new MutagenController(_mutagenBinaryPath, dataDirectory);
             await controller2.Initialize(ct);
@@ -127,7 +127,7 @@ public class MutagenControllerTest
 
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));
-        var logLines = File.ReadAllLines(logPath);
+        var logLines = await File.ReadAllLinesAsync(logPath, ct);
 
         // Here we're going to use the log to verify the daemon was started 3 times.
         // slightly brittle, but unlikely this log line will change.

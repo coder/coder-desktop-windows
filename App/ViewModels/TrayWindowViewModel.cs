@@ -9,6 +9,7 @@ using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Google.Protobuf;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -21,8 +22,11 @@ public partial class TrayWindowViewModel : ObservableObject
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
 
+    private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+
+    private FileSyncListWindow? _fileSyncListWindow;
 
     private DispatcherQueue? _dispatcherQueue;
 
@@ -74,8 +78,10 @@ public partial class TrayWindowViewModel : ObservableObject
 
     [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
 
-    public TrayWindowViewModel(IRpcController rpcController, ICredentialManager credentialManager)
+    public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
+        ICredentialManager credentialManager)
     {
+        _services = services;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
     }
@@ -272,16 +278,24 @@ public partial class TrayWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
+    public void ShowFileSyncListWindow()
+    {
+        // This is safe against concurrent access since it all happens in the
+        // UI thread.
+        if (_fileSyncListWindow != null)
+        {
+            _fileSyncListWindow.Activate();
+            return;
+        }
+
+        _fileSyncListWindow = _services.GetRequiredService<FileSyncListWindow>();
+        _fileSyncListWindow.Closed += (_, _) => _fileSyncListWindow = null;
+        _fileSyncListWindow.Activate();
+    }
+
+    [RelayCommand]
     public void SignOut()
     {
-        // TODO: Remove this debug workaround once we have a real UI to open
-        //       the sync window. This lets us open the file sync list window
-        //       in debug builds.
-#if DEBUG
-        new FileSyncListWindow(new FileSyncListViewModel(_rpcController, _credentialManager)).Activate();
-        return;
-#endif
-
         if (VpnLifecycle is not VpnLifecycle.Stopped)
             return;
         _credentialManager.ClearCredentials();

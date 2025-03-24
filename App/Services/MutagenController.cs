@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Coder.Desktop.App.Models;
 using Coder.Desktop.MutagenSdk;
 using Coder.Desktop.MutagenSdk.Proto.Selection;
 using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
@@ -15,28 +16,17 @@ using TerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Daemon.Terminate
 
 namespace Coder.Desktop.App.Services;
 
-// <summary>
-// A file synchronization session to a Coder workspace agent.
-// </summary>
-// <remarks>
-// This implementation is a placeholder while implementing the daemon lifecycle. It's implementation
-// will be backed by the MutagenSDK eventually.
-// </remarks>
-public class SyncSession
+public class CreateSyncSessionRequest
 {
-    public string name { get; init; } = "";
-    public string localPath { get; init; } = "";
-    public string workspace { get; init; } = "";
-    public string agent { get; init; } = "";
-    public string remotePath { get; init; } = "";
+    // TODO: this
 }
 
 public interface ISyncSessionController
 {
-    Task<List<SyncSession>> ListSyncSessions(CancellationToken ct);
-    Task<SyncSession> CreateSyncSession(SyncSession session, CancellationToken ct);
+    Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct);
+    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct);
 
-    Task TerminateSyncSession(SyncSession session, CancellationToken ct);
+    Task TerminateSyncSession(string identifier, CancellationToken ct);
 
     // <summary>
     // Initializes the controller; running the daemon if there are any saved sessions. Must be called and
@@ -121,7 +111,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
     }
 
 
-    public async Task<SyncSession> CreateSyncSession(SyncSession session, CancellationToken ct)
+    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct)
     {
         // reads of _sessionCount are atomic, so don't bother locking for this quick check.
         if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
@@ -132,11 +122,10 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             _sessionCount += 1;
         }
 
-        return session;
+        throw new NotImplementedException();
     }
 
-
-    public async Task<List<SyncSession>> ListSyncSessions(CancellationToken ct)
+    public async Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct)
     {
         // reads of _sessionCount are atomic, so don't bother locking for this quick check.
         switch (_sessionCount)
@@ -146,12 +135,10 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             case 0:
                 // If we already know there are no sessions, don't start up the daemon
                 // again.
-                return new List<SyncSession>();
+                return [];
         }
 
-        var client = await EnsureDaemon(ct);
-        // TODO: implement
-        return new List<SyncSession>();
+        throw new NotImplementedException();
     }
 
     public async Task Initialize(CancellationToken ct)
@@ -190,7 +177,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         }
     }
 
-    public async Task TerminateSyncSession(SyncSession session, CancellationToken ct)
+    public async Task TerminateSyncSession(string identifier, CancellationToken ct)
     {
         if (_sessionCount < 0) throw new InvalidOperationException("Controller must be Initialized first");
         var client = await EnsureDaemon(ct);

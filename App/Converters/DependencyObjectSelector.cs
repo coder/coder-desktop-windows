@@ -12,6 +12,13 @@ namespace Coder.Desktop.App.Converters;
 // DependencyPropertyGenerator since it doesn't seem to work properly with
 // generics.
 
+/// <summary>
+///     An item in a DependencyObjectSelector. Each item has a key and a value.
+///     The default item in a DependencyObjectSelector will be the only item
+///     with a null key.
+/// </summary>
+/// <typeparam name="TK">Key type</typeparam>
+/// <typeparam name="TV">Value type</typeparam>
 public class DependencyObjectSelectorItem<TK, TV> : DependencyObject
     where TK : IEquatable<TK>
 {
@@ -40,6 +47,14 @@ public class DependencyObjectSelectorItem<TK, TV> : DependencyObject
     }
 }
 
+/// <summary>
+///     Allows selecting between multiple value references based on a selected
+///     key. This allows for dynamic mapping of model values to other objects.
+///     The main use case is for selecting between other bound values, which
+///     you cannot do with a simple ValueConverter.
+/// </summary>
+/// <typeparam name="TK">Key type</typeparam>
+/// <typeparam name="TV">Value type</typeparam>
 [ContentProperty(Name = nameof(References))]
 public class DependencyObjectSelector<TK, TV> : DependencyObject
     where TK : IEquatable<TK>
@@ -54,7 +69,7 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
         DependencyProperty.Register(nameof(SelectedKey),
             typeof(TK?),
             typeof(DependencyObjectSelector<TK, TV>),
-            new PropertyMetadata(null, SelectedPropertyChanged));
+            new PropertyMetadata(null, SelectedKeyPropertyChanged));
 
     public static readonly DependencyProperty SelectedObjectProperty =
         DependencyProperty.Register(nameof(SelectedObject),
@@ -80,12 +95,22 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
         }
     }
 
+    /// <summary>
+    ///     The key of the selected item. This should be bound to a property on
+    ///     the model.
+    /// </summary>
     public TK? SelectedKey
     {
         get => (TK?)GetValue(SelectedKeyProperty);
         set => SetValue(SelectedKeyProperty, value);
     }
 
+    /// <summary>
+    ///     The selected object. This can be read from to get the matching
+    ///     object for the selected key. If the selected key doesn't match any
+    ///     object, this will be the value of the null key. If there is no null
+    ///     key, this will be null.
+    /// </summary>
     public TV? SelectedObject
     {
         get => (TV?)GetValue(SelectedObjectProperty);
@@ -97,15 +122,12 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
         References = [];
     }
 
-    private void OnVectorChangedReferences(IObservableVector<DependencyObject> sender, IVectorChangedEventArgs args)
-    {
-        UpdateSelectedObject();
-    }
-
     private void UpdateSelectedObject()
     {
         if (References != null)
         {
+            // Look for a matching item a matching key, or fallback to the null
+            // key.
             var references = References.OfType<DependencyObjectSelectorItem<TK, TV>>().ToArray();
             var item = references
                            .FirstOrDefault(i =>
@@ -114,6 +136,9 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
                        ?? references.FirstOrDefault(i => i.Key == null);
             if (item is not null)
             {
+                // Bind the SelectedObject property to the reference's Value.
+                // If the underlying Value changes, it will propagate to the
+                // SelectedObject.
                 BindingOperations.SetBinding
                 (
                     this,
@@ -131,6 +156,7 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
         ClearValue(SelectedObjectProperty);
     }
 
+    // Called when the References property is replaced.
     private static void ReferencesPropertyChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
     {
         var self = obj as DependencyObjectSelector<TK, TV>;
@@ -143,7 +169,14 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
             newValue.VectorChanged += self.OnVectorChangedReferences;
     }
 
-    private static void SelectedPropertyChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
+    // Called when the References collection changes without being replaced.
+    private void OnVectorChangedReferences(IObservableVector<DependencyObject> sender, IVectorChangedEventArgs args)
+    {
+        UpdateSelectedObject();
+    }
+
+    // Called when SelectedKey changes.
+    private static void SelectedKeyPropertyChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
     {
         var self = obj as DependencyObjectSelector<TK, TV>;
         self?.UpdateSelectedObject();

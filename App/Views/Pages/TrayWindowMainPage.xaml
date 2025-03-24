@@ -229,6 +229,18 @@
         <controls:HorizontalRule />
 
         <HyperlinkButton
+            Command="{x:Bind ViewModel.ShowFileSyncListWindowCommand, Mode=OneWay}"
+            Margin="-12,0"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left">
+
+            <!-- TODO: status icon if there is a problem -->
+            <TextBlock Text="File sync" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
+
+        <controls:HorizontalRule />
+
+        <HyperlinkButton
             Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
             IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource StoppedBoolConverter}, Mode=OneWay}"
             Margin="-12,0"
