@@ -16,11 +16,6 @@ namespace Coder.Desktop.App.ViewModels;
 
 public partial class FileSyncListViewModel : ObservableObject
 {
-    public delegate void OnFileSyncListStaleDelegate();
-
-    // Triggered when the window should be closed.
-    public event OnFileSyncListStaleDelegate? OnFileSyncListStale;
-
     private DispatcherQueue? _dispatcherQueue;
 
     private readonly ISyncSessionController _syncSessionController;
@@ -28,12 +23,21 @@ public partial class FileSyncListViewModel : ObservableObject
     private readonly ICredentialManager _credentialManager;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUnavailable))]
     [NotifyPropertyChangedFor(nameof(ShowLoading))]
     [NotifyPropertyChangedFor(nameof(ShowError))]
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
     public partial bool Loading { get; set; } = true;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUnavailable))]
+    [NotifyPropertyChangedFor(nameof(ShowLoading))]
+    [NotifyPropertyChangedFor(nameof(ShowError))]
+    [NotifyPropertyChangedFor(nameof(ShowSessions))]
+    public partial string? UnavailableMessage { get; set; } = null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowUnavailable))]
     [NotifyPropertyChangedFor(nameof(ShowLoading))]
     [NotifyPropertyChangedFor(nameof(ShowError))]
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
@@ -72,9 +76,11 @@ public partial class FileSyncListViewModel : ObservableObject
         }
     }
 
-    public bool ShowLoading => Loading && Error == null;
-    public bool ShowError => Error != null;
-    public bool ShowSessions => !Loading && Error == null;
+    // TODO: this could definitely be improved
+    public bool ShowUnavailable => UnavailableMessage != null;
+    public bool ShowLoading => Loading && UnavailableMessage == null && Error == null;
+    public bool ShowError => UnavailableMessage == null && Error != null;
+    public bool ShowSessions => !Loading && UnavailableMessage == null && Error == null;
 
     public FileSyncListViewModel(ISyncSessionController syncSessionController, IRpcController rpcController,
         ICredentialManager credentialManager)
@@ -105,54 +111,56 @@ public partial class FileSyncListViewModel : ObservableObject
     {
         _dispatcherQueue = dispatcherQueue;
 
-        _rpcController.StateChanged += (_, rpcModel) => UpdateFromRpcModel(rpcModel);
-        _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialsModel(credentialModel);
+        _rpcController.StateChanged += RpcControllerStateChanged;
+        _credentialManager.CredentialsChanged += CredentialManagerCredentialsChanged;
 
         var rpcModel = _rpcController.GetState();
         var credentialModel = _credentialManager.GetCachedCredentials();
-        // TODO: fix this
-        //if (MaybeSendStaleEvent(rpcModel, credentialModel)) return;
+        MaybeSetUnavailableMessage(rpcModel, credentialModel);
 
         // TODO: Simulate loading until we have real data.
         Task.Delay(TimeSpan.FromSeconds(3)).ContinueWith(_ => _dispatcherQueue.TryEnqueue(() => Loading = false));
     }
 
-    private void UpdateFromRpcModel(RpcModel rpcModel)
+    private void RpcControllerStateChanged(object? sender, RpcModel rpcModel)
     {
         // Ensure we're on the UI thread.
         if (_dispatcherQueue == null) return;
         if (!_dispatcherQueue.HasThreadAccess)
         {
-            _dispatcherQueue.TryEnqueue(() => UpdateFromRpcModel(rpcModel));
+            _dispatcherQueue.TryEnqueue(() => RpcControllerStateChanged(sender, rpcModel));
             return;
         }
 
         var credentialModel = _credentialManager.GetCachedCredentials();
-        MaybeSendStaleEvent(rpcModel, credentialModel);
+        MaybeSetUnavailableMessage(rpcModel, credentialModel);
     }
 
-    private void UpdateFromCredentialsModel(CredentialModel credentialModel)
+    private void CredentialManagerCredentialsChanged(object? sender, CredentialModel credentialModel)
     {
         // Ensure we're on the UI thread.
         if (_dispatcherQueue == null) return;
         if (!_dispatcherQueue.HasThreadAccess)
         {
-            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialsModel(credentialModel));
+            _dispatcherQueue.TryEnqueue(() => CredentialManagerCredentialsChanged(sender, credentialModel));
             return;
         }
 
         var rpcModel = _rpcController.GetState();
-        MaybeSendStaleEvent(rpcModel, credentialModel);
+        MaybeSetUnavailableMessage(rpcModel, credentialModel);
     }
 
-    private bool MaybeSendStaleEvent(RpcModel rpcModel, CredentialModel credentialModel)
+    private void MaybeSetUnavailableMessage(RpcModel rpcModel, CredentialModel credentialModel)
     {
-        var ok = rpcModel.RpcLifecycle is RpcLifecycle.Connected
-                 && rpcModel.VpnLifecycle is VpnLifecycle.Started
-                 && credentialModel.State == CredentialState.Valid;
-
-        if (!ok) OnFileSyncListStale?.Invoke();
-        return !ok;
+        if (rpcModel.RpcLifecycle != RpcLifecycle.Connected)
+            UnavailableMessage =
+                "Disconnected from the Windows service. Please see the tray window for more information.";
+        else if (credentialModel.State != CredentialState.Valid)
+            UnavailableMessage = "Please sign in to access file sync.";
+        else if (rpcModel.VpnLifecycle != VpnLifecycle.Started)
+            UnavailableMessage = "Please start Coder Connect from the tray window to access file sync.";
+        else
+            UnavailableMessage = null;
     }
 
     private void ClearNewForm()

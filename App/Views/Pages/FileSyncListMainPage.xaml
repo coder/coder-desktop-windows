@@ -13,6 +13,17 @@
 
     <Grid>
         <Grid
+            Visibility="{x:Bind ViewModel.ShowUnavailable, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Padding="60,60"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
+
+            <TextBlock
+                HorizontalAlignment="Center"
+                Text="{x:Bind ViewModel.UnavailableMessage, Mode=OneWay}" />
+        </Grid>
+
+        <Grid
             Visibility="{x:Bind ViewModel.ShowLoading, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
             Padding="60,60"
             HorizontalAlignment="Center"
