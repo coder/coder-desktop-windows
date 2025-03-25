@@ -27,17 +27,14 @@ public partial class FileSyncListViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowLoading))]
     [NotifyPropertyChangedFor(nameof(ShowError))]
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
-    public partial bool Loading { get; set; } = true;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowUnavailable))]
-    [NotifyPropertyChangedFor(nameof(ShowLoading))]
-    [NotifyPropertyChangedFor(nameof(ShowError))]
-    [NotifyPropertyChangedFor(nameof(ShowSessions))]
     public partial string? UnavailableMessage { get; set; } = null;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowUnavailable))]
+    [NotifyPropertyChangedFor(nameof(ShowLoading))]
+    [NotifyPropertyChangedFor(nameof(ShowSessions))]
+    public partial bool Loading { get; set; } = true;
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowLoading))]
     [NotifyPropertyChangedFor(nameof(ShowError))]
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
@@ -98,8 +95,10 @@ public partial class FileSyncListViewModel : ObservableObject
                 "Some description", []),
             new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Conflicts,
                 "Conflicts", "Some description", []),
-            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Error,
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Halted,
                 "Halted on root emptied", "Some description", []),
+            new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Error,
+                "Some error", "Some description", []),
             new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Unknown,
                 "Unknown", "Some description", []),
             new SyncSessionModel(@"C:\Users\dean\git\coder", "pog", "~/coder", SyncSessionStatusCategory.Working,
@@ -110,6 +109,8 @@ public partial class FileSyncListViewModel : ObservableObject
     public void Initialize(DispatcherQueue dispatcherQueue)
     {
         _dispatcherQueue = dispatcherQueue;
+        if (!_dispatcherQueue.HasThreadAccess)
+            throw new InvalidOperationException("Initialize must be called from the UI thread");
 
         _rpcController.StateChanged += RpcControllerStateChanged;
         _credentialManager.CredentialsChanged += CredentialManagerCredentialsChanged;

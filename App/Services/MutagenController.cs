@@ -122,7 +122,9 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             _sessionCount += 1;
         }
 
-        throw new NotImplementedException();
+        // TODO: implement this
+        return new SyncSessionModel(@"C:\path", "remote", "~/path", SyncSessionStatusCategory.Ok, "Watching",
+            "Description", []);
     }
 
     public async Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct)
@@ -138,7 +140,8 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
                 return [];
         }
 
-        throw new NotImplementedException();
+        // TODO: implement this
+        return [];
     }
 
     public async Task Initialize(CancellationToken ct)

@@ -157,19 +157,19 @@
                                     </Border>
                                     <Border Grid.Column="1" Padding="10,0,0,0">
                                         <TextBlock
-                                            Text="{x:Bind LocalPath}"
+                                            Text="{x:Bind AlphaPath}"
                                             TextTrimming="CharacterEllipsis"
                                             IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                                     </Border>
                                     <Border Grid.Column="2">
                                         <TextBlock
-                                            Text="{x:Bind RemoteName}"
+                                            Text="{x:Bind BetaName}"
                                             TextTrimming="CharacterEllipsis"
                                             IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                                     </Border>
                                     <Border Grid.Column="3">
                                         <TextBlock
-                                            Text="{x:Bind RemotePath}"
+                                            Text="{x:Bind BetaPath}"
                                             TextTrimming="CharacterEllipsis"
                                             IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                                     </Border>
@@ -184,6 +184,9 @@
                                                 <converters:StringToBrushSelectorItem
                                                     Key="Paused"
                                                     Value="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
+                                                <converters:StringToBrushSelectorItem
+                                                    Key="Halted"
+                                                    Value="{ThemeResource SystemFillColorCriticalBrush}" />
                                                 <converters:StringToBrushSelectorItem
                                                     Key="Error"
                                                     Value="{ThemeResource SystemFillColorCriticalBrush}" />
@@ -206,7 +209,7 @@
                                     </Border>
                                     <Border Grid.Column="5">
                                         <TextBlock
-                                            Text="{x:Bind LocalSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
+                                            Text="{x:Bind AlphaSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
                                             ToolTipService.ToolTip="{x:Bind SizeDetails}" />
                                     </Border>
                                 </Grid>
