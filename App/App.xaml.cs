@@ -47,6 +47,11 @@ public partial class App : Application
         services.AddTransient<SignInViewModel>();
         services.AddTransient<SignInWindow>();
 
+        // FileSyncListWindow views and view models
+        services.AddTransient<FileSyncListViewModel>();
+        // FileSyncListMainPage is created by FileSyncListWindow.
+        services.AddTransient<FileSyncListWindow>();
+
         // TrayWindow views and view models
         services.AddTransient<TrayWindowLoadingPage>();
         services.AddTransient<TrayWindowDisconnectedViewModel>();

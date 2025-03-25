@@ -12,14 +12,11 @@
     mc:Ignorable="d">
 
     <Page.Resources>
-        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter" />
-
         <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter" Unknown="true" Starting="true"
                                                 Stopping="true" />
         <converters:VpnLifecycleToBoolConverter x:Key="NotConnectingBoolConverter" Started="true" Stopped="true" />
         <converters:VpnLifecycleToBoolConverter x:Key="StoppedBoolConverter" Stopped="true" />
 
-        <converters:AgentStatusToColorConverter x:Key="AgentStatusToColorConverter" />
         <converters:BoolToObjectConverter x:Key="ShowMoreLessTextConverter" TrueValue="Show less"
                                           FalseValue="Show more" />
     </Page.Resources>
@@ -118,6 +115,34 @@
                                 HorizontalAlignment="Stretch"
                                 Spacing="10">
 
+                                <StackPanel.Resources>
+                                    <converters:StringToBrushSelector
+                                        x:Key="StatusColor"
+                                        SelectedKey="{x:Bind Path=ConnectionStatus, Mode=OneWay}">
+
+                                        <converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem.Value>
+                                                <SolidColorBrush Color="#8e8e93" />
+                                            </converters:StringToBrushSelectorItem.Value>
+                                        </converters:StringToBrushSelectorItem>
+                                        <converters:StringToBrushSelectorItem Key="Red">
+                                            <converters:StringToBrushSelectorItem.Value>
+                                                <SolidColorBrush Color="#ff3b30" />
+                                            </converters:StringToBrushSelectorItem.Value>
+                                        </converters:StringToBrushSelectorItem>
+                                        <converters:StringToBrushSelectorItem Key="Yellow">
+                                            <converters:StringToBrushSelectorItem.Value>
+                                                <SolidColorBrush Color="#ffcc01" />
+                                            </converters:StringToBrushSelectorItem.Value>
+                                        </converters:StringToBrushSelectorItem>
+                                        <converters:StringToBrushSelectorItem Key="Green">
+                                            <converters:StringToBrushSelectorItem.Value>
+                                                <SolidColorBrush Color="#34c759" />
+                                            </converters:StringToBrushSelectorItem.Value>
+                                        </converters:StringToBrushSelectorItem>
+                                    </converters:StringToBrushSelector>
+                                </StackPanel.Resources>
+
                                 <Canvas
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -125,7 +150,7 @@
                                     Margin="0,1,0,0">
 
                                     <Ellipse
-                                        Fill="{x:Bind ConnectionStatus, Converter={StaticResource AgentStatusToColorConverter}, Mode=OneWay}"
+                                        Fill="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
                                         Opacity="0.2"
                                         Width="14"
                                         Height="14"
@@ -133,7 +158,7 @@
                                         Canvas.Top="0" />
 
                                     <Ellipse
-                                        Fill="{x:Bind ConnectionStatus, Converter={StaticResource AgentStatusToColorConverter}, Mode=OneWay}"
+                                        Fill="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
                                         Width="8"
                                         Height="8"
                                         VerticalAlignment="Center"
@@ -199,6 +224,18 @@
             HorizontalContentAlignment="Left">
 
             <TextBlock Text="Create workspace" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
+
+        <controls:HorizontalRule />
+
+        <HyperlinkButton
+            Command="{x:Bind ViewModel.ShowFileSyncListWindowCommand, Mode=OneWay}"
+            Margin="-12,0"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left">
+
+            <!-- TODO: status icon if there is a problem -->
+            <TextBlock Text="File sync" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
         </HyperlinkButton>
 
         <controls:HorizontalRule />

@@ -4,10 +4,12 @@ using System.Linq;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Views;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Google.Protobuf;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -20,8 +22,11 @@ public partial class TrayWindowViewModel : ObservableObject
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
 
+    private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+
+    private FileSyncListWindow? _fileSyncListWindow;
 
     private DispatcherQueue? _dispatcherQueue;
 
@@ -73,8 +78,10 @@ public partial class TrayWindowViewModel : ObservableObject
 
     [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
 
-    public TrayWindowViewModel(IRpcController rpcController, ICredentialManager credentialManager)
+    public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
+        ICredentialManager credentialManager)
     {
+        _services = services;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
     }
@@ -204,6 +211,14 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private void UpdateFromCredentialsModel(CredentialModel credentialModel)
     {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialsModel(credentialModel));
+            return;
+        }
+
         // HACK: the HyperlinkButton crashes the whole app if the initial URI
         // or this URI is invalid. CredentialModel.CoderUrl should never be
         // null while the Page is active as the Page is only displayed when
@@ -234,7 +249,7 @@ public partial class TrayWindowViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            VpnFailedMessage = "Failed to start Coder Connect: " + MaybeUnwrapTunnelError(e);
+            VpnFailedMessage = "Failed to start CoderVPN: " + MaybeUnwrapTunnelError(e);
         }
     }
 
@@ -246,7 +261,7 @@ public partial class TrayWindowViewModel : ObservableObject
         }
         catch (Exception e)
         {
-            VpnFailedMessage = "Failed to stop Coder Connect: " + MaybeUnwrapTunnelError(e);
+            VpnFailedMessage = "Failed to stop CoderVPN: " + MaybeUnwrapTunnelError(e);
         }
     }
 
@@ -260,6 +275,22 @@ public partial class TrayWindowViewModel : ObservableObject
     public void ToggleShowAllAgents()
     {
         ShowAllAgents = !ShowAllAgents;
+    }
+
+    [RelayCommand]
+    public void ShowFileSyncListWindow()
+    {
+        // This is safe against concurrent access since it all happens in the
+        // UI thread.
+        if (_fileSyncListWindow != null)
+        {
+            _fileSyncListWindow.Activate();
+            return;
+        }
+
+        _fileSyncListWindow = _services.GetRequiredService<FileSyncListWindow>();
+        _fileSyncListWindow.Closed += (_, _) => _fileSyncListWindow = null;
+        _fileSyncListWindow.Activate();
     }
 
     [RelayCommand]
