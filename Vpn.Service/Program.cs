@@ -85,6 +85,7 @@ public static class Program
         builder.Services.AddSingleton<ITunnelSupervisor, TunnelSupervisor>();
         builder.Services.AddSingleton<IManagerRpc, ManagerRpc>();
         builder.Services.AddSingleton<IManager, Manager>();
+        builder.Services.AddSingleton<ITelemetryEnricher, TelemetryEnricher>();
 
         // Services
         if (!Environment.UserInteractive)

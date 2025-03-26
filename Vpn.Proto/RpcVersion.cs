@@ -5,7 +5,7 @@ namespace Coder.Desktop.Vpn.Proto;
 /// </summary>
 public class RpcVersion
 {
-    public static readonly RpcVersion Current = new(1, 0);
+    public static readonly RpcVersion Current = new(1, 1);
 
     public ulong Major { get; }
     public ulong Minor { get; }
