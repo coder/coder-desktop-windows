@@ -31,6 +31,7 @@ public class Manager : IManager
     private readonly ILogger<Manager> _logger;
     private readonly ITunnelSupervisor _tunnelSupervisor;
     private readonly IManagerRpc _managerRpc;
+    private readonly ITelemetryEnricher _telemetryEnricher;
 
     private volatile TunnelStatus _status = TunnelStatus.Stopped;
 
@@ -46,7 +47,7 @@ public class Manager : IManager
 
     // ReSharper disable once ConvertToPrimaryConstructor
     public Manager(IOptions<ManagerConfig> config, ILogger<Manager> logger, IDownloader downloader,
-        ITunnelSupervisor tunnelSupervisor, IManagerRpc managerRpc)
+        ITunnelSupervisor tunnelSupervisor, IManagerRpc managerRpc, ITelemetryEnricher telemetryEnricher)
     {
         _config = config.Value;
         _logger = logger;
@@ -54,6 +55,7 @@ public class Manager : IManager
         _tunnelSupervisor = tunnelSupervisor;
         _managerRpc = managerRpc;
         _managerRpc.OnReceive += HandleClientRpcMessage;
+        _telemetryEnricher = telemetryEnricher;
     }
 
     public void Dispose()
@@ -159,7 +161,7 @@ public class Manager : IManager
 
                 var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
                 {
-                    Start = message.Start,
+                    Start = _telemetryEnricher.EnrichStartRequest(message.Start),
                 }, ct);
                 if (reply.MsgCase != TunnelMessage.MsgOneofCase.Start)
                     throw new InvalidOperationException("Tunnel did not reply with a Start response");
