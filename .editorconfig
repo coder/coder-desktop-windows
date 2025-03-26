@@ -76,6 +76,10 @@ resharper_web_config_module_not_resolved_highlighting = warning
 resharper_web_config_type_not_resolved_highlighting = warning
 resharper_web_config_wrong_module_highlighting = warning
 
-[{*.json,*.jsonc,*.yml,*.yaml,*.proto}]
+[{*.json,*.jsonc,*.yml,*.yaml}]
 indent_style = space
 indent_size = 2
+
+[{*.proto}]
+indent_style = tab
+indent_size = 1
