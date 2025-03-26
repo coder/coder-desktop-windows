@@ -1,4 +1,5 @@
 using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
+using Coder.Desktop.MutagenSdk.Proto.Service.Prompting;
 using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -10,6 +11,7 @@ public class MutagenClient : IDisposable
     private readonly GrpcChannel _channel;
 
     public readonly Daemon.DaemonClient Daemon;
+    public readonly Prompting.PromptingClient Prompting;
     public readonly Synchronization.SynchronizationClient Synchronization;
 
     public MutagenClient(string dataDir)
@@ -19,6 +21,20 @@ public class MutagenClient : IDisposable
         if (!File.Exists(daemonLockFile))
             throw new FileNotFoundException(
                 "Mutagen daemon lock file not found, did the mutagen daemon start successfully?", daemonLockFile);
+
+        // We should not be able to open the lock file.
+        try
+        {
+            using var _ = File.Open(daemonLockFile, FileMode.Open, FileAccess.Write, FileShare.None);
+            // We throw a FileNotFoundException if we could open the file because
+            // it means the same thing and allows us to return the path nicely.
+            throw new InvalidOperationException(
+                $"Mutagen daemon lock file '{daemonLockFile}' is unlocked, did the mutagen daemon start successfully?");
+        }
+        catch (IOException)
+        {
+            // this is what we expect
+        }
 
         // Read the IPC named pipe address from the sock file.
         var daemonSockFile = Path.Combine(dataDir, "daemon", "daemon.sock");
@@ -50,6 +66,7 @@ public class MutagenClient : IDisposable
         });
 
         Daemon = new Daemon.DaemonClient(_channel);
+        Prompting = new Prompting.PromptingClient(_channel);
         Synchronization = new Synchronization.SynchronizationClient(_channel);
     }
 

@@ -9,8 +9,9 @@ $ErrorActionPreference = "Stop"
 $repo = "mutagen-io/mutagen"
 $protoPrefix = "pkg"
 $entryFiles = @(
-    "service/synchronization/synchronization.proto",
-    "service/daemon/daemon.proto"
+    "service/daemon/daemon.proto",
+    "service/prompting/prompting.proto",
+    "service/synchronization/synchronization.proto"
 )
 
 $outputNamespace = "Coder.Desktop.MutagenSdk.Proto"

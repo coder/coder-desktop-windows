@@ -3,36 +3,67 @@ using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.MutagenSdk;
 using Coder.Desktop.MutagenSdk.Proto.Selection;
 using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
+using Coder.Desktop.MutagenSdk.Proto.Service.Prompting;
 using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Url;
 using Coder.Desktop.Vpn.Utilities;
+using Grpc.Core;
 using Microsoft.Extensions.Options;
-using TerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Daemon.TerminateRequest;
+using DaemonTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Daemon.TerminateRequest;
+using SynchronizationTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Synchronization.TerminateRequest;
 
 namespace Coder.Desktop.App.Services;
 
 public class CreateSyncSessionRequest
 {
-    // TODO: this
+    public Uri Alpha { get; init; }
+    public Uri Beta { get; init; }
+
+    public URL AlphaMutagenUrl => MutagenUrl(Alpha);
+    public URL BetaMutagenUrl => MutagenUrl(Beta);
+
+    private static URL MutagenUrl(Uri uri)
+    {
+        var protocol = uri.Scheme switch
+        {
+            "file" => Protocol.Local,
+            "ssh" => Protocol.Ssh,
+            _ => throw new ArgumentException("Only 'file' and 'ssh' URLs are supported", nameof(uri)),
+        };
+
+        return new URL
+        {
+            Kind = Kind.Synchronization,
+            Protocol = protocol,
+            User = uri.UserInfo,
+            Host = uri.Host,
+            Port = uri.Port < 0 ? 0 : (uint)uri.Port,
+            Path = protocol is Protocol.Local ? uri.LocalPath : uri.AbsolutePath,
+        };
+    }
 }
 
-public interface ISyncSessionController
+public interface ISyncSessionController : IAsyncDisposable
 {
-    Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct);
-    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct);
-
-    Task TerminateSyncSession(string identifier, CancellationToken ct);
+    Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct = default);
+    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct = default);
+    Task<SyncSessionModel> PauseSyncSession(string identifier, CancellationToken ct = default);
+    Task<SyncSessionModel> ResumeSyncSession(string identifier, CancellationToken ct = default);
+    Task TerminateSyncSession(string identifier, CancellationToken ct = default);
 
     // <summary>
     // Initializes the controller; running the daemon if there are any saved sessions. Must be called and
     // complete before other methods are allowed.
     // </summary>
-    Task Initialize(CancellationToken ct);
+    Task Initialize(CancellationToken ct = default);
 }
 
 // These values are the config option names used in the registry. Any option
@@ -78,7 +109,6 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
 
     private readonly string _mutagenExecutablePath;
 
-
     private readonly string _mutagenDataDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "CoderDesktop",
@@ -97,7 +127,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        Task<MutagenClient?>? transition = null;
+        Task<MutagenClient?>? transition;
         using (_ = await _lock.LockAsync(CancellationToken.None))
         {
             _disposing = true;
@@ -110,24 +140,112 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         GC.SuppressFinalize(this);
     }
 
-
-    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct)
+    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct = default)
     {
         // reads of _sessionCount are atomic, so don't bother locking for this quick check.
         if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
         var client = await EnsureDaemon(ct);
-        // TODO: implement
+
+        await using var prompter = await CreatePrompter(client, true, ct);
+        var createRes = await client.Synchronization.CreateAsync(new CreateRequest
+        {
+            Prompter = prompter.Identifier,
+            Specification = new CreationSpecification
+            {
+                Alpha = req.AlphaMutagenUrl,
+                Beta = req.BetaMutagenUrl,
+                // TODO: probably should set these at some point
+                Configuration = new Configuration(),
+                ConfigurationAlpha = new Configuration(),
+                ConfigurationBeta = new Configuration(),
+            },
+        }, cancellationToken: ct);
+        if (createRes == null) throw new InvalidOperationException("CreateAsync returned null");
+
+        // Increment session count early, to avoid list failures interfering
+        // with the count.
         using (_ = await _lock.LockAsync(ct))
         {
             _sessionCount += 1;
         }
 
-        // TODO: implement this
-        return new SyncSessionModel(@"C:\path", "remote", "~/path", SyncSessionStatusCategory.Ok, "Watching",
-            "Description", []);
+        var listRes = await client.Synchronization.ListAsync(new ListRequest
+        {
+            Selection = new Selection
+            {
+                Specifications = { createRes.Session },
+            },
+        }, cancellationToken: ct);
+        if (listRes == null) throw new InvalidOperationException("ListAsync returned null");
+        if (listRes.SessionStates.Count != 1)
+            throw new InvalidOperationException("ListAsync returned wrong number of sessions");
+
+        return new SyncSessionModel(listRes.SessionStates[0]);
     }
 
-    public async Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct)
+    public async Task<SyncSessionModel> PauseSyncSession(string identifier, CancellationToken ct = default)
+    {
+        // reads of _sessionCount are atomic, so don't bother locking for this quick check.
+        if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
+        var client = await EnsureDaemon(ct);
+
+        // Pausing sessions doesn't require prompting as seen in the mutagen CLI.
+        await using var prompter = await CreatePrompter(client, false, ct);
+        _ = await client.Synchronization.PauseAsync(new PauseRequest
+        {
+            Prompter = prompter.Identifier,
+            Selection = new Selection
+            {
+                Specifications = { identifier },
+            },
+        }, cancellationToken: ct);
+
+        var listRes = await client.Synchronization.ListAsync(new ListRequest
+        {
+            Selection = new Selection
+            {
+                Specifications = { identifier },
+            },
+        }, cancellationToken: ct);
+        if (listRes == null) throw new InvalidOperationException("ListAsync returned null");
+        if (listRes.SessionStates.Count != 1)
+            throw new InvalidOperationException("ListAsync returned wrong number of sessions");
+
+        return new SyncSessionModel(listRes.SessionStates[0]);
+    }
+
+    public async Task<SyncSessionModel> ResumeSyncSession(string identifier, CancellationToken ct = default)
+    {
+        // reads of _sessionCount are atomic, so don't bother locking for this quick check.
+        if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
+        var client = await EnsureDaemon(ct);
+
+        // Resuming sessions doesn't require prompting as seen in the mutagen CLI.
+        await using var prompter = await CreatePrompter(client, false, ct);
+        _ = await client.Synchronization.ResumeAsync(new ResumeRequest
+        {
+            Prompter = prompter.Identifier,
+            Selection = new Selection
+            {
+                Specifications = { identifier },
+            },
+        }, cancellationToken: ct);
+
+        var listRes = await client.Synchronization.ListAsync(new ListRequest
+        {
+            Selection = new Selection
+            {
+                Specifications = { identifier },
+            },
+        }, cancellationToken: ct);
+        if (listRes == null) throw new InvalidOperationException("ListAsync returned null");
+        if (listRes.SessionStates.Count != 1)
+            throw new InvalidOperationException("ListAsync returned wrong number of sessions");
+
+        return new SyncSessionModel(listRes.SessionStates[0]);
+    }
+
+    public async Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct = default)
     {
         // reads of _sessionCount are atomic, so don't bother locking for this quick check.
         switch (_sessionCount)
@@ -140,11 +258,19 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
                 return [];
         }
 
-        // TODO: implement this
-        return [];
+        var client = await EnsureDaemon(ct);
+        var res = await client.Synchronization.ListAsync(new ListRequest
+        {
+            Selection = new Selection { All = true },
+        }, cancellationToken: ct);
+
+        if (res == null) return [];
+        return res.SessionStates.Select(s => new SyncSessionModel(s));
+
+        // TODO: the daemon should be stopped if there are no sessions.
     }
 
-    public async Task Initialize(CancellationToken ct)
+    public async Task Initialize(CancellationToken ct = default)
     {
         using (_ = await _lock.LockAsync(ct))
         {
@@ -155,10 +281,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         var client = await EnsureDaemon(ct);
         var sessions = await client.Synchronization.ListAsync(new ListRequest
         {
-            Selection = new Selection
-            {
-                All = true,
-            },
+            Selection = new Selection { All = true },
         }, cancellationToken: ct);
 
         using (_ = await _lock.LockAsync(ct))
@@ -180,11 +303,22 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         }
     }
 
-    public async Task TerminateSyncSession(string identifier, CancellationToken ct)
+    public async Task TerminateSyncSession(string identifier, CancellationToken ct = default)
     {
         if (_sessionCount < 0) throw new InvalidOperationException("Controller must be Initialized first");
         var client = await EnsureDaemon(ct);
-        // TODO: implement
+
+        // Terminating sessions doesn't require prompting as seen in the mutagen CLI.
+        await using var prompter = await CreatePrompter(client, true, ct);
+
+        _ = await client.Synchronization.TerminateAsync(new SynchronizationTerminateRequest
+        {
+            Prompter = prompter.Identifier,
+            Selection = new Selection
+            {
+                Specifications = { identifier },
+            },
+        }, cancellationToken: ct);
 
         // here we don't use the Cancellation Token, since we want to decrement and possibly
         // stop the daemon even if we were cancelled, since we already successfully terminated
@@ -206,7 +340,6 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
                 }
         }
     }
-
 
     private async Task<MutagenClient> EnsureDaemon(CancellationToken ct)
     {
@@ -253,9 +386,13 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         try
         {
             var client = new MutagenClient(_mutagenDataDirectory);
-            await client.Daemon.TerminateAsync(new TerminateRequest(), cancellationToken: ct);
+            await client.Daemon.TerminateAsync(new DaemonTerminateRequest(), cancellationToken: ct);
         }
         catch (FileNotFoundException)
+        {
+            // Mainline; no daemon running.
+        }
+        catch (InvalidOperationException)
         {
             // Mainline; no daemon running.
         }
@@ -264,7 +401,6 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         // it up to 5 times x 100ms. Those issues should resolve themselves quickly if they are
         // going to at all.
         const int maxAttempts = 5;
-        ListResponse? sessions = null;
         for (var attempts = 1; attempts <= maxAttempts; attempts++)
         {
             ct.ThrowIfCancellationRequested();
@@ -331,6 +467,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             throw new InvalidOperationException("startDaemonLock called when daemonProcess already present");
 
         // create the log file first, so ensure we have permissions
+        Directory.CreateDirectory(_mutagenDataDirectory);
         var logPath = Path.Combine(_mutagenDataDirectory, "daemon.log");
         var logStream = new StreamWriter(logPath, true);
 
@@ -338,10 +475,14 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         _daemonProcess.StartInfo.FileName = _mutagenExecutablePath;
         _daemonProcess.StartInfo.Arguments = "daemon run";
         _daemonProcess.StartInfo.Environment.Add("MUTAGEN_DATA_DIRECTORY", _mutagenDataDirectory);
+        // hide the console window
+        _daemonProcess.StartInfo.CreateNoWindow = true;
         // shell needs to be disabled since we set the environment
         // https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.environment?view=net-8.0
         _daemonProcess.StartInfo.UseShellExecute = false;
         _daemonProcess.StartInfo.RedirectStandardError = true;
+        // TODO: log exited process
+        // _daemonProcess.Exited += ...
         _daemonProcess.Start();
 
         var writer = new LogWriter(_daemonProcess.StandardError, logStream);
@@ -375,7 +516,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             {
                 try
                 {
-                    await client.Daemon.TerminateAsync(new TerminateRequest(), cancellationToken: ct);
+                    await client.Daemon.TerminateAsync(new DaemonTerminateRequest(), cancellationToken: ct);
                 }
                 catch
                 {
@@ -397,6 +538,109 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         }
 
         return null;
+    }
+
+    private static async Task<Prompter> CreatePrompter(MutagenClient client, bool allowPrompts = false,
+        CancellationToken ct = default)
+    {
+        var dup = client.Prompting.Host(cancellationToken: ct);
+        if (dup == null) throw new InvalidOperationException("Prompting.Host returned null");
+
+        try
+        {
+            // Write first request.
+            await dup.RequestStream.WriteAsync(new HostRequest
+            {
+                AllowPrompts = allowPrompts,
+            }, ct);
+
+            // Read initial response.
+            if (!await dup.ResponseStream.MoveNext(ct))
+                throw new InvalidOperationException("Prompting.Host response stream ended early");
+            var response = dup.ResponseStream.Current;
+            if (response == null)
+                throw new InvalidOperationException("Prompting.Host response stream returned null");
+            if (string.IsNullOrEmpty(response.Identifier))
+                throw new InvalidOperationException("Prompting.Host response stream returned empty identifier");
+
+            return new Prompter(response.Identifier, dup, ct);
+        }
+        catch
+        {
+            await dup.RequestStream.CompleteAsync();
+            dup.Dispose();
+            throw;
+        }
+    }
+
+    private class Prompter : IAsyncDisposable
+    {
+        private readonly AsyncDuplexStreamingCall<HostRequest, HostResponse> _dup;
+        private readonly CancellationTokenSource _cts;
+        private readonly Task _handleRequestsTask;
+        public string Identifier { get; }
+
+        public Prompter(string identifier, AsyncDuplexStreamingCall<HostRequest, HostResponse> dup,
+            CancellationToken ct)
+        {
+            Identifier = identifier;
+            _dup = dup;
+
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            _handleRequestsTask = HandleRequests(_cts.Token);
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            await _cts.CancelAsync();
+            try
+            {
+                await _handleRequestsTask;
+            }
+            catch
+            {
+                // ignored
+            }
+
+            _cts.Dispose();
+            GC.SuppressFinalize(this);
+        }
+
+        private async Task HandleRequests(CancellationToken ct)
+        {
+            try
+            {
+                while (true)
+                {
+                    ct.ThrowIfCancellationRequested();
+
+                    // Read next request and validate it.
+                    if (!await _dup.ResponseStream.MoveNext(ct))
+                        throw new InvalidOperationException("Prompting.Host response stream ended early");
+                    var response = _dup.ResponseStream.Current;
+                    if (response == null)
+                        throw new InvalidOperationException("Prompting.Host response stream returned null");
+                    if (response.Message == null)
+                        throw new InvalidOperationException("Prompting.Host response stream returned a null message");
+
+                    // Currently we only reply to SSH fingerprint messages with
+                    // "yes" and send an empty reply for everything else.
+                    var reply = "";
+                    if (response.IsPrompt && response.Message.Contains("yes/no/[fingerprint]")) reply = "yes";
+
+                    await _dup.RequestStream.WriteAsync(new HostRequest
+                    {
+                        Response = reply,
+                    }, ct);
+                }
+            }
+            catch
+            {
+                await _dup.RequestStream.CompleteAsync();
+                _dup.Dispose();
+                // TODO: log?
+            }
+        }
     }
 }
 

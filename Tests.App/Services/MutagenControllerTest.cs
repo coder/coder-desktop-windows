@@ -37,6 +37,15 @@ public class MutagenControllerTest
         TestContext.Out.WriteLine($"temp directory: {_tempDirectory}");
     }
 
+    [TearDown]
+    public void DeleteTempDir()
+    {
+        _tempDirectory.Delete(true);
+    }
+
+    private string _mutagenBinaryPath;
+    private DirectoryInfo _tempDirectory;
+
     private readonly string _arch = RuntimeInformation.ProcessArchitecture switch
     {
         Architecture.X64 => "x64",
@@ -46,8 +55,94 @@ public class MutagenControllerTest
             $"Unsupported architecture '{RuntimeInformation.ProcessArchitecture}'. Coder only supports x64 and arm64."),
     };
 
-    private string _mutagenBinaryPath;
-    private DirectoryInfo _tempDirectory;
+    private static async Task AcquireDaemonLock(string dataDirectory, CancellationToken ct)
+    {
+        var lockPath = Path.Combine(dataDirectory, "daemon", "daemon.lock");
+        // If we can lock the daemon.lock file, it means the daemon has stopped.
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                await using var lockFile = new FileStream(lockPath, FileMode.Open, FileAccess.Write, FileShare.None);
+            }
+            catch (IOException e)
+            {
+                TestContext.Out.WriteLine($"Could not acquire daemon.lock (will retry): {e.Message}");
+                await Task.Delay(100, ct);
+            }
+
+            break;
+        }
+    }
+
+    [Test(Description = "Full sync test")]
+    [CancelAfter(30_000)]
+    public async Task Ok(CancellationToken ct)
+    {
+        // NUnit runs each test in a temporary directory
+        var dataDirectory = _tempDirectory.CreateSubdirectory("mutagen").FullName;
+        var alphaDirectory = _tempDirectory.CreateSubdirectory("alpha");
+        var betaDirectory = _tempDirectory.CreateSubdirectory("beta");
+
+        await using var controller = new MutagenController(_mutagenBinaryPath, dataDirectory);
+        await controller.Initialize(ct);
+
+        var sessions = (await controller.ListSyncSessions(ct)).ToList();
+        Assert.That(sessions, Is.Empty);
+
+        var session1 = await controller.CreateSyncSession(new CreateSyncSessionRequest
+        {
+            Alpha = new Uri("file:///" + alphaDirectory.FullName),
+            Beta = new Uri("file:///" + betaDirectory.FullName),
+        }, ct);
+
+        sessions = (await controller.ListSyncSessions(ct)).ToList();
+        Assert.That(sessions, Has.Count.EqualTo(1));
+        Assert.That(sessions[0].Identifier, Is.EqualTo(session1.Identifier));
+
+        var session2 = await controller.CreateSyncSession(new CreateSyncSessionRequest
+        {
+            Alpha = new Uri("file:///" + alphaDirectory.FullName),
+            Beta = new Uri("file:///" + betaDirectory.FullName),
+        }, ct);
+
+        sessions = (await controller.ListSyncSessions(ct)).ToList();
+        Assert.That(sessions, Has.Count.EqualTo(2));
+        Assert.That(sessions.Any(s => s.Identifier == session1.Identifier));
+        Assert.That(sessions.Any(s => s.Identifier == session2.Identifier));
+
+        // Write a file to alpha.
+        var alphaFile = Path.Combine(alphaDirectory.FullName, "file.txt");
+        var betaFile = Path.Combine(betaDirectory.FullName, "file.txt");
+        const string alphaContent = "hello";
+        await File.WriteAllTextAsync(alphaFile, alphaContent, ct);
+
+        // Wait for the file to appear in beta.
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            await Task.Delay(100, ct);
+            if (!File.Exists(betaFile))
+            {
+                TestContext.Out.WriteLine("Waiting for file to appear in beta");
+                continue;
+            }
+
+            var betaContent = await File.ReadAllTextAsync(betaFile, ct);
+            if (betaContent == alphaContent) break;
+            TestContext.Out.WriteLine($"Waiting for file contents to match, current: {betaContent}");
+        }
+
+        await controller.TerminateSyncSession(session1.Identifier, ct);
+        await controller.TerminateSyncSession(session2.Identifier, ct);
+
+        // Ensure the daemon is stopped.
+        await AcquireDaemonLock(dataDirectory, ct);
+
+        sessions = (await controller.ListSyncSessions(ct)).ToList();
+        Assert.That(sessions, Is.Empty);
+    }
 
     [Test(Description = "Shut down daemon when no sessions")]
     [CancelAfter(30_000)]
@@ -62,23 +157,8 @@ public class MutagenControllerTest
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));
 
-        var lockPath = Path.Combine(dataDirectory, "daemon", "daemon.lock");
-        // If we can lock the daemon.lock file, it means the daemon has stopped.
-        while (true)
-        {
-            ct.ThrowIfCancellationRequested();
-            try
-            {
-                await using var lockFile = new FileStream(lockPath, FileMode.Open, FileAccess.Write, FileShare.None);
-            }
-            catch (IOException e)
-            {
-                TestContext.Out.WriteLine($"Didn't get lock (will retry): {e.Message}");
-                await Task.Delay(100, ct);
-            }
-
-            break;
-        }
+        // Ensure the daemon is stopped.
+        await AcquireDaemonLock(dataDirectory, ct);
     }
 
     [Test(Description = "Daemon is restarted when we create a session")]
@@ -86,13 +166,21 @@ public class MutagenControllerTest
     public async Task CreateRestartsDaemon(CancellationToken ct)
     {
         // NUnit runs each test in a temporary directory
-        var dataDirectory = _tempDirectory.FullName;
+        var dataDirectory = _tempDirectory.CreateSubdirectory("mutagen").FullName;
+        var alphaDirectory = _tempDirectory.CreateSubdirectory("alpha");
+        var betaDirectory = _tempDirectory.CreateSubdirectory("beta");
+
         await using (var controller = new MutagenController(_mutagenBinaryPath, dataDirectory))
         {
             await controller.Initialize(ct);
-            await controller.CreateSyncSession(new CreateSyncSessionRequest(), ct);
+            await controller.CreateSyncSession(new CreateSyncSessionRequest
+            {
+                Alpha = new Uri("file:///" + alphaDirectory.FullName),
+                Beta = new Uri("file:///" + betaDirectory.FullName),
+            }, ct);
         }
 
+        await AcquireDaemonLock(dataDirectory, ct);
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));
         var logLines = await File.ReadAllLinesAsync(logPath, ct);
@@ -107,14 +195,21 @@ public class MutagenControllerTest
     public async Task Orphaned(CancellationToken ct)
     {
         // NUnit runs each test in a temporary directory
-        var dataDirectory = _tempDirectory.FullName;
+        var dataDirectory = _tempDirectory.CreateSubdirectory("mutagen").FullName;
+        var alphaDirectory = _tempDirectory.CreateSubdirectory("alpha");
+        var betaDirectory = _tempDirectory.CreateSubdirectory("beta");
+
         MutagenController? controller1 = null;
         MutagenController? controller2 = null;
         try
         {
             controller1 = new MutagenController(_mutagenBinaryPath, dataDirectory);
             await controller1.Initialize(ct);
-            await controller1.CreateSyncSession(new CreateSyncSessionRequest(), ct);
+            await controller1.CreateSyncSession(new CreateSyncSessionRequest
+            {
+                Alpha = new Uri("file:///" + alphaDirectory.FullName),
+                Beta = new Uri("file:///" + betaDirectory.FullName),
+            }, ct);
 
             controller2 = new MutagenController(_mutagenBinaryPath, dataDirectory);
             await controller2.Initialize(ct);
@@ -125,6 +220,8 @@ public class MutagenControllerTest
             if (controller2 != null) await controller2.DisposeAsync();
         }
 
+        await AcquireDaemonLock(dataDirectory, ct);
+
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));
         var logLines = await File.ReadAllLinesAsync(logPath, ct);
@@ -133,6 +230,4 @@ public class MutagenControllerTest
         // slightly brittle, but unlikely this log line will change.
         Assert.That(logLines.Count(s => s.Contains("[sync] Session manager initialized")), Is.EqualTo(3));
     }
-
-    // TODO: Add more tests once we actually implement creating sessions on the daemon
 }

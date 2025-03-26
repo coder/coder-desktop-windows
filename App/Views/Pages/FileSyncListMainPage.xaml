@@ -6,7 +6,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:models="using:Coder.Desktop.App.Models"
+    xmlns:viewmodels="using:Coder.Desktop.App.ViewModels"
     xmlns:converters="using:Coder.Desktop.App.Converters"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
@@ -126,7 +126,7 @@
                         </ItemsRepeater.Layout>
 
                         <ItemsRepeater.ItemTemplate>
-                            <DataTemplate x:DataType="models:SyncSessionModel">
+                            <DataTemplate x:DataType="viewmodels:SyncSessionViewModel">
                                 <Grid Margin="0,10">
                                     <!-- These are (mostly) from the header Grid and should be copied here -->
                                     <Grid.Resources>
@@ -145,11 +145,18 @@
 
                                     <Border Grid.Column="0" Padding="0" HorizontalAlignment="Right">
                                         <StackPanel Orientation="Horizontal">
-                                            <HyperlinkButton Padding="0" Margin="0,0,5,0">
-                                                <FontIcon Glyph="&#xE769;" FontSize="15"
+                                            <HyperlinkButton
+                                                Padding="0"
+                                                Margin="0,0,5,0"
+                                                Command="{x:Bind PauseOrResumeSessionCommand, Mode=OneWay}">
+
+                                                <FontIcon Glyph="{x:Bind Icon, Mode=OneWay}" FontSize="15"
                                                           Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
                                             </HyperlinkButton>
-                                            <HyperlinkButton Padding="0">
+                                            <HyperlinkButton
+                                                Padding="0"
+                                                Command="{x:Bind TerminateSessionCommand, Mode=OneWay}">
+
                                                 <FontIcon Glyph="&#xF140;" FontSize="15"
                                                           Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
                                             </HyperlinkButton>
@@ -157,19 +164,19 @@
                                     </Border>
                                     <Border Grid.Column="1" Padding="10,0,0,0">
                                         <TextBlock
-                                            Text="{x:Bind AlphaPath}"
+                                            Text="{x:Bind Model.AlphaPath}"
                                             TextTrimming="CharacterEllipsis"
                                             IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                                     </Border>
                                     <Border Grid.Column="2">
                                         <TextBlock
-                                            Text="{x:Bind BetaName}"
+                                            Text="{x:Bind Model.BetaName}"
                                             TextTrimming="CharacterEllipsis"
                                             IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                                     </Border>
                                     <Border Grid.Column="3">
                                         <TextBlock
-                                            Text="{x:Bind BetaPath}"
+                                            Text="{x:Bind Model.BetaPath}"
                                             TextTrimming="CharacterEllipsis"
                                             IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                                     </Border>
@@ -177,7 +184,7 @@
                                         <Border.Resources>
                                             <converters:StringToBrushSelector
                                                 x:Key="StatusColor"
-                                                SelectedKey="{x:Bind Path=StatusCategory}">
+                                                SelectedKey="{x:Bind Path=Model.StatusCategory}">
 
                                                 <converters:StringToBrushSelectorItem
                                                     Value="{ThemeResource SystemFillColorCriticalBrush}" />
@@ -202,15 +209,15 @@
                                             </converters:StringToBrushSelector>
                                         </Border.Resources>
                                         <TextBlock
-                                            Text="{x:Bind StatusString}"
+                                            Text="{x:Bind Model.StatusString}"
                                             TextTrimming="CharacterEllipsis"
                                             Foreground="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
-                                            ToolTipService.ToolTip="{x:Bind StatusDetails}" />
+                                            ToolTipService.ToolTip="{x:Bind Model.StatusDetails}" />
                                     </Border>
                                     <Border Grid.Column="5">
                                         <TextBlock
-                                            Text="{x:Bind AlphaSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
-                                            ToolTipService.ToolTip="{x:Bind SizeDetails}" />
+                                            Text="{x:Bind Model.AlphaSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
+                                            ToolTipService.ToolTip="{x:Bind Model.SizeDetails}" />
                                     </Border>
                                 </Grid>
                             </DataTemplate>
@@ -315,7 +322,7 @@
                             <TextBox
                                 VerticalAlignment="Stretch"
                                 HorizontalAlignment="Stretch"
-                                Text="{x:Bind ViewModel.NewSessionRemoteName, Mode=TwoWay}" />
+                                Text="{x:Bind ViewModel.NewSessionRemoteHost, Mode=TwoWay}" />
                         </Border>
                         <Border Grid.Column="3">
                             <TextBox

@@ -218,17 +218,6 @@
         <controls:HorizontalRule />
 
         <HyperlinkButton
-            NavigateUri="{x:Bind ViewModel.DashboardUrl, Mode=OneWay}"
-            Margin="-12,0"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Left">
-
-            <TextBlock Text="Create workspace" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
-        </HyperlinkButton>
-
-        <controls:HorizontalRule />
-
-        <HyperlinkButton
             Command="{x:Bind ViewModel.ShowFileSyncListWindowCommand, Mode=OneWay}"
             Margin="-12,0"
             HorizontalAlignment="Stretch"
@@ -236,6 +225,17 @@
 
             <!-- TODO: status icon if there is a problem -->
             <TextBlock Text="File sync" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
+
+        <controls:HorizontalRule />
+
+        <HyperlinkButton
+            NavigateUri="{x:Bind ViewModel.DashboardUrl, Mode=OneWay}"
+            Margin="-12,0"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left">
+
+            <TextBlock Text="Create workspace" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
         </HyperlinkButton>
 
         <controls:HorizontalRule />

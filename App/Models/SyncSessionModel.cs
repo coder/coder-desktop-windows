@@ -1,4 +1,3 @@
-using System;
 using Coder.Desktop.App.Converters;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization;
 using Coder.Desktop.MutagenSdk.Proto.Url;
@@ -64,6 +63,10 @@ public class SyncSessionModel
 
     public readonly string[] Errors = [];
 
+    // If Paused is true, the session can be resumed. If false, the session can
+    // be paused.
+    public bool Paused => StatusCategory is SyncSessionStatusCategory.Paused or SyncSessionStatusCategory.Halted;
+
     public string StatusDetails
     {
         get
@@ -82,37 +85,6 @@ public class SyncSessionModel
                       "Remote:\n" + BetaSize.Description("  ");
             return str;
         }
-    }
-
-    // TODO: remove once we process sessions from the mutagen RPC
-    public SyncSessionModel(string alphaPath, string betaName, string betaPath,
-        SyncSessionStatusCategory statusCategory,
-        string statusString, string statusDescription, string[] errors)
-    {
-        Identifier = "TODO";
-        Name = "TODO";
-
-        AlphaName = "Local";
-        AlphaPath = alphaPath;
-        BetaName = betaName;
-        BetaPath = betaPath;
-        StatusCategory = statusCategory;
-        StatusString = statusString;
-        StatusDescription = statusDescription;
-        AlphaSize = new SyncSessionModelEndpointSize
-        {
-            SizeBytes = (ulong)new Random().Next(0, 1000000000),
-            FileCount = (ulong)new Random().Next(0, 10000),
-            DirCount = (ulong)new Random().Next(0, 10000),
-        };
-        BetaSize = new SyncSessionModelEndpointSize
-        {
-            SizeBytes = (ulong)new Random().Next(0, 1000000000),
-            FileCount = (ulong)new Random().Next(0, 10000),
-            DirCount = (ulong)new Random().Next(0, 10000),
-        };
-
-        Errors = errors;
     }
 
     public SyncSessionModel(State state)
