@@ -15,7 +15,7 @@ public sealed partial class FileSyncListWindow : WindowEx
         InitializeComponent();
         SystemBackdrop = new DesktopAcrylicBackdrop();
 
-        ViewModel.Initialize(DispatcherQueue);
+        ViewModel.Initialize(this, DispatcherQueue);
         RootFrame.Content = new FileSyncListMainPage(ViewModel, this);
 
         this.CenterOnScreen();
