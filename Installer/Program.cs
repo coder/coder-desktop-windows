@@ -382,9 +382,9 @@ public class Program
                 // There is no license agreement for this SDK.
                 InstallArguments = "--quiet",
                 Vital = false,
-                Payloads = 
+                Payloads =
                 [
-                    new ExePackagePayload 
+                    new ExePackagePayload
                     {
                         SourceFile = opts.WindowsAppSdkPath
                     }
