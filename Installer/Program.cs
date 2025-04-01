@@ -116,6 +116,9 @@ public class BootstrapperOptions : SharedOptions
     [Option('m', "msi-path", Required = true, HelpText = "Path to the MSI package to embed")]
     public string MsiPath { get; set; }
 
+    [Option('w', "windows-app-sdk-path", Required = true, HelpText = "Path to the Windows App Sdk package to embed")]
+    public string WindowsAppSdkPath { get; set; }
+
     public new void Validate()
     {
         base.Validate();
@@ -124,6 +127,8 @@ public class BootstrapperOptions : SharedOptions
             throw new ArgumentException($"Logo PNG file not found at '{LogoPng}'", nameof(LogoPng));
         if (!SystemFile.Exists(MsiPath))
             throw new ArgumentException($"MSI package not found at '{MsiPath}'", nameof(MsiPath));
+        if (!SystemFile.Exists(WindowsAppSdkPath))
+            throw new ArgumentException($"Windows App Sdk package not found at '{WindowsAppSdkPath}'", nameof(WindowsAppSdkPath));
     }
 }
 
@@ -337,16 +342,16 @@ public class Program
     {
         opts.Validate();
 
-        if (!DotNetRuntimePackagePayloads.TryGetValue(opts.Platform, out var payload))
+        if (!DotNetRuntimePackagePayloads.TryGetValue(opts.Platform, out var dotNetRuntimePayload))
             throw new ArgumentException($"Invalid architecture '{opts.Platform}' specified", nameof(opts.Platform));
 
-        // TODO: it would be nice to include the WindowsAppRuntime but
-        //       Microsoft makes it difficult to check from a regular
-        //       installer:
-        //       https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/check-windows-app-sdk-versions
-        //       https://github.com/microsoft/WindowsAppSDK/discussions/2437
+        var windowsAppSdkPaylod = new ExePackagePayload
+        {
+            SourceFile = opts.WindowsAppSdkPath
+        };
+
         var bundle = new Bundle(ProductName,
-            new ExePackage
+            new ExePackage // .NET Runtime
             {
                 PerMachine = true,
                 // Don't uninstall the runtime when the bundle is uninstalled.
@@ -362,7 +367,28 @@ public class Program
                 // anyway. The MSI will fatally exit if the runtime really isn't
                 // available, and the user can install it themselves.
                 Vital = false,
-                Payloads = [payload],
+                Payloads = [dotNetRuntimePayload],
+            },
+            // TODO: right now we are including the Windows App Sdk in the bundle
+            //       and always install it
+            //       Microsoft makes it difficult to check if it exists from a regular installer:
+            //       https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/check-windows-app-sdk-versions
+            //       https://github.com/microsoft/WindowsAppSDK/discussions/2437
+            new ExePackage // Windows App Sdk
+            {
+                PerMachine = true,
+                Permanent = true,
+                Cache = PackageCacheAction.remove,
+                // There is no license agreement for this SDK.
+                InstallArguments = "--quiet",
+                Vital = false,
+                Payloads = 
+                [
+                    new ExePackagePayload 
+                    {
+                        SourceFile = opts.WindowsAppSdkPath
+                    }
+                ],
             },
             new MsiPackage(opts.MsiPath)
             {

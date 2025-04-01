@@ -175,6 +175,10 @@ Copy-Item $mutagenAgentsSrcPath $mutagenAgentsDestPath
 if ($LASTEXITCODE -ne 0) { throw "Failed to build MSI" }
 Add-CoderSignature $msiOutputPath
 
+$getWindowsAppSdk = Join-Path $scriptRoot "Get-WindowsAppSdk.ps1"
+& $getWindowsAppSdk -arch $arch
+$windowsAppSdkPath = Join-Path $scriptRoot "files\windows-app-sdk-$($arch).exe"
+
 # Build the bootstrapper
 & dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
     build-bootstrapper `
@@ -184,6 +188,7 @@ Add-CoderSignature $msiOutputPath
     --output-path $outputPath `
     --icon-file "App\coder.ico" `
     --msi-path $msiOutputPath `
+    --windows-app-sdk-path $windowsAppSdkPath `
     --logo-png "scripts\files\logo.png"
 if ($LASTEXITCODE -ne 0) { throw "Failed to build bootstrapper" }
 
