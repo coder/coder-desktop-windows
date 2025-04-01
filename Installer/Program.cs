@@ -345,11 +345,6 @@ public class Program
         if (!DotNetRuntimePackagePayloads.TryGetValue(opts.Platform, out var dotNetRuntimePayload))
             throw new ArgumentException($"Invalid architecture '{opts.Platform}' specified", nameof(opts.Platform));
 
-        var windowsAppSdkPaylod = new ExePackagePayload
-        {
-            SourceFile = opts.WindowsAppSdkPath
-        };
-
         var bundle = new Bundle(ProductName,
             new ExePackage // .NET Runtime
             {
