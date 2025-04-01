@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 
 namespace Coder.Desktop.Tests.App.Services;
@@ -86,10 +87,22 @@ public class MutagenControllerTest
         var betaDirectory = _tempDirectory.CreateSubdirectory("beta");
 
         await using var controller = new MutagenController(_mutagenBinaryPath, dataDirectory);
-        await controller.Initialize(ct);
 
-        var sessions = (await controller.ListSyncSessions(ct)).ToList();
-        Assert.That(sessions, Is.Empty);
+        // Initial state before calling RefreshState.
+        var state = controller.GetState();
+        Assert.That(state.Lifecycle, Is.EqualTo(SyncSessionControllerLifecycle.Stopped));
+        Assert.That(state.DaemonError, Is.Null);
+        Assert.That(state.DaemonLogFilePath, Is.EqualTo(Path.Combine(dataDirectory, "daemon.log")));
+        Assert.That(state.SyncSessions, Is.Empty);
+
+        state = await controller.RefreshState(ct);
+        Assert.That(state.Lifecycle, Is.EqualTo(SyncSessionControllerLifecycle.Stopped));
+        Assert.That(state.DaemonError, Is.Null);
+        Assert.That(state.DaemonLogFilePath, Is.EqualTo(Path.Combine(dataDirectory, "daemon.log")));
+        Assert.That(state.SyncSessions, Is.Empty);
+
+        // Ensure the daemon is stopped because all sessions are terminated.
+        await AcquireDaemonLock(dataDirectory, ct);
 
         var session1 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
@@ -97,9 +110,9 @@ public class MutagenControllerTest
             Beta = new Uri("file:///" + betaDirectory.FullName),
         }, ct);
 
-        sessions = (await controller.ListSyncSessions(ct)).ToList();
-        Assert.That(sessions, Has.Count.EqualTo(1));
-        Assert.That(sessions[0].Identifier, Is.EqualTo(session1.Identifier));
+        state = controller.GetState();
+        Assert.That(state.SyncSessions, Has.Count.EqualTo(1));
+        Assert.That(state.SyncSessions[0].Identifier, Is.EqualTo(session1.Identifier));
 
         var session2 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
@@ -107,10 +120,10 @@ public class MutagenControllerTest
             Beta = new Uri("file:///" + betaDirectory.FullName),
         }, ct);
 
-        sessions = (await controller.ListSyncSessions(ct)).ToList();
-        Assert.That(sessions, Has.Count.EqualTo(2));
-        Assert.That(sessions.Any(s => s.Identifier == session1.Identifier));
-        Assert.That(sessions.Any(s => s.Identifier == session2.Identifier));
+        state = controller.GetState();
+        Assert.That(state.SyncSessions, Has.Count.EqualTo(2));
+        Assert.That(state.SyncSessions.Any(s => s.Identifier == session1.Identifier));
+        Assert.That(state.SyncSessions.Any(s => s.Identifier == session2.Identifier));
 
         // Write a file to alpha.
         var alphaFile = Path.Combine(alphaDirectory.FullName, "file.txt");
@@ -137,11 +150,14 @@ public class MutagenControllerTest
         await controller.TerminateSyncSession(session1.Identifier, ct);
         await controller.TerminateSyncSession(session2.Identifier, ct);
 
-        // Ensure the daemon is stopped.
+        // Ensure the daemon is stopped because all sessions are terminated.
         await AcquireDaemonLock(dataDirectory, ct);
 
-        sessions = (await controller.ListSyncSessions(ct)).ToList();
-        Assert.That(sessions, Is.Empty);
+        state = controller.GetState();
+        Assert.That(state.Lifecycle, Is.EqualTo(SyncSessionControllerLifecycle.Stopped));
+        Assert.That(state.DaemonError, Is.Null);
+        Assert.That(state.DaemonLogFilePath, Is.EqualTo(Path.Combine(dataDirectory, "daemon.log")));
+        Assert.That(state.SyncSessions, Is.Empty);
     }
 
     [Test(Description = "Shut down daemon when no sessions")]
@@ -151,7 +167,7 @@ public class MutagenControllerTest
         // NUnit runs each test in a temporary directory
         var dataDirectory = _tempDirectory.FullName;
         await using var controller = new MutagenController(_mutagenBinaryPath, dataDirectory);
-        await controller.Initialize(ct);
+        await controller.RefreshState(ct);
 
         // log file tells us the daemon was started.
         var logPath = Path.Combine(dataDirectory, "daemon.log");
@@ -172,7 +188,7 @@ public class MutagenControllerTest
 
         await using (var controller = new MutagenController(_mutagenBinaryPath, dataDirectory))
         {
-            await controller.Initialize(ct);
+            await controller.RefreshState(ct);
             await controller.CreateSyncSession(new CreateSyncSessionRequest
             {
                 Alpha = new Uri("file:///" + alphaDirectory.FullName),
@@ -204,7 +220,7 @@ public class MutagenControllerTest
         try
         {
             controller1 = new MutagenController(_mutagenBinaryPath, dataDirectory);
-            await controller1.Initialize(ct);
+            await controller1.RefreshState(ct);
             await controller1.CreateSyncSession(new CreateSyncSessionRequest
             {
                 Alpha = new Uri("file:///" + alphaDirectory.FullName),
@@ -212,7 +228,7 @@ public class MutagenControllerTest
             }, ct);
 
             controller2 = new MutagenController(_mutagenBinaryPath, dataDirectory);
-            await controller2.Initialize(ct);
+            await controller2.RefreshState(ct);
         }
         finally
         {

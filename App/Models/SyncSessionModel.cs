@@ -206,6 +206,7 @@ public class SyncSessionModel
 {
     public readonly string Identifier;
     public readonly string Name;
+    public readonly DateTime CreatedAt;
 
     public readonly string AlphaName;
     public readonly string AlphaPath;
@@ -232,7 +233,7 @@ public class SyncSessionModel
         get
         {
             var str = $"{StatusString} ({StatusCategory})\n\n{StatusDescription}";
-            foreach (var err in Errors) str += $"\n\nError: {err}";
+            foreach (var err in Errors) str += $"\n\n{err}";
             foreach (var conflict in Conflicts) str += $"\n\n{conflict.Description()}";
             if (OmittedConflicts > 0) str += $"\n\n{OmittedConflicts:N0} conflicts omitted";
             return str;
@@ -253,6 +254,7 @@ public class SyncSessionModel
     {
         Identifier = state.Session.Identifier;
         Name = state.Session.Name;
+        CreatedAt = state.Session.CreationTime.ToDateTime();
 
         (AlphaName, AlphaPath) = NameAndPathFromUrl(state.Session.Alpha);
         (BetaName, BetaPath) = NameAndPathFromUrl(state.Session.Beta);

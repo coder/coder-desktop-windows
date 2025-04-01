@@ -31,10 +31,12 @@ public partial class FileSyncListViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
     public partial string? UnavailableMessage { get; set; } = null;
 
+    // Initially we use the current cached state, the loading screen is only
+    // shown when the user clicks "Reload" on the error screen.
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowLoading))]
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
-    public partial bool Loading { get; set; } = true;
+    public partial bool Loading { get; set; } = false;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowLoading))]
@@ -100,11 +102,13 @@ public partial class FileSyncListViewModel : ObservableObject
 
         _rpcController.StateChanged += RpcControllerStateChanged;
         _credentialManager.CredentialsChanged += CredentialManagerCredentialsChanged;
+        _syncSessionController.StateChanged += SyncSessionStateChanged;
 
         var rpcModel = _rpcController.GetState();
         var credentialModel = _credentialManager.GetCachedCredentials();
         MaybeSetUnavailableMessage(rpcModel, credentialModel);
-        if (UnavailableMessage == null) ReloadSessions();
+        var syncSessionState = _syncSessionController.GetState();
+        UpdateSyncSessionState(syncSessionState);
     }
 
     private void RpcControllerStateChanged(object? sender, RpcModel rpcModel)
@@ -135,6 +139,19 @@ public partial class FileSyncListViewModel : ObservableObject
         MaybeSetUnavailableMessage(rpcModel, credentialModel);
     }
 
+    private void SyncSessionStateChanged(object? sender, SyncSessionControllerStateModel syncSessionState)
+    {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => SyncSessionStateChanged(sender, syncSessionState));
+            return;
+        }
+
+        UpdateSyncSessionState(syncSessionState);
+    }
+
     private void MaybeSetUnavailableMessage(RpcModel rpcModel, CredentialModel credentialModel)
     {
         var oldMessage = UnavailableMessage;
@@ -158,6 +175,12 @@ public partial class FileSyncListViewModel : ObservableObject
         }
     }
 
+    private void UpdateSyncSessionState(SyncSessionControllerStateModel syncSessionState)
+    {
+        Error = syncSessionState.DaemonError;
+        Sessions = syncSessionState.SyncSessions.Select(s => new SyncSessionViewModel(this, s)).ToList();
+    }
+
     private void ClearNewForm()
     {
         CreatingNewSession = false;
@@ -172,23 +195,24 @@ public partial class FileSyncListViewModel : ObservableObject
         Loading = true;
         Error = null;
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        _syncSessionController.ListSyncSessions(cts.Token).ContinueWith(HandleList, CancellationToken.None);
+        _syncSessionController.RefreshState(cts.Token).ContinueWith(HandleRefresh, CancellationToken.None);
     }
 
-    private void HandleList(Task<IEnumerable<SyncSessionModel>> t)
+    private void HandleRefresh(Task<SyncSessionControllerStateModel> t)
     {
         // Ensure we're on the UI thread.
         if (_dispatcherQueue == null) return;
         if (!_dispatcherQueue.HasThreadAccess)
         {
-            _dispatcherQueue.TryEnqueue(() => HandleList(t));
+            _dispatcherQueue.TryEnqueue(() => HandleRefresh(t));
             return;
         }
 
         if (t.IsCompletedSuccessfully)
         {
-            Sessions = t.Result.Select(s => new SyncSessionViewModel(this, s)).ToList();
+            Sessions = t.Result.SyncSessions.Select(s => new SyncSessionViewModel(this, s)).ToList();
             Loading = false;
+            Error = t.Result.DaemonError;
             return;
         }
 
@@ -261,6 +285,7 @@ public partial class FileSyncListViewModel : ObservableObject
                 Path = NewSessionRemotePath,
             }.Uri;
 
+            // The controller will send us a state changed event.
             await _syncSessionController.CreateSyncSession(new CreateSyncSessionRequest
             {
                 Alpha = alphaUri,
@@ -268,7 +293,6 @@ public partial class FileSyncListViewModel : ObservableObject
             }, cts.Token);
 
             ClearNewForm();
-            ReloadSessions();
         }
         catch (Exception e)
         {
@@ -299,6 +323,7 @@ public partial class FileSyncListViewModel : ObservableObject
             if (Sessions.FirstOrDefault(s => s.Model.Identifier == identifier) is not { } session)
                 throw new InvalidOperationException("Session not found");
 
+            // The controller will send us a state changed event.
             if (session.Model.Paused)
             {
                 actionString = "resume";
@@ -309,8 +334,6 @@ public partial class FileSyncListViewModel : ObservableObject
                 actionString = "pause";
                 await _syncSessionController.PauseSyncSession(session.Model.Identifier, cts.Token);
             }
-
-            ReloadSessions();
         }
         catch (Exception e)
         {
@@ -353,9 +376,8 @@ public partial class FileSyncListViewModel : ObservableObject
             if (res is not ContentDialogResult.Primary)
                 return;
 
+            // The controller will send us a state changed event.
             await _syncSessionController.TerminateSyncSession(session.Model.Identifier, cts.Token);
-
-            ReloadSessions();
         }
         catch (Exception e)
         {

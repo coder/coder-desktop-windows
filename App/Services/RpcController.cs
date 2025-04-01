@@ -96,8 +96,8 @@ public class RpcController : IRpcController
         {
             state.RpcLifecycle = RpcLifecycle.Connecting;
             state.VpnLifecycle = VpnLifecycle.Stopped;
-            state.Workspaces.Clear();
-            state.Agents.Clear();
+            state.Workspaces = [];
+            state.Agents = [];
         });
 
         if (_speaker != null)
@@ -127,8 +127,8 @@ public class RpcController : IRpcController
             {
                 state.RpcLifecycle = RpcLifecycle.Disconnected;
                 state.VpnLifecycle = VpnLifecycle.Unknown;
-                state.Workspaces.Clear();
-                state.Agents.Clear();
+                state.Workspaces = [];
+                state.Agents = [];
             });
             throw new RpcOperationException("Failed to reconnect to the RPC server", e);
         }
@@ -137,8 +137,8 @@ public class RpcController : IRpcController
         {
             state.RpcLifecycle = RpcLifecycle.Connected;
             state.VpnLifecycle = VpnLifecycle.Unknown;
-            state.Workspaces.Clear();
-            state.Agents.Clear();
+            state.Workspaces = [];
+            state.Agents = [];
         });
 
         var statusReply = await _speaker.SendRequestAwaitReply(new ClientMessage
@@ -276,10 +276,8 @@ public class RpcController : IRpcController
                 Status.Types.Lifecycle.Stopped => VpnLifecycle.Stopped,
                 _ => VpnLifecycle.Stopped,
             };
-            state.Workspaces.Clear();
-            state.Workspaces.AddRange(status.PeerUpdate.UpsertedWorkspaces);
-            state.Agents.Clear();
-            state.Agents.AddRange(status.PeerUpdate.UpsertedAgents);
+            state.Workspaces = status.PeerUpdate.UpsertedWorkspaces;
+            state.Agents = status.PeerUpdate.UpsertedAgents;
         });
     }
 

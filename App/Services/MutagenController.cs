@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.IO;
@@ -24,8 +23,8 @@ namespace Coder.Desktop.App.Services;
 
 public class CreateSyncSessionRequest
 {
-    public Uri Alpha { get; init; }
-    public Uri Beta { get; init; }
+    public required Uri Alpha { get; init; }
+    public required Uri Beta { get; init; }
 
     public URL AlphaMutagenUrl => MutagenUrl(Alpha);
     public URL BetaMutagenUrl => MutagenUrl(Beta);
@@ -53,17 +52,27 @@ public class CreateSyncSessionRequest
 
 public interface ISyncSessionController : IAsyncDisposable
 {
-    Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct = default);
+    public event EventHandler<SyncSessionControllerStateModel> StateChanged;
+
+    /// <summary>
+    ///     Gets the current state of the controller.
+    /// </summary>
+    SyncSessionControllerStateModel GetState();
+
+    // All the following methods will raise a StateChanged event *BEFORE* they return.
+
+    /// <summary>
+    ///     Starts the daemon (if it's not running) and fully refreshes the state of the controller. This should be
+    ///     called at startup and after any unexpected daemon crashes to attempt to retry.
+    ///     Additionally, the first call to RefreshState will start a background task to keep the state up-to-date while
+    ///     the daemon is running.
+    /// </summary>
+    Task<SyncSessionControllerStateModel> RefreshState(CancellationToken ct = default);
+
     Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct = default);
     Task<SyncSessionModel> PauseSyncSession(string identifier, CancellationToken ct = default);
     Task<SyncSessionModel> ResumeSyncSession(string identifier, CancellationToken ct = default);
     Task TerminateSyncSession(string identifier, CancellationToken ct = default);
-
-    // <summary>
-    // Initializes the controller; running the daemon if there are any saved sessions. Must be called and
-    // complete before other methods are allowed.
-    // </summary>
-    Task Initialize(CancellationToken ct = default);
 }
 
 // These values are the config option names used in the registry. Any option
@@ -73,35 +82,34 @@ public interface ISyncSessionController : IAsyncDisposable
 // If changed here, they should also be changed in the installer.
 public class MutagenControllerConfig
 {
+    // This is set to "[INSTALLFOLDER]\vpn\mutagen.exe" by the installer.
     [Required] public string MutagenExecutablePath { get; set; } = @"c:\mutagen.exe";
 }
 
-// <summary>
-// A file synchronization controller based on the Mutagen Daemon.
-// </summary>
-public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
+/// <summary>
+///     A file synchronization controller based on the Mutagen Daemon.
+/// </summary>
+public sealed class MutagenController : ISyncSessionController
 {
     // Lock to protect all non-readonly class members.
+
     private readonly RaiiSemaphoreSlim _lock = new(1, 1);
 
-    // daemonProcess is non-null while the daemon is running, starting, or
+    private readonly CancellationTokenSource _stateUpdateCts = new();
+    private Task? _stateUpdateTask;
+
+    // _state is the current state of the controller. It is updated
+    // continuously while the daemon is running and after most operations.
+    private SyncSessionControllerStateModel? _state;
+
+    // _daemonProcess is non-null while the daemon is running, starting, or
     // in the process of stopping.
     private Process? _daemonProcess;
 
     private LogWriter? _logWriter;
 
-    // holds an in-progress task starting or stopping the daemon. If task is null,
-    // then we are not starting or stopping, and the _daemonProcess will be null if
-    // the daemon is currently stopped. If the task is not null, the daemon is
-    // starting or stopping. If stopping, the result is null.
-    private Task<MutagenClient?>? _inProgressTransition;
-
     // holds a client connected to the running mutagen daemon, if the daemon is running.
     private MutagenClient? _mutagenClient;
-
-    // holds a local count of SyncSessions, primarily so we can tell when to shut down
-    // the daemon because it is unneeded.
-    private int _sessionCount = -1;
 
     // set to true if we are disposing the controller. Prevents the daemon from being
     // restarted.
@@ -114,6 +122,8 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         "CoderDesktop",
         "mutagen");
 
+    private string MutagenDaemonLog => Path.Combine(_mutagenDataDirectory, "daemon.log");
+
     public MutagenController(IOptions<MutagenControllerConfig> config)
     {
         _mutagenExecutablePath = config.Value.MutagenExecutablePath;
@@ -125,28 +135,53 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         _mutagenDataDirectory = dataDirectory;
     }
 
+    public event EventHandler<SyncSessionControllerStateModel>? StateChanged;
+
     public async ValueTask DisposeAsync()
     {
-        Task<MutagenClient?>? transition;
-        using (_ = await _lock.LockAsync(CancellationToken.None))
-        {
-            _disposing = true;
-            if (_inProgressTransition == null && _daemonProcess == null && _mutagenClient == null) return;
-            transition = _inProgressTransition;
-        }
+        using var _ = await _lock.LockAsync(CancellationToken.None);
+        _disposing = true;
 
-        if (transition != null) await transition;
-        await StopDaemon(new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
+        await _stateUpdateCts.CancelAsync();
+        if (_stateUpdateTask != null) await _stateUpdateTask;
+        _stateUpdateCts.Dispose();
+
+        using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        await StopDaemon(stopCts.Token);
+
         GC.SuppressFinalize(this);
+    }
+
+    public SyncSessionControllerStateModel GetState()
+    {
+        // No lock required to read the reference.
+        var state = _state;
+        // No clone needed as the model is immutable.
+        if (state != null) return state;
+        return new SyncSessionControllerStateModel
+        {
+            Lifecycle = SyncSessionControllerLifecycle.Uninitialized,
+            DaemonError = null,
+            DaemonLogFilePath = MutagenDaemonLog,
+            SyncSessions = [],
+        };
+    }
+
+    public async Task<SyncSessionControllerStateModel> RefreshState(CancellationToken ct = default)
+    {
+        using var _ = await _lock.LockAsync(ct);
+        var client = await EnsureDaemon(ct);
+        var state = await UpdateState(client, ct);
+        _stateUpdateTask ??= UpdateLoop(_stateUpdateCts.Token);
+        return state;
     }
 
     public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct = default)
     {
-        // reads of _sessionCount are atomic, so don't bother locking for this quick check.
-        if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
+        using var _ = await _lock.LockAsync(ct);
         var client = await EnsureDaemon(ct);
 
-        await using var prompter = await CreatePrompter(client, true, ct);
+        await using var prompter = await Prompter.Create(client, true, ct);
         var createRes = await client.Synchronization.CreateAsync(new CreateRequest
         {
             Prompter = prompter.Identifier,
@@ -162,36 +197,19 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         }, cancellationToken: ct);
         if (createRes == null) throw new InvalidOperationException("CreateAsync returned null");
 
-        // Increment session count early, to avoid list failures interfering
-        // with the count.
-        using (_ = await _lock.LockAsync(ct))
-        {
-            _sessionCount += 1;
-        }
-
-        var listRes = await client.Synchronization.ListAsync(new ListRequest
-        {
-            Selection = new Selection
-            {
-                Specifications = { createRes.Session },
-            },
-        }, cancellationToken: ct);
-        if (listRes == null) throw new InvalidOperationException("ListAsync returned null");
-        if (listRes.SessionStates.Count != 1)
-            throw new InvalidOperationException("ListAsync returned wrong number of sessions");
-
-        return new SyncSessionModel(listRes.SessionStates[0]);
+        var session = await GetSyncSession(client, createRes.Session, ct);
+        await UpdateState(client, ct);
+        return session;
     }
 
     public async Task<SyncSessionModel> PauseSyncSession(string identifier, CancellationToken ct = default)
     {
-        // reads of _sessionCount are atomic, so don't bother locking for this quick check.
-        if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
+        using var _ = await _lock.LockAsync(ct);
         var client = await EnsureDaemon(ct);
 
         // Pausing sessions doesn't require prompting as seen in the mutagen CLI.
-        await using var prompter = await CreatePrompter(client, false, ct);
-        _ = await client.Synchronization.PauseAsync(new PauseRequest
+        await using var prompter = await Prompter.Create(client, false, ct);
+        await client.Synchronization.PauseAsync(new PauseRequest
         {
             Prompter = prompter.Identifier,
             Selection = new Selection
@@ -200,29 +218,18 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             },
         }, cancellationToken: ct);
 
-        var listRes = await client.Synchronization.ListAsync(new ListRequest
-        {
-            Selection = new Selection
-            {
-                Specifications = { identifier },
-            },
-        }, cancellationToken: ct);
-        if (listRes == null) throw new InvalidOperationException("ListAsync returned null");
-        if (listRes.SessionStates.Count != 1)
-            throw new InvalidOperationException("ListAsync returned wrong number of sessions");
-
-        return new SyncSessionModel(listRes.SessionStates[0]);
+        var session = await GetSyncSession(client, identifier, ct);
+        await UpdateState(client, ct);
+        return session;
     }
 
     public async Task<SyncSessionModel> ResumeSyncSession(string identifier, CancellationToken ct = default)
     {
-        // reads of _sessionCount are atomic, so don't bother locking for this quick check.
-        if (_sessionCount == -1) throw new InvalidOperationException("Controller must be Initialized first");
+        using var _ = await _lock.LockAsync(ct);
         var client = await EnsureDaemon(ct);
 
-        // Resuming sessions doesn't require prompting as seen in the mutagen CLI.
-        await using var prompter = await CreatePrompter(client, false, ct);
-        _ = await client.Synchronization.ResumeAsync(new ResumeRequest
+        await using var prompter = await Prompter.Create(client, true, ct);
+        await client.Synchronization.ResumeAsync(new ResumeRequest
         {
             Prompter = prompter.Identifier,
             Selection = new Selection
@@ -231,6 +238,59 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             },
         }, cancellationToken: ct);
 
+        var session = await GetSyncSession(client, identifier, ct);
+        await UpdateState(client, ct);
+        return session;
+    }
+
+    public async Task TerminateSyncSession(string identifier, CancellationToken ct = default)
+    {
+        using var _ = await _lock.LockAsync(ct);
+        var client = await EnsureDaemon(ct);
+
+        // Terminating sessions doesn't require prompting as seen in the mutagen CLI.
+        await using var prompter = await Prompter.Create(client, true, ct);
+
+        await client.Synchronization.TerminateAsync(new SynchronizationTerminateRequest
+        {
+            Prompter = prompter.Identifier,
+            Selection = new Selection
+            {
+                Specifications = { identifier },
+            },
+        }, cancellationToken: ct);
+
+        await UpdateState(client, ct);
+    }
+
+    private async Task UpdateLoop(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            try
+            {
+                // We use a zero timeout here to avoid waiting. If another
+                // operation is holding the lock, it will update the state once
+                // it completes anyway.
+                var locker = await _lock.LockAsync(TimeSpan.Zero, ct);
+                if (locker == null) continue;
+                using (locker)
+                {
+                    if (_mutagenClient == null) continue;
+                    await UpdateState(_mutagenClient, ct);
+                }
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+    }
+
+    private static async Task<SyncSessionModel> GetSyncSession(MutagenClient client, string identifier,
+        CancellationToken ct)
+    {
         var listRes = await client.Synchronization.ListAsync(new ListRequest
         {
             Selection = new Selection
@@ -245,144 +305,136 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         return new SyncSessionModel(listRes.SessionStates[0]);
     }
 
-    public async Task<IEnumerable<SyncSessionModel>> ListSyncSessions(CancellationToken ct = default)
+    private void ReplaceState(SyncSessionControllerStateModel state)
     {
-        // reads of _sessionCount are atomic, so don't bother locking for this quick check.
-        switch (_sessionCount)
-        {
-            case < 0:
-                throw new InvalidOperationException("Controller must be Initialized first");
-            case 0:
-                // If we already know there are no sessions, don't start up the daemon
-                // again.
-                return [];
-        }
-
-        var client = await EnsureDaemon(ct);
-        var res = await client.Synchronization.ListAsync(new ListRequest
-        {
-            Selection = new Selection { All = true },
-        }, cancellationToken: ct);
-
-        if (res == null) return [];
-        return res.SessionStates.Select(s => new SyncSessionModel(s));
-
-        // TODO: the daemon should be stopped if there are no sessions.
+        _state = state;
+        // Since the event handlers could block (or call back the
+        // CredentialManager and deadlock), we run these in a new task.
+        if (StateChanged == null) return;
+        Task.Run(() => { StateChanged?.Invoke(this, state); });
     }
 
-    public async Task Initialize(CancellationToken ct = default)
+    /// <summary>
+    ///     Refreshes state and potentially stops the daemon if there are no sessions. The client must not be used after
+    ///     this method is called.
+    ///     Must be called with the lock held.
+    /// </summary>
+    private async Task<SyncSessionControllerStateModel> UpdateState(MutagenClient client,
+        CancellationToken ct = default)
     {
-        using (_ = await _lock.LockAsync(ct))
+        ListResponse listResponse;
+        try
         {
-            if (_sessionCount != -1) throw new InvalidOperationException("Initialized more than once");
-            _sessionCount = -2; // in progress
-        }
-
-        var client = await EnsureDaemon(ct);
-        var sessions = await client.Synchronization.ListAsync(new ListRequest
-        {
-            Selection = new Selection { All = true },
-        }, cancellationToken: ct);
-
-        using (_ = await _lock.LockAsync(ct))
-        {
-            _sessionCount = sessions == null ? 0 : sessions.SessionStates.Count;
-            // check first that no other transition is happening
-            if (_sessionCount != 0 || _inProgressTransition != null)
-                return;
-
-            // don't pass the CancellationToken; we're not going to wait for
-            // this Task anyway.
-            var transition = StopDaemon(new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token);
-            _inProgressTransition = transition;
-            _ = transition.ContinueWith(RemoveTransition, CancellationToken.None);
-            // here we don't need to wait for the transition to complete
-            // before returning from Initialize(), since other operations
-            // will wait for the _inProgressTransition to complete before
-            // doing anything.
-        }
-    }
-
-    public async Task TerminateSyncSession(string identifier, CancellationToken ct = default)
-    {
-        if (_sessionCount < 0) throw new InvalidOperationException("Controller must be Initialized first");
-        var client = await EnsureDaemon(ct);
-
-        // Terminating sessions doesn't require prompting as seen in the mutagen CLI.
-        await using var prompter = await CreatePrompter(client, true, ct);
-
-        _ = await client.Synchronization.TerminateAsync(new SynchronizationTerminateRequest
-        {
-            Prompter = prompter.Identifier,
-            Selection = new Selection
+            listResponse = await client.Synchronization.ListAsync(new ListRequest
             {
-                Specifications = { identifier },
-            },
-        }, cancellationToken: ct);
-
-        // here we don't use the Cancellation Token, since we want to decrement and possibly
-        // stop the daemon even if we were cancelled, since we already successfully terminated
-        // the session.
-        using (_ = await _lock.LockAsync(CancellationToken.None))
-        {
-            _sessionCount -= 1;
-            if (_sessionCount == 0)
-                // check first that no other transition is happening
-                if (_inProgressTransition == null)
-                {
-                    var transition = StopDaemon(CancellationToken.None);
-                    _inProgressTransition = transition;
-                    _ = transition.ContinueWith(RemoveTransition, CancellationToken.None);
-                    // here we don't need to wait for the transition to complete
-                    // before returning, since other operations
-                    // will wait for the _inProgressTransition to complete before
-                    // doing anything.
-                }
+                Selection = new Selection { All = true },
+            }, cancellationToken: ct);
+            if (listResponse == null)
+                throw new InvalidOperationException("ListAsync returned null");
         }
-    }
-
-    private async Task<MutagenClient> EnsureDaemon(CancellationToken ct)
-    {
-        while (true)
+        catch (Exception e)
         {
-            ct.ThrowIfCancellationRequested();
-            Task<MutagenClient?> transition;
-            using (_ = await _lock.LockAsync(ct))
+            var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var error = $"Failed to UpdateState: ListAsync: {e}";
+            try
             {
-                if (_disposing) throw new ObjectDisposedException(ToString(), "async disposal underway");
-                if (_mutagenClient != null && _inProgressTransition == null) return _mutagenClient;
-                if (_inProgressTransition != null)
-                {
-                    transition = _inProgressTransition;
-                }
-                else
-                {
-                    // no transition in progress, this implies the _mutagenClient
-                    // must be null, and we are stopped.
-                    _inProgressTransition = StartDaemon(ct);
-                    transition = _inProgressTransition;
-                    _ = transition.ContinueWith(RemoveTransition, ct);
-                }
+                await StopDaemon(cts.Token);
+            }
+            catch (Exception e2)
+            {
+                error = $"Failed to UpdateState: StopDaemon failed after failed ListAsync call: {e2}";
             }
 
-            // wait for the transition without holding the lock.
-            var result = await transition;
-            if (result != null) return result;
+            ReplaceState(new SyncSessionControllerStateModel
+            {
+                Lifecycle = SyncSessionControllerLifecycle.Stopped,
+                DaemonError = error,
+                DaemonLogFilePath = MutagenDaemonLog,
+                SyncSessions = [],
+            });
+            throw;
+        }
+
+        var lifecycle = SyncSessionControllerLifecycle.Running;
+        if (listResponse.SessionStates.Count == 0)
+        {
+            lifecycle = SyncSessionControllerLifecycle.Stopped;
+            try
+            {
+                await StopDaemon(ct);
+            }
+            catch (Exception e)
+            {
+                ReplaceState(new SyncSessionControllerStateModel
+                {
+                    Lifecycle = SyncSessionControllerLifecycle.Stopped,
+                    DaemonError = $"Failed to stop daemon after no sessions: {e}",
+                    DaemonLogFilePath = MutagenDaemonLog,
+                    SyncSessions = [],
+                });
+                throw new InvalidOperationException("Failed to stop daemon after no sessions", e);
+            }
+        }
+
+        var sessions = listResponse.SessionStates
+            .Select(s => new SyncSessionModel(s))
+            .ToList();
+        sessions.Sort((a, b) => a.CreatedAt < b.CreatedAt ? -1 : 1);
+        var state = new SyncSessionControllerStateModel
+        {
+            Lifecycle = lifecycle,
+            DaemonError = null,
+            DaemonLogFilePath = MutagenDaemonLog,
+            SyncSessions = sessions,
+        };
+        ReplaceState(state);
+        return state;
+    }
+
+    /// <summary>
+    ///     Starts the daemon if it's not running and returns a client to it.
+    ///     Must be called with the lock held.
+    /// </summary>
+    private async Task<MutagenClient> EnsureDaemon(CancellationToken ct)
+    {
+        ObjectDisposedException.ThrowIf(_disposing, typeof(MutagenController));
+        if (_mutagenClient != null && _daemonProcess != null)
+            return _mutagenClient;
+
+        try
+        {
+            return await StartDaemon(ct);
+        }
+        catch (Exception e)
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try
+            {
+                await StopDaemon(cts.Token);
+            }
+            catch
+            {
+                // ignored
+            }
+
+            ReplaceState(new SyncSessionControllerStateModel
+            {
+                Lifecycle = SyncSessionControllerLifecycle.Stopped,
+                DaemonError = $"Failed to start daemon: {e}",
+                DaemonLogFilePath = MutagenDaemonLog,
+                SyncSessions = [],
+            });
+
+            throw;
         }
     }
 
-    // <summary>
-    // Remove the completed transition from _inProgressTransition
-    // </summary>
-    private void RemoveTransition(Task<MutagenClient?> transition)
+    private async Task<MutagenClient> StartDaemon(CancellationToken ct)
     {
-        using var _ = _lock.Lock();
-        if (_inProgressTransition == transition) _inProgressTransition = null;
-    }
+        // Stop the running daemon
+        if (_daemonProcess != null) await StopDaemon(ct);
 
-    private async Task<MutagenClient?> StartDaemon(CancellationToken ct)
-    {
-        // stop any orphaned daemon
+        // Attempt to stop any orphaned daemon
         try
         {
             var client = new MutagenClient(_mutagenDataDirectory);
@@ -406,10 +458,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             ct.ThrowIfCancellationRequested();
             try
             {
-                using (_ = await _lock.LockAsync(ct))
-                {
-                    StartDaemonProcessLocked();
-                }
+                StartDaemonProcess();
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
@@ -423,34 +472,16 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             break;
         }
 
-        return await WaitForDaemon(ct);
-    }
-
-    private async Task<MutagenClient?> WaitForDaemon(CancellationToken ct)
-    {
+        // Wait for the RPC to be available.
         while (true)
         {
             ct.ThrowIfCancellationRequested();
             try
             {
-                MutagenClient? client;
-                using (_ = await _lock.LockAsync(ct))
-                {
-                    client = _mutagenClient ?? new MutagenClient(_mutagenDataDirectory);
-                }
-
+                var client = new MutagenClient(_mutagenDataDirectory);
                 _ = await client.Daemon.VersionAsync(new VersionRequest(), cancellationToken: ct);
-
-                using (_ = await _lock.LockAsync(ct))
-                {
-                    if (_mutagenClient != null)
-                        // Some concurrent process already wrote a client; unexpected
-                        // since we should be ensuring only one transition is happening
-                        // at a time. Start over with the new client.
-                        continue;
-                    _mutagenClient = client;
-                    return _mutagenClient;
-                }
+                _mutagenClient = client;
+                return client;
             }
             catch (Exception e) when
                 (e is not OperationCanceledException) // TODO: Are there other permanent errors we can detect?
@@ -461,10 +492,13 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         }
     }
 
-    private void StartDaemonProcessLocked()
+    /// <summary>
+    ///     Starts the daemon process.
+    /// </summary>
+    private void StartDaemonProcess()
     {
         if (_daemonProcess != null)
-            throw new InvalidOperationException("startDaemonLock called when daemonProcess already present");
+            throw new InvalidOperationException("StartDaemonProcess called when _daemonProcess already present");
 
         // create the log file first, so ensure we have permissions
         Directory.CreateDirectory(_mutagenDataDirectory);
@@ -483,33 +517,32 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         _daemonProcess.StartInfo.RedirectStandardError = true;
         // TODO: log exited process
         // _daemonProcess.Exited += ...
-        _daemonProcess.Start();
+        if (!_daemonProcess.Start())
+            throw new InvalidOperationException("Failed to start mutagen daemon process, Start returned false");
 
         var writer = new LogWriter(_daemonProcess.StandardError, logStream);
         Task.Run(() => { _ = writer.Run(); });
         _logWriter = writer;
     }
 
-    private async Task<MutagenClient?> StopDaemon(CancellationToken ct)
+    /// <summary>
+    ///     Stops the daemon process.
+    ///     Must be called with the lock held.
+    /// </summary>
+    private async Task StopDaemon(CancellationToken ct)
     {
-        Process? process;
-        MutagenClient? client;
-        LogWriter? writer;
-        using (_ = await _lock.LockAsync(ct))
-        {
-            process = _daemonProcess;
-            client = _mutagenClient;
-            writer = _logWriter;
-            _daemonProcess = null;
-            _mutagenClient = null;
-            _logWriter = null;
-        }
+        var process = _daemonProcess;
+        var client = _mutagenClient;
+        var writer = _logWriter;
+        _daemonProcess = null;
+        _mutagenClient = null;
+        _logWriter = null;
 
         try
         {
             if (client == null)
             {
-                if (process == null) return null;
+                if (process == null) return;
                 process.Kill(true);
             }
             else
@@ -520,12 +553,12 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
                 }
                 catch
                 {
-                    if (process == null) return null;
+                    if (process == null) return;
                     process.Kill(true);
                 }
             }
 
-            if (process == null) return null;
+            if (process == null) return;
             var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
             await process.WaitForExitAsync(cts.Token);
@@ -536,41 +569,6 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             process?.Dispose();
             writer?.Dispose();
         }
-
-        return null;
-    }
-
-    private static async Task<Prompter> CreatePrompter(MutagenClient client, bool allowPrompts = false,
-        CancellationToken ct = default)
-    {
-        var dup = client.Prompting.Host(cancellationToken: ct);
-        if (dup == null) throw new InvalidOperationException("Prompting.Host returned null");
-
-        try
-        {
-            // Write first request.
-            await dup.RequestStream.WriteAsync(new HostRequest
-            {
-                AllowPrompts = allowPrompts,
-            }, ct);
-
-            // Read initial response.
-            if (!await dup.ResponseStream.MoveNext(ct))
-                throw new InvalidOperationException("Prompting.Host response stream ended early");
-            var response = dup.ResponseStream.Current;
-            if (response == null)
-                throw new InvalidOperationException("Prompting.Host response stream returned null");
-            if (string.IsNullOrEmpty(response.Identifier))
-                throw new InvalidOperationException("Prompting.Host response stream returned empty identifier");
-
-            return new Prompter(response.Identifier, dup, ct);
-        }
-        catch
-        {
-            await dup.RequestStream.CompleteAsync();
-            dup.Dispose();
-            throw;
-        }
     }
 
     private class Prompter : IAsyncDisposable
@@ -580,7 +578,7 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
         private readonly Task _handleRequestsTask;
         public string Identifier { get; }
 
-        public Prompter(string identifier, AsyncDuplexStreamingCall<HostRequest, HostResponse> dup,
+        private Prompter(string identifier, AsyncDuplexStreamingCall<HostRequest, HostResponse> dup,
             CancellationToken ct)
         {
             Identifier = identifier;
@@ -604,6 +602,39 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
 
             _cts.Dispose();
             GC.SuppressFinalize(this);
+        }
+
+        public static async Task<Prompter> Create(MutagenClient client, bool allowPrompts = false,
+            CancellationToken ct = default)
+        {
+            var dup = client.Prompting.Host(cancellationToken: ct);
+            if (dup == null) throw new InvalidOperationException("Prompting.Host returned null");
+
+            try
+            {
+                // Write first request.
+                await dup.RequestStream.WriteAsync(new HostRequest
+                {
+                    AllowPrompts = allowPrompts,
+                }, ct);
+
+                // Read initial response.
+                if (!await dup.ResponseStream.MoveNext(ct))
+                    throw new InvalidOperationException("Prompting.Host response stream ended early");
+                var response = dup.ResponseStream.Current;
+                if (response == null)
+                    throw new InvalidOperationException("Prompting.Host response stream returned null");
+                if (string.IsNullOrEmpty(response.Identifier))
+                    throw new InvalidOperationException("Prompting.Host response stream returned empty identifier");
+
+                return new Prompter(response.Identifier, dup, ct);
+            }
+            catch
+            {
+                await dup.RequestStream.CompleteAsync();
+                dup.Dispose();
+                throw;
+            }
         }
 
         private async Task HandleRequests(CancellationToken ct)
@@ -642,31 +673,30 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             }
         }
     }
-}
 
-public class LogWriter(StreamReader reader, StreamWriter writer) : IDisposable
-{
-    public void Dispose()
+    private class LogWriter(StreamReader reader, StreamWriter writer) : IDisposable
     {
-        reader.Dispose();
-        writer.Dispose();
-        GC.SuppressFinalize(this);
-    }
+        public void Dispose()
+        {
+            reader.Dispose();
+            writer.Dispose();
+            GC.SuppressFinalize(this);
+        }
 
-    public async Task Run()
-    {
-        try
+        public async Task Run()
         {
-            string? line;
-            while ((line = await reader.ReadLineAsync()) != null) await writer.WriteLineAsync(line);
-        }
-        catch
-        {
-            // TODO: Log?
-        }
-        finally
-        {
-            Dispose();
+            try
+            {
+                while (await reader.ReadLineAsync() is { } line) await writer.WriteLineAsync(line);
+            }
+            catch
+            {
+                // TODO: Log?
+            }
+            finally
+            {
+                Dispose();
+            }
         }
     }
 }

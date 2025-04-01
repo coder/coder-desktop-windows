@@ -127,7 +127,8 @@
 
                         <ItemsRepeater.ItemTemplate>
                             <DataTemplate x:DataType="viewmodels:SyncSessionViewModel">
-                                <Grid Margin="0,10">
+                                <!-- DataContext is set here so we can listen to DataContextChanged below -->
+                                <Grid Margin="0,10" DataContext="{x:Bind Model, Mode=OneWay}">
                                     <!-- These are (mostly) from the header Grid and should be copied here -->
                                     <Grid.Resources>
                                         <Style TargetType="Border">
@@ -148,14 +149,14 @@
                                             <HyperlinkButton
                                                 Padding="0"
                                                 Margin="0,0,5,0"
-                                                Command="{x:Bind PauseOrResumeSessionCommand, Mode=OneWay}">
+                                                Command="{x:Bind PauseOrResumeSessionCommand}">
 
-                                                <FontIcon Glyph="{x:Bind Icon, Mode=OneWay}" FontSize="15"
+                                                <FontIcon Glyph="{x:Bind Icon}" FontSize="15"
                                                           Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
                                             </HyperlinkButton>
                                             <HyperlinkButton
                                                 Padding="0"
-                                                Command="{x:Bind TerminateSessionCommand, Mode=OneWay}">
+                                                Command="{x:Bind TerminateSessionCommand}">
 
                                                 <FontIcon Glyph="&#xF140;" FontSize="15"
                                                           Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
@@ -208,16 +209,25 @@
                                                     Value="{ThemeResource DefaultTextForegroundThemeBrush}" />
                                             </converters:StringToBrushSelector>
                                         </Border.Resources>
+                                        <!--
+                                            We cannot use a direct binding to ToolTipService.ToolTip here because these
+                                            tooltips are populated from computed properties, which seems to cause the
+                                            tooltip to update (and close) even if the text hasn't changed. Since we
+                                            update the sync session state every 5 seconds, this is super annoying.
+                                        -->
                                         <TextBlock
                                             Text="{x:Bind Model.StatusString}"
                                             TextTrimming="CharacterEllipsis"
                                             Foreground="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
-                                            ToolTipService.ToolTip="{x:Bind Model.StatusDetails}" />
+                                            Loaded="{x:Bind OnStatusTextLoaded}"
+                                            DataContextChanged="{x:Bind OnStatusTextDataContextChanged}" />
                                     </Border>
                                     <Border Grid.Column="5">
+                                        <!-- Same thing happens here as it's also a computed property -->
                                         <TextBlock
                                             Text="{x:Bind Model.AlphaSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
-                                            ToolTipService.ToolTip="{x:Bind Model.SizeDetails}" />
+                                            Loaded="{x:Bind OnSizeTextLoaded}"
+                                            DataContextChanged="{x:Bind OnSizeTextDataContextChanged}" />
                                     </Border>
                                 </Grid>
                             </DataTemplate>
