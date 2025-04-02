@@ -250,14 +250,14 @@ public partial class FileSyncListViewModel : ObservableObject
         {
             await _syncSessionController.CreateSyncSession(new CreateSyncSessionRequest
             {
-                Alpha = new CreateSyncSessionRequestEndpoint
+                Alpha = new CreateSyncSessionRequest.Endpoint
                 {
-                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = NewSessionLocalPath,
                 },
-                Beta = new CreateSyncSessionRequestEndpoint
+                Beta = new CreateSyncSessionRequest.Endpoint
                 {
-                    Protocol = CreateSyncSessionRequestEndpointProtocol.Ssh,
+                    Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Ssh,
                     Host = NewSessionRemoteHost,
                     Path = NewSessionRemotePath,
                 },

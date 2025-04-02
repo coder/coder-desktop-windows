@@ -101,14 +101,14 @@ public class MutagenControllerTest
 
         var session1 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
-            Alpha = new CreateSyncSessionRequestEndpoint
+            Alpha = new CreateSyncSessionRequest.Endpoint
             {
-                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                 Path = alphaDirectory.FullName,
             },
-            Beta = new CreateSyncSessionRequestEndpoint
+            Beta = new CreateSyncSessionRequest.Endpoint
             {
-                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                 Path = betaDirectory.FullName,
             },
         }, ct);
@@ -119,14 +119,14 @@ public class MutagenControllerTest
 
         var session2 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
-            Alpha = new CreateSyncSessionRequestEndpoint
+            Alpha = new CreateSyncSessionRequest.Endpoint
             {
-                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                 Path = alphaDirectory.FullName,
             },
-            Beta = new CreateSyncSessionRequestEndpoint
+            Beta = new CreateSyncSessionRequest.Endpoint
             {
-                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                 Path = betaDirectory.FullName,
             },
         }, ct);
@@ -199,14 +199,14 @@ public class MutagenControllerTest
             await controller.Initialize(ct);
             await controller.CreateSyncSession(new CreateSyncSessionRequest
             {
-                Alpha = new CreateSyncSessionRequestEndpoint
+                Alpha = new CreateSyncSessionRequest.Endpoint
                 {
-                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = alphaDirectory.FullName,
                 },
-                Beta = new CreateSyncSessionRequestEndpoint
+                Beta = new CreateSyncSessionRequest.Endpoint
                 {
-                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = betaDirectory.FullName,
                 },
             }, ct);
@@ -239,14 +239,14 @@ public class MutagenControllerTest
             await controller1.Initialize(ct);
             await controller1.CreateSyncSession(new CreateSyncSessionRequest
             {
-                Alpha = new CreateSyncSessionRequestEndpoint
+                Alpha = new CreateSyncSessionRequest.Endpoint
                 {
-                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = alphaDirectory.FullName,
                 },
-                Beta = new CreateSyncSessionRequestEndpoint
+                Beta = new CreateSyncSessionRequest.Endpoint
                 {
-                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = betaDirectory.FullName,
                 },
             }, ct);

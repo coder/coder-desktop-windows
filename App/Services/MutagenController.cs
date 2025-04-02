@@ -23,48 +23,48 @@ using SynchronizationTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.S
 
 namespace Coder.Desktop.App.Services;
 
-public enum CreateSyncSessionRequestEndpointProtocol
-{
-    Local,
-    Ssh,
-}
-
-public class CreateSyncSessionRequestEndpoint
-{
-    public required CreateSyncSessionRequestEndpointProtocol Protocol { get; init; }
-    public string User { get; init; } = "";
-    public string Host { get; init; } = "";
-    public uint Port { get; init; } = 0;
-    public string Path { get; init; } = "";
-
-    public URL MutagenUrl
-    {
-        get
-        {
-            var protocol = Protocol switch
-            {
-                CreateSyncSessionRequestEndpointProtocol.Local => MutagenProtocol.Local,
-                CreateSyncSessionRequestEndpointProtocol.Ssh => MutagenProtocol.Ssh,
-                _ => throw new ArgumentException($"Invalid protocol '{Protocol}'", nameof(Protocol)),
-            };
-
-            return new URL
-            {
-                Kind = Kind.Synchronization,
-                Protocol = protocol,
-                User = User,
-                Host = Host,
-                Port = Port,
-                Path = Path,
-            };
-        }
-    }
-}
-
 public class CreateSyncSessionRequest
 {
-    public required CreateSyncSessionRequestEndpoint Alpha { get; init; }
-    public required CreateSyncSessionRequestEndpoint Beta { get; init; }
+    public required Endpoint Alpha { get; init; }
+    public required Endpoint Beta { get; init; }
+
+    public class Endpoint
+    {
+        public enum ProtocolKind
+        {
+            Local,
+            Ssh,
+        }
+
+        public required ProtocolKind Protocol { get; init; }
+        public string User { get; init; } = "";
+        public string Host { get; init; } = "";
+        public uint Port { get; init; } = 0;
+        public string Path { get; init; } = "";
+
+        public URL MutagenUrl
+        {
+            get
+            {
+                var protocol = Protocol switch
+                {
+                    ProtocolKind.Local => MutagenProtocol.Local,
+                    ProtocolKind.Ssh => MutagenProtocol.Ssh,
+                    _ => throw new ArgumentException($"Invalid protocol '{Protocol}'", nameof(Protocol)),
+                };
+
+                return new URL
+                {
+                    Kind = Kind.Synchronization,
+                    Protocol = protocol,
+                    User = User,
+                    Host = Host,
+                    Port = Port,
+                    Path = Path,
+                };
+            }
+        }
+    }
 }
 
 public interface ISyncSessionController : IAsyncDisposable
