@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using NUnit.Framework.Interfaces;
 
 namespace Coder.Desktop.Tests.App.Services;
 
@@ -41,7 +42,11 @@ public class MutagenControllerTest
     [TearDown]
     public void DeleteTempDir()
     {
-        _tempDirectory.Delete(true);
+        // Only delete the temp directory if the test passed.
+        if (TestContext.CurrentContext.Result.Outcome == ResultState.Success)
+            _tempDirectory.Delete(true);
+        else
+            TestContext.Out.WriteLine($"persisting temp directory: {_tempDirectory}");
     }
 
     private string _mutagenBinaryPath;
@@ -56,7 +61,10 @@ public class MutagenControllerTest
             $"Unsupported architecture '{RuntimeInformation.ProcessArchitecture}'. Coder only supports x64 and arm64."),
     };
 
-    private static async Task AcquireDaemonLock(string dataDirectory, CancellationToken ct)
+    /// <summary>
+    ///     Ensures the daemon is stopped by waiting for the daemon.lock file to be released.
+    /// </summary>
+    private static async Task AssertDaemonStopped(string dataDirectory, CancellationToken ct)
     {
         var lockPath = Path.Combine(dataDirectory, "daemon", "daemon.lock");
         // If we can lock the daemon.lock file, it means the daemon has stopped.
@@ -102,12 +110,20 @@ public class MutagenControllerTest
         Assert.That(state.SyncSessions, Is.Empty);
 
         // Ensure the daemon is stopped because all sessions are terminated.
-        await AcquireDaemonLock(dataDirectory, ct);
+        await AssertDaemonStopped(dataDirectory, ct);
 
         var session1 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
-            Alpha = new Uri("file:///" + alphaDirectory.FullName),
-            Beta = new Uri("file:///" + betaDirectory.FullName),
+            Alpha = new CreateSyncSessionRequestEndpoint
+            {
+                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Path = alphaDirectory.FullName,
+            },
+            Beta = new CreateSyncSessionRequestEndpoint
+            {
+                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Path = betaDirectory.FullName,
+            },
         }, ct);
 
         state = controller.GetState();
@@ -116,8 +132,16 @@ public class MutagenControllerTest
 
         var session2 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
-            Alpha = new Uri("file:///" + alphaDirectory.FullName),
-            Beta = new Uri("file:///" + betaDirectory.FullName),
+            Alpha = new CreateSyncSessionRequestEndpoint
+            {
+                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Path = alphaDirectory.FullName,
+            },
+            Beta = new CreateSyncSessionRequestEndpoint
+            {
+                Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                Path = betaDirectory.FullName,
+            },
         }, ct);
 
         state = controller.GetState();
@@ -151,7 +175,7 @@ public class MutagenControllerTest
         await controller.TerminateSyncSession(session2.Identifier, ct);
 
         // Ensure the daemon is stopped because all sessions are terminated.
-        await AcquireDaemonLock(dataDirectory, ct);
+        await AssertDaemonStopped(dataDirectory, ct);
 
         state = controller.GetState();
         Assert.That(state.Lifecycle, Is.EqualTo(SyncSessionControllerLifecycle.Stopped));
@@ -174,7 +198,7 @@ public class MutagenControllerTest
         Assert.That(File.Exists(logPath));
 
         // Ensure the daemon is stopped.
-        await AcquireDaemonLock(dataDirectory, ct);
+        await AssertDaemonStopped(dataDirectory, ct);
     }
 
     [Test(Description = "Daemon is restarted when we create a session")]
@@ -191,12 +215,20 @@ public class MutagenControllerTest
             await controller.RefreshState(ct);
             await controller.CreateSyncSession(new CreateSyncSessionRequest
             {
-                Alpha = new Uri("file:///" + alphaDirectory.FullName),
-                Beta = new Uri("file:///" + betaDirectory.FullName),
+                Alpha = new CreateSyncSessionRequestEndpoint
+                {
+                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Path = alphaDirectory.FullName,
+                },
+                Beta = new CreateSyncSessionRequestEndpoint
+                {
+                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Path = betaDirectory.FullName,
+                },
             }, ct);
         }
 
-        await AcquireDaemonLock(dataDirectory, ct);
+        await AssertDaemonStopped(dataDirectory, ct);
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));
         var logLines = await File.ReadAllLinesAsync(logPath, ct);
@@ -223,8 +255,16 @@ public class MutagenControllerTest
             await controller1.RefreshState(ct);
             await controller1.CreateSyncSession(new CreateSyncSessionRequest
             {
-                Alpha = new Uri("file:///" + alphaDirectory.FullName),
-                Beta = new Uri("file:///" + betaDirectory.FullName),
+                Alpha = new CreateSyncSessionRequestEndpoint
+                {
+                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Path = alphaDirectory.FullName,
+                },
+                Beta = new CreateSyncSessionRequestEndpoint
+                {
+                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Path = betaDirectory.FullName,
+                },
             }, ct);
 
             controller2 = new MutagenController(_mutagenBinaryPath, dataDirectory);
@@ -236,7 +276,7 @@ public class MutagenControllerTest
             if (controller2 != null) await controller2.DisposeAsync();
         }
 
-        await AcquireDaemonLock(dataDirectory, ct);
+        await AssertDaemonStopped(dataDirectory, ct);
 
         var logPath = Path.Combine(dataDirectory, "daemon.log");
         Assert.That(File.Exists(logPath));

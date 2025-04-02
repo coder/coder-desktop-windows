@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Linq;
 using Coder.Desktop.App.Converters;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization;
@@ -49,163 +48,9 @@ public sealed class SyncSessionModelEndpointSize
     }
 }
 
-public enum SyncSessionModelEntryKind
-{
-    Unknown,
-    Directory,
-    File,
-    SymbolicLink,
-    Untracked,
-    Problematic,
-    PhantomDirectory,
-}
-
-public sealed class SyncSessionModelEntry
-{
-    public readonly SyncSessionModelEntryKind Kind;
-
-    // For Kind == Directory only.
-    public readonly ReadOnlyDictionary<string, SyncSessionModelEntry> Contents;
-
-    // For Kind == File only.
-    public readonly string Digest = "";
-    public readonly bool Executable;
-
-    // For Kind = SymbolicLink only.
-    public readonly string Target = "";
-
-    // For Kind = Problematic only.
-    public readonly string Problem = "";
-
-    public SyncSessionModelEntry(Entry protoEntry)
-    {
-        Kind = protoEntry.Kind switch
-        {
-            EntryKind.Directory => SyncSessionModelEntryKind.Directory,
-            EntryKind.File => SyncSessionModelEntryKind.File,
-            EntryKind.SymbolicLink => SyncSessionModelEntryKind.SymbolicLink,
-            EntryKind.Untracked => SyncSessionModelEntryKind.Untracked,
-            EntryKind.Problematic => SyncSessionModelEntryKind.Problematic,
-            EntryKind.PhantomDirectory => SyncSessionModelEntryKind.PhantomDirectory,
-            _ => SyncSessionModelEntryKind.Unknown,
-        };
-
-        switch (Kind)
-        {
-            case SyncSessionModelEntryKind.Directory:
-            {
-                var contents = new Dictionary<string, SyncSessionModelEntry>();
-                foreach (var (key, value) in protoEntry.Contents)
-                    contents[key] = new SyncSessionModelEntry(value);
-                Contents = new ReadOnlyDictionary<string, SyncSessionModelEntry>(contents);
-                break;
-            }
-            case SyncSessionModelEntryKind.File:
-                Digest = BitConverter.ToString(protoEntry.Digest.ToByteArray()).Replace("-", "").ToLower();
-                Executable = protoEntry.Executable;
-                break;
-            case SyncSessionModelEntryKind.SymbolicLink:
-                Target = protoEntry.Target;
-                break;
-            case SyncSessionModelEntryKind.Problematic:
-                Problem = protoEntry.Problem;
-                break;
-        }
-    }
-
-    public new string ToString()
-    {
-        var str = Kind.ToString();
-        switch (Kind)
-        {
-            case SyncSessionModelEntryKind.Directory:
-                str += $" ({Contents.Count} entries)";
-                break;
-            case SyncSessionModelEntryKind.File:
-                str += $" ({Digest}, executable: {Executable})";
-                break;
-            case SyncSessionModelEntryKind.SymbolicLink:
-                str += $" (target: {Target})";
-                break;
-            case SyncSessionModelEntryKind.Problematic:
-                str += $" ({Problem})";
-                break;
-        }
-
-        return str;
-    }
-}
-
-public sealed class SyncSessionModelConflictChange
-{
-    public readonly string Path; // relative to sync root
-
-    // null means non-existent:
-    public readonly SyncSessionModelEntry? Old;
-    public readonly SyncSessionModelEntry? New;
-
-    public SyncSessionModelConflictChange(Change protoChange)
-    {
-        Path = protoChange.Path;
-        Old = protoChange.Old != null ? new SyncSessionModelEntry(protoChange.Old) : null;
-        New = protoChange.New != null ? new SyncSessionModelEntry(protoChange.New) : null;
-    }
-
-    public new string ToString()
-    {
-        const string nonExistent = "<non-existent>";
-        var oldStr = Old != null ? Old.ToString() : nonExistent;
-        var newStr = New != null ? New.ToString() : nonExistent;
-        return $"{Path} ({oldStr} -> {newStr})";
-    }
-}
-
-public sealed class SyncSessionModelConflict
-{
-    public readonly string Root; // relative to sync root
-    public readonly List<SyncSessionModelConflictChange> AlphaChanges;
-    public readonly List<SyncSessionModelConflictChange> BetaChanges;
-
-    public SyncSessionModelConflict(Conflict protoConflict)
-    {
-        Root = protoConflict.Root;
-        AlphaChanges = protoConflict.AlphaChanges.Select(change => new SyncSessionModelConflictChange(change)).ToList();
-        BetaChanges = protoConflict.BetaChanges.Select(change => new SyncSessionModelConflictChange(change)).ToList();
-    }
-
-    private string? FriendlyProblem()
-    {
-        // If the change is <non-existent> -> !<non-existent>.
-        if (AlphaChanges.Count == 1 && BetaChanges.Count == 1 &&
-            AlphaChanges[0].Old == null &&
-            BetaChanges[0].Old == null &&
-            AlphaChanges[0].New != null &&
-            BetaChanges[0].New != null)
-            return
-                "An entry was created on both endpoints and they do not match. You can resolve this conflict by deleting one of the entries on either side.";
-
-        return null;
-    }
-
-    public string Description()
-    {
-        // This formatting is very similar to Mutagen.
-        var str = $"Conflict at path '{Root}':";
-        foreach (var change in AlphaChanges)
-            str += $"\n  (alpha) {change.ToString()}";
-        foreach (var change in AlphaChanges)
-            str += $"\n  (beta)  {change.ToString()}";
-        if (FriendlyProblem() is { } friendlyProblem)
-            str += $"\n\n  {friendlyProblem}";
-
-        return str;
-    }
-}
-
 public class SyncSessionModel
 {
     public readonly string Identifier;
-    public readonly string Name;
     public readonly DateTime CreatedAt;
 
     public readonly string AlphaName;
@@ -220,8 +65,8 @@ public class SyncSessionModel
     public readonly SyncSessionModelEndpointSize AlphaSize;
     public readonly SyncSessionModelEndpointSize BetaSize;
 
-    public readonly IReadOnlyList<SyncSessionModelConflict> Conflicts;
-    public ulong OmittedConflicts;
+    public readonly IReadOnlyList<string> Conflicts; // Conflict descriptions
+    public readonly ulong OmittedConflicts;
     public readonly IReadOnlyList<string> Errors;
 
     // If Paused is true, the session can be resumed. If false, the session can
@@ -232,10 +77,12 @@ public class SyncSessionModel
     {
         get
         {
-            var str = $"{StatusString} ({StatusCategory})\n\n{StatusDescription}";
-            foreach (var err in Errors) str += $"\n\n{err}";
-            foreach (var conflict in Conflicts) str += $"\n\n{conflict.Description()}";
-            if (OmittedConflicts > 0) str += $"\n\n{OmittedConflicts:N0} conflicts omitted";
+            var str = StatusString;
+            if (StatusCategory.ToString() != StatusString) str += $" ({StatusCategory})";
+            str += $"\n\n{StatusDescription}";
+            foreach (var err in Errors) str += $"\n\n-----\n\n{err}";
+            foreach (var conflict in Conflicts) str += $"\n\n-----\n\n{conflict}";
+            if (OmittedConflicts > 0) str += $"\n\n-----\n\n{OmittedConflicts:N0} conflicts omitted";
             return str;
         }
     }
@@ -253,7 +100,6 @@ public class SyncSessionModel
     public SyncSessionModel(State state)
     {
         Identifier = state.Session.Identifier;
-        Name = state.Session.Name;
         CreatedAt = state.Session.CreationTime.ToDateTime();
 
         (AlphaName, AlphaPath) = NameAndPathFromUrl(state.Session.Alpha);
@@ -356,7 +202,7 @@ public class SyncSessionModel
             StatusDescription = "The session has conflicts that need to be resolved.";
         }
 
-        Conflicts = state.Conflicts.Select(c => new SyncSessionModelConflict(c)).ToList();
+        Conflicts = state.Conflicts.Select(ConflictToString).ToList();
         OmittedConflicts = state.ExcludedConflicts;
 
         AlphaSize = new SyncSessionModelEndpointSize
@@ -404,5 +250,56 @@ public class SyncSessionModel
         if (string.IsNullOrWhiteSpace(url.Host)) name = url.Host;
 
         return (name, path);
+    }
+
+    private static string ConflictToString(Conflict conflict)
+    {
+        string? friendlyProblem = null;
+        if (conflict.AlphaChanges.Count == 1 && conflict.BetaChanges.Count == 1 &&
+            conflict.AlphaChanges[0].Old == null &&
+            conflict.BetaChanges[0].Old == null &&
+            conflict.AlphaChanges[0].New != null &&
+            conflict.BetaChanges[0].New != null)
+            friendlyProblem =
+                "An entry was created on both endpoints and they do not match. You can resolve this conflict by deleting one of the entries on either side.";
+
+        var str = $"Conflict at path '{conflict.Root}':";
+        foreach (var change in conflict.AlphaChanges)
+            str += $"\n  (alpha) {ChangeToString(change)}";
+        foreach (var change in conflict.BetaChanges)
+            str += $"\n  (beta)  {ChangeToString(change)}";
+        if (friendlyProblem != null)
+            str += $"\n\n{friendlyProblem}";
+
+        return str;
+    }
+
+    private static string ChangeToString(Change change)
+    {
+        return $"{change.Path} ({EntryToString(change.Old)} -> {EntryToString(change.New)})";
+    }
+
+    private static string EntryToString(Entry? entry)
+    {
+        if (entry == null) return "<non-existent>";
+        var str = entry.Kind.ToString();
+        switch (entry.Kind)
+        {
+            case EntryKind.Directory:
+                str += $" ({entry.Contents.Count} entries)";
+                break;
+            case EntryKind.File:
+                var digest = BitConverter.ToString(entry.Digest.ToByteArray()).Replace("-", "").ToLower();
+                str += $" ({digest}, executable: {entry.Executable})";
+                break;
+            case EntryKind.SymbolicLink:
+                str += $" (target: {entry.Target})";
+                break;
+            case EntryKind.Problematic:
+                str += $" ({entry.Problem})";
+                break;
+        }
+
+        return str;
     }
 }
