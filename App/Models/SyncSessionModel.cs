@@ -1,6 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Coder.Desktop.App.Converters;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Synchronization.Core;
 using Coder.Desktop.MutagenSdk.Proto.Url;
 
 namespace Coder.Desktop.App.Models;
@@ -48,7 +51,7 @@ public sealed class SyncSessionModelEndpointSize
 public class SyncSessionModel
 {
     public readonly string Identifier;
-    public readonly string Name;
+    public readonly DateTime CreatedAt;
 
     public readonly string AlphaName;
     public readonly string AlphaPath;
@@ -62,14 +65,24 @@ public class SyncSessionModel
     public readonly SyncSessionModelEndpointSize AlphaSize;
     public readonly SyncSessionModelEndpointSize BetaSize;
 
-    public readonly string[] Errors = [];
+    public readonly IReadOnlyList<string> Conflicts; // Conflict descriptions
+    public readonly ulong OmittedConflicts;
+    public readonly IReadOnlyList<string> Errors;
+
+    // If Paused is true, the session can be resumed. If false, the session can
+    // be paused.
+    public bool Paused => StatusCategory is SyncSessionStatusCategory.Paused or SyncSessionStatusCategory.Halted;
 
     public string StatusDetails
     {
         get
         {
-            var str = $"{StatusString} ({StatusCategory})\n\n{StatusDescription}";
-            foreach (var err in Errors) str += $"\n\n{err}";
+            var str = StatusString;
+            if (StatusCategory.ToString() != StatusString) str += $" ({StatusCategory})";
+            str += $"\n\n{StatusDescription}";
+            foreach (var err in Errors) str += $"\n\n-----\n\n{err}";
+            foreach (var conflict in Conflicts) str += $"\n\n-----\n\n{conflict}";
+            if (OmittedConflicts > 0) str += $"\n\n-----\n\n{OmittedConflicts:N0} conflicts omitted";
             return str;
         }
     }
@@ -84,41 +97,10 @@ public class SyncSessionModel
         }
     }
 
-    // TODO: remove once we process sessions from the mutagen RPC
-    public SyncSessionModel(string alphaPath, string betaName, string betaPath,
-        SyncSessionStatusCategory statusCategory,
-        string statusString, string statusDescription, string[] errors)
-    {
-        Identifier = "TODO";
-        Name = "TODO";
-
-        AlphaName = "Local";
-        AlphaPath = alphaPath;
-        BetaName = betaName;
-        BetaPath = betaPath;
-        StatusCategory = statusCategory;
-        StatusString = statusString;
-        StatusDescription = statusDescription;
-        AlphaSize = new SyncSessionModelEndpointSize
-        {
-            SizeBytes = (ulong)new Random().Next(0, 1000000000),
-            FileCount = (ulong)new Random().Next(0, 10000),
-            DirCount = (ulong)new Random().Next(0, 10000),
-        };
-        BetaSize = new SyncSessionModelEndpointSize
-        {
-            SizeBytes = (ulong)new Random().Next(0, 1000000000),
-            FileCount = (ulong)new Random().Next(0, 10000),
-            DirCount = (ulong)new Random().Next(0, 10000),
-        };
-
-        Errors = errors;
-    }
-
     public SyncSessionModel(State state)
     {
         Identifier = state.Session.Identifier;
-        Name = state.Session.Name;
+        CreatedAt = state.Session.CreationTime.ToDateTime();
 
         (AlphaName, AlphaPath) = NameAndPathFromUrl(state.Session.Alpha);
         (BetaName, BetaPath) = NameAndPathFromUrl(state.Session.Beta);
@@ -220,6 +202,9 @@ public class SyncSessionModel
             StatusDescription = "The session has conflicts that need to be resolved.";
         }
 
+        Conflicts = state.Conflicts.Select(ConflictToString).ToList();
+        OmittedConflicts = state.ExcludedConflicts;
+
         AlphaSize = new SyncSessionModelEndpointSize
         {
             SizeBytes = state.AlphaState.TotalFileSize,
@@ -235,9 +220,24 @@ public class SyncSessionModel
             SymlinkCount = state.BetaState.SymbolicLinks,
         };
 
-        // TODO: accumulate errors, there seems to be multiple fields they can
-        //       come from
-        if (!string.IsNullOrWhiteSpace(state.LastError)) Errors = [state.LastError];
+        List<string> errors = [];
+        if (!string.IsNullOrWhiteSpace(state.LastError)) errors.Add($"Last error:\n  {state.LastError}");
+        // TODO: scan problems + transition problems + omissions should probably be fields
+        foreach (var scanProblem in state.AlphaState.ScanProblems) errors.Add($"Alpha scan problem: {scanProblem}");
+        if (state.AlphaState.ExcludedScanProblems > 0)
+            errors.Add($"Alpha scan problems omitted: {state.AlphaState.ExcludedScanProblems}");
+        foreach (var scanProblem in state.AlphaState.ScanProblems) errors.Add($"Beta scan problem: {scanProblem}");
+        if (state.BetaState.ExcludedScanProblems > 0)
+            errors.Add($"Beta scan problems omitted: {state.BetaState.ExcludedScanProblems}");
+        foreach (var transitionProblem in state.AlphaState.TransitionProblems)
+            errors.Add($"Alpha transition problem: {transitionProblem}");
+        if (state.AlphaState.ExcludedTransitionProblems > 0)
+            errors.Add($"Alpha transition problems omitted: {state.AlphaState.ExcludedTransitionProblems}");
+        foreach (var transitionProblem in state.AlphaState.TransitionProblems)
+            errors.Add($"Beta transition problem: {transitionProblem}");
+        if (state.BetaState.ExcludedTransitionProblems > 0)
+            errors.Add($"Beta transition problems omitted: {state.BetaState.ExcludedTransitionProblems}");
+        Errors = errors;
     }
 
     private static (string, string) NameAndPathFromUrl(URL url)
@@ -250,5 +250,56 @@ public class SyncSessionModel
         if (string.IsNullOrWhiteSpace(url.Host)) name = url.Host;
 
         return (name, path);
+    }
+
+    private static string ConflictToString(Conflict conflict)
+    {
+        string? friendlyProblem = null;
+        if (conflict.AlphaChanges.Count == 1 && conflict.BetaChanges.Count == 1 &&
+            conflict.AlphaChanges[0].Old == null &&
+            conflict.BetaChanges[0].Old == null &&
+            conflict.AlphaChanges[0].New != null &&
+            conflict.BetaChanges[0].New != null)
+            friendlyProblem =
+                "An entry was created on both endpoints and they do not match. You can resolve this conflict by deleting one of the entries on either side.";
+
+        var str = $"Conflict at path '{conflict.Root}':";
+        foreach (var change in conflict.AlphaChanges)
+            str += $"\n  (alpha) {ChangeToString(change)}";
+        foreach (var change in conflict.BetaChanges)
+            str += $"\n  (beta)  {ChangeToString(change)}";
+        if (friendlyProblem != null)
+            str += $"\n\n{friendlyProblem}";
+
+        return str;
+    }
+
+    private static string ChangeToString(Change change)
+    {
+        return $"{change.Path} ({EntryToString(change.Old)} -> {EntryToString(change.New)})";
+    }
+
+    private static string EntryToString(Entry? entry)
+    {
+        if (entry == null) return "<non-existent>";
+        var str = entry.Kind.ToString();
+        switch (entry.Kind)
+        {
+            case EntryKind.Directory:
+                str += $" ({entry.Contents.Count} entries)";
+                break;
+            case EntryKind.File:
+                var digest = BitConverter.ToString(entry.Digest.ToByteArray()).Replace("-", "").ToLower();
+                str += $" ({digest}, executable: {entry.Executable})";
+                break;
+            case EntryKind.SymbolicLink:
+                str += $" (target: {entry.Target})";
+                break;
+            case EntryKind.Problematic:
+                str += $" ({entry.Problem})";
+                break;
+        }
+
+        return str;
     }
 }

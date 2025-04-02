@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
@@ -73,6 +74,8 @@ public partial class App : Application
     {
         _handleWindowClosed = false;
         Exit();
+        var syncController = _services.GetRequiredService<ISyncSessionController>();
+        await syncController.DisposeAsync();
         var rpcController = _services.GetRequiredService<IRpcController>();
         // TODO: send a StopRequest if we're connected???
         await rpcController.DisposeAsync();
@@ -86,20 +89,52 @@ public partial class App : Application
         if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
             // Passing in a CT with no cancellation is desired here, because
             // the named pipe open will block until the pipe comes up.
-            _ = rpcController.Reconnect(CancellationToken.None);
+            // TODO: log
+            _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
+            {
+#if DEBUG
+                if (t.Exception != null)
+                {
+                    Debug.WriteLine(t.Exception);
+                    Debugger.Break();
+                }
+#endif
+            });
 
-        // Load the credentials in the background. Even though we pass a CT
-        // with no cancellation, the method itself will impose a timeout on the
-        // HTTP portion.
+        // Load the credentials in the background.
+        var credentialManagerCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var credentialManager = _services.GetRequiredService<ICredentialManager>();
-        _ = credentialManager.LoadCredentials(CancellationToken.None);
+        _ = credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
+        {
+            // TODO: log
+#if DEBUG
+            if (t.Exception != null)
+            {
+                Debug.WriteLine(t.Exception);
+                Debugger.Break();
+            }
+#endif
+            credentialManagerCts.Dispose();
+        }, CancellationToken.None);
+
+        // Initialize file sync.
+        var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
+        _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
+        {
+            // TODO: log
+#if DEBUG
+            if (t.IsCanceled || t.Exception != null) Debugger.Break();
+#endif
+            syncSessionCts.Dispose();
+        }, CancellationToken.None);
 
         // Prevent the TrayWindow from closing, just hide it.
         var trayWindow = _services.GetRequiredService<TrayWindow>();
-        trayWindow.Closed += (sender, args) =>
+        trayWindow.Closed += (_, closedArgs) =>
         {
             if (!_handleWindowClosed) return;
-            args.Handled = true;
+            closedArgs.Handled = true;
             trayWindow.AppWindow.Hide();
         };
     }

@@ -27,18 +27,21 @@ public sealed partial class TrayWindow : Window
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+    private readonly ISyncSessionController _syncSessionController;
     private readonly TrayWindowLoadingPage _loadingPage;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
 
     public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
+        ISyncSessionController syncSessionController,
         TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
     {
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _syncSessionController = syncSessionController;
         _loadingPage = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
@@ -50,9 +53,11 @@ public sealed partial class TrayWindow : Window
         Activated += Window_Activated;
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 
-        rpcController.StateChanged += RpcController_StateChanged;
-        credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
-        SetPageByState(rpcController.GetState(), credentialManager.GetCachedCredentials());
+        _rpcController.StateChanged += RpcController_StateChanged;
+        _credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
+        _syncSessionController.StateChanged += SyncSessionController_StateChanged;
+        SetPageByState(_rpcController.GetState(), _credentialManager.GetCachedCredentials(),
+            _syncSessionController.GetState());
 
         // Setting OpenCommand and ExitCommand directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
@@ -77,9 +82,11 @@ public sealed partial class TrayWindow : Window
         _ = NativeApi.DwmSetWindowAttribute(windowHandle, 33, ref value, Marshal.SizeOf<int>());
     }
 
-    private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel)
+    private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
+        SyncSessionControllerStateModel syncSessionModel)
     {
-        if (credentialModel.State == CredentialState.Unknown)
+        if (credentialModel.State == CredentialState.Unknown ||
+            syncSessionModel.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
         {
             SetRootFrame(_loadingPage);
             return;
@@ -103,12 +110,17 @@ public sealed partial class TrayWindow : Window
 
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
-        SetPageByState(model, _credentialManager.GetCachedCredentials());
+        SetPageByState(model, _credentialManager.GetCachedCredentials(), _syncSessionController.GetState());
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)
     {
-        SetPageByState(_rpcController.GetState(), model);
+        SetPageByState(_rpcController.GetState(), model, _syncSessionController.GetState());
+    }
+
+    private void SyncSessionController_StateChanged(object? _, SyncSessionControllerStateModel model)
+    {
+        SetPageByState(_rpcController.GetState(), _credentialManager.GetCachedCredentials(), model);
     }
 
     // Sadly this is necessary because Window.Content.SizeChanged doesn't
