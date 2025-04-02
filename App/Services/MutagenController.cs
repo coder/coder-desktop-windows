@@ -18,37 +18,53 @@ using Coder.Desktop.Vpn.Utilities;
 using Grpc.Core;
 using Microsoft.Extensions.Options;
 using DaemonTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Daemon.TerminateRequest;
+using MutagenProtocol = Coder.Desktop.MutagenSdk.Proto.Url.Protocol;
 using SynchronizationTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Synchronization.TerminateRequest;
 
 namespace Coder.Desktop.App.Services;
 
+public enum CreateSyncSessionRequestEndpointProtocol
+{
+    Local,
+    Ssh,
+}
+
+public class CreateSyncSessionRequestEndpoint
+{
+    public required CreateSyncSessionRequestEndpointProtocol Protocol { get; init; }
+    public string User { get; init; } = "";
+    public string Host { get; init; } = "";
+    public uint Port { get; init; } = 0;
+    public string Path { get; init; } = "";
+
+    public URL MutagenUrl
+    {
+        get
+        {
+            var protocol = Protocol switch
+            {
+                CreateSyncSessionRequestEndpointProtocol.Local => MutagenProtocol.Local,
+                CreateSyncSessionRequestEndpointProtocol.Ssh => MutagenProtocol.Ssh,
+                _ => throw new ArgumentException($"Invalid protocol '{Protocol}'", nameof(Protocol)),
+            };
+
+            return new URL
+            {
+                Kind = Kind.Synchronization,
+                Protocol = protocol,
+                User = User,
+                Host = Host,
+                Port = Port,
+                Path = Path,
+            };
+        }
+    }
+}
+
 public class CreateSyncSessionRequest
 {
-    public Uri Alpha { get; init; }
-    public Uri Beta { get; init; }
-
-    public URL AlphaMutagenUrl => MutagenUrl(Alpha);
-    public URL BetaMutagenUrl => MutagenUrl(Beta);
-
-    private static URL MutagenUrl(Uri uri)
-    {
-        var protocol = uri.Scheme switch
-        {
-            "file" => Protocol.Local,
-            "ssh" => Protocol.Ssh,
-            _ => throw new ArgumentException("Only 'file' and 'ssh' URLs are supported", nameof(uri)),
-        };
-
-        return new URL
-        {
-            Kind = Kind.Synchronization,
-            Protocol = protocol,
-            User = uri.UserInfo,
-            Host = uri.Host,
-            Port = uri.Port < 0 ? 0 : (uint)uri.Port,
-            Path = protocol is Protocol.Local ? uri.LocalPath : uri.AbsolutePath,
-        };
-    }
+    public required CreateSyncSessionRequestEndpoint Alpha { get; init; }
+    public required CreateSyncSessionRequestEndpoint Beta { get; init; }
 }
 
 public interface ISyncSessionController : IAsyncDisposable
@@ -152,8 +168,8 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             Prompter = prompter.Identifier,
             Specification = new CreationSpecification
             {
-                Alpha = req.AlphaMutagenUrl,
-                Beta = req.BetaMutagenUrl,
+                Alpha = req.Alpha.MutagenUrl,
+                Beta = req.Beta.MutagenUrl,
                 // TODO: probably should set these at some point
                 Configuration = new Configuration(),
                 ConfigurationAlpha = new Configuration(),
@@ -637,7 +653,6 @@ public sealed class MutagenController : ISyncSessionController, IAsyncDisposable
             catch
             {
                 await _dup.RequestStream.CompleteAsync();
-                _dup.Dispose();
                 // TODO: log?
             }
         }

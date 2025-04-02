@@ -248,23 +248,19 @@ public partial class FileSyncListViewModel : ObservableObject
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         try
         {
-            var alphaUri = new UriBuilder
-            {
-                Scheme = "file",
-                Host = "",
-                Path = NewSessionLocalPath,
-            }.Uri;
-            var betaUri = new UriBuilder
-            {
-                Scheme = "ssh",
-                Host = NewSessionRemoteHost,
-                Path = NewSessionRemotePath,
-            }.Uri;
-
             await _syncSessionController.CreateSyncSession(new CreateSyncSessionRequest
             {
-                Alpha = alphaUri,
-                Beta = betaUri,
+                Alpha = new CreateSyncSessionRequestEndpoint
+                {
+                    Protocol = CreateSyncSessionRequestEndpointProtocol.Local,
+                    Path = NewSessionLocalPath,
+                },
+                Beta = new CreateSyncSessionRequestEndpoint
+                {
+                    Protocol = CreateSyncSessionRequestEndpointProtocol.Ssh,
+                    Host = NewSessionRemoteHost,
+                    Path = NewSessionRemotePath,
+                },
             }, cts.Token);
 
             ClearNewForm();
