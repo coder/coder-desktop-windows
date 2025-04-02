@@ -98,7 +98,7 @@ public class MutagenControllerTest
 
         // Initial state before calling RefreshState.
         var state = controller.GetState();
-        Assert.That(state.Lifecycle, Is.EqualTo(SyncSessionControllerLifecycle.Stopped));
+        Assert.That(state.Lifecycle, Is.EqualTo(SyncSessionControllerLifecycle.Uninitialized));
         Assert.That(state.DaemonError, Is.Null);
         Assert.That(state.DaemonLogFilePath, Is.EqualTo(Path.Combine(dataDirectory, "daemon.log")));
         Assert.That(state.SyncSessions, Is.Empty);

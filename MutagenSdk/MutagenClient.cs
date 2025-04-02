@@ -44,12 +44,29 @@ public class MutagenClient : IDisposable
         var daemonSockAddress = File.ReadAllText(daemonSockFile).Trim();
         if (string.IsNullOrWhiteSpace(daemonSockAddress))
             throw new InvalidOperationException(
-                "Mutagen daemon socket address is empty, did the mutagen daemon start successfully?");
+                $"Mutagen daemon socket address from '{daemonSockFile}' is empty, did the mutagen daemon start successfully?");
 
         const string namedPipePrefix = @"\\.\pipe\";
-        if (!daemonSockAddress.StartsWith(namedPipePrefix))
-            throw new InvalidOperationException("Mutagen daemon socket address is not a named pipe address");
+        if (!daemonSockAddress.StartsWith(namedPipePrefix) || daemonSockAddress == namedPipePrefix)
+            throw new InvalidOperationException(
+                $"Mutagen daemon socket address '{daemonSockAddress}' is not a valid named pipe address");
+
+        // Ensure the pipe exists before we try to connect to it. Obviously
+        // this is not 100% foolproof, since the pipe could appear/disappear
+        // after we check it. This allows us to fail early if the pipe isn't
+        // ready yet (and consumers can retry), otherwise the pipe connection
+        // may block.
+        //
+        // Note: we cannot use File.Exists here without breaking the named
+        // pipe connection code due to a .NET bug.
+        // https://github.com/dotnet/runtime/issues/69604
         var pipeName = daemonSockAddress[namedPipePrefix.Length..];
+        var foundPipe = Directory
+            .GetFiles(namedPipePrefix, pipeName)
+            .FirstOrDefault(p => Path.GetFileName(p) == pipeName);
+        if (foundPipe == null)
+            throw new FileNotFoundException(
+                "Mutagen daemon named pipe not found, did the mutagen daemon start successfully?", daemonSockAddress);
 
         var connectionFactory = new NamedPipesConnectionFactory(pipeName);
         var socketsHttpHandler = new SocketsHttpHandler

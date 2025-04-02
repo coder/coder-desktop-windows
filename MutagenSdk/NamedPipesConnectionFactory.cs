@@ -24,7 +24,9 @@ public class NamedPipesConnectionFactory
 
         try
         {
-            await client.ConnectAsync(cancellationToken);
+            // Set an upper limit of 2.5 seconds. MutagenSdk consumers can
+            // retry if necessary.
+            await client.ConnectAsync(2500, cancellationToken);
             return client;
         }
         catch

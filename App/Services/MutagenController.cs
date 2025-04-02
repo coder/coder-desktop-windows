@@ -158,7 +158,16 @@ public sealed class MutagenController : ISyncSessionController
         _disposing = true;
 
         await _stateUpdateCts.CancelAsync();
-        if (_stateUpdateTask != null) await _stateUpdateTask;
+        if (_stateUpdateTask != null)
+            try
+            {
+                await _stateUpdateTask;
+            }
+            catch
+            {
+                // ignored
+            }
+
         _stateUpdateCts.Dispose();
 
         using var stopCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
