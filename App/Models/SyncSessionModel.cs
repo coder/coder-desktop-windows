@@ -51,6 +51,7 @@ public sealed class SyncSessionModelEndpointSize
 public class SyncSessionModel
 {
     public readonly string Identifier;
+    public readonly DateTime CreatedAt;
 
     public readonly string AlphaName;
     public readonly string AlphaPath;
@@ -99,6 +100,7 @@ public class SyncSessionModel
     public SyncSessionModel(State state)
     {
         Identifier = state.Session.Identifier;
+        CreatedAt = state.Session.CreationTime.ToDateTime();
 
         (AlphaName, AlphaPath) = NameAndPathFromUrl(state.Session.Alpha);
         (BetaName, BetaPath) = NameAndPathFromUrl(state.Session.Beta);

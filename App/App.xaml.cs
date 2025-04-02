@@ -120,7 +120,7 @@ public partial class App : Application
         // Initialize file sync.
         var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
-        _ = syncSessionController.Initialize(syncSessionCts.Token).ContinueWith(t =>
+        _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
         {
             // TODO: log
 #if DEBUG
