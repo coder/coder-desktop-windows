@@ -91,8 +91,7 @@ public class MutagenControllerConfig
 /// </summary>
 public sealed class MutagenController : ISyncSessionController
 {
-    // Lock to protect all non-readonly class members.
-
+    // Protects all private non-readonly class members.
     private readonly RaiiSemaphoreSlim _lock = new(1, 1);
 
     private readonly CancellationTokenSource _stateUpdateCts = new();
@@ -309,15 +308,16 @@ public sealed class MutagenController : ISyncSessionController
     {
         _state = state;
         // Since the event handlers could block (or call back the
-        // CredentialManager and deadlock), we run these in a new task.
-        if (StateChanged == null) return;
-        Task.Run(() => { StateChanged?.Invoke(this, state); });
+        // SyncSessionController and deadlock), we run these in a new task.
+        var stateChanged = StateChanged;
+        if (stateChanged == null) return;
+        Task.Run(() => stateChanged.Invoke(this, state));
     }
 
     /// <summary>
     ///     Refreshes state and potentially stops the daemon if there are no sessions. The client must not be used after
     ///     this method is called.
-    ///     Must be called with the lock held.
+    ///     Must be called AND awaited with the lock held.
     /// </summary>
     private async Task<SyncSessionControllerStateModel> UpdateState(MutagenClient client,
         CancellationToken ct = default)
@@ -393,7 +393,7 @@ public sealed class MutagenController : ISyncSessionController
 
     /// <summary>
     ///     Starts the daemon if it's not running and returns a client to it.
-    ///     Must be called with the lock held.
+    ///     Must be called AND awaited with the lock held.
     /// </summary>
     private async Task<MutagenClient> EnsureDaemon(CancellationToken ct)
     {
@@ -429,6 +429,10 @@ public sealed class MutagenController : ISyncSessionController
         }
     }
 
+    /// <summary>
+    ///     Starts the daemon and returns a client to it.
+    ///     Must be called AND awaited with the lock held.
+    /// </summary>
     private async Task<MutagenClient> StartDaemon(CancellationToken ct)
     {
         // Stop the running daemon
@@ -494,6 +498,7 @@ public sealed class MutagenController : ISyncSessionController
 
     /// <summary>
     ///     Starts the daemon process.
+    ///     Must be called AND awaited with the lock held.
     /// </summary>
     private void StartDaemonProcess()
     {
@@ -527,7 +532,7 @@ public sealed class MutagenController : ISyncSessionController
 
     /// <summary>
     ///     Stops the daemon process.
-    ///     Must be called with the lock held.
+    ///     Must be called AND awaited with the lock held.
     /// </summary>
     private async Task StopDaemon(CancellationToken ct)
     {
