@@ -291,7 +291,7 @@ public sealed class MutagenController : ISyncSessionController
     {
         while (!ct.IsCancellationRequested)
         {
-            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            await Task.Delay(TimeSpan.FromSeconds(2), ct); // 2s matches macOS app
             try
             {
                 // We use a zero timeout here to avoid waiting. If another
