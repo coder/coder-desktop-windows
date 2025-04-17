@@ -288,7 +288,9 @@ public class Downloader : IDownloader
         {
             var task = _downloads.GetOrAdd(destinationPath,
                 _ => new DownloadTask(_logger, req, destinationPath, validator));
-            await task.EnsureStartedAsync(ct);
+            // EnsureStarted is a no-op if we didn't create a new DownloadTask.
+            // So, we will only remove the destination once for each time we start a new task.
+            task.EnsureStarted(tsk => _downloads.TryRemove(destinationPath, out _), ct);
 
             // If the existing (or new) task is for the same URL, return it.
             if (task.Request.RequestUri == req.RequestUri)
@@ -357,13 +359,11 @@ public class DownloadTask
                                                                   ".download-" + Path.GetRandomFileName());
     }
 
-    internal async Task<Task> EnsureStartedAsync(CancellationToken ct = default)
+    internal void EnsureStarted(Action<Task> continuation, CancellationToken ct = default)
     {
-        using var _ = await _semaphore.LockAsync(ct);
+        using var _ = _semaphore.Lock();
         if (Task == null!)
-            Task = await StartDownloadAsync(ct);
-
-        return Task;
+            Task = Start(ct).ContinueWith(continuation, CancellationToken.None);
     }
 
     /// <summary>
@@ -371,7 +371,7 @@ public class DownloadTask
     ///     and the download will continue in the background. The provided CancellationToken can be used to cancel the
     ///     download.
     /// </summary>
-    private async Task<Task> StartDownloadAsync(CancellationToken ct = default)
+    private async Task Start(CancellationToken ct = default)
     {
         Directory.CreateDirectory(_destinationDirectory);
 
@@ -398,8 +398,7 @@ public class DownloadTask
                 throw new Exception("Existing file failed validation after 304 Not Modified", e);
             }
 
-            Task = Task.CompletedTask;
-            return Task;
+            return;
         }
 
         if (res.StatusCode != HttpStatusCode.OK)
@@ -432,11 +431,11 @@ public class DownloadTask
             throw;
         }
 
-        Task = DownloadAsync(res, tempFile, ct);
-        return Task;
+        await Download(res, tempFile, ct);
+        return;
     }
 
-    private async Task DownloadAsync(HttpResponseMessage res, FileStream tempFile, CancellationToken ct)
+    private async Task Download(HttpResponseMessage res, FileStream tempFile, CancellationToken ct)
     {
         try
         {

@@ -284,6 +284,34 @@ public class DownloaderTest
         Assert.That(await File.ReadAllTextAsync(destPath, ct), Is.EqualTo("test"));
     }
 
+    [Test(Description = "Perform 2 downloads with the same destination")]
+    [CancelAfter(30_000)]
+    public async Task DownloadSameDest(CancellationToken ct)
+    {
+        using var httpServer = EchoServer();
+        var url0 = new Uri(httpServer.BaseUrl + "/test0");
+        var url1 = new Uri(httpServer.BaseUrl + "/test1");
+        var destPath = Path.Combine(_tempDir, "test");
+
+        var manager = new Downloader(NullLogger<Downloader>.Instance);
+        var startTask0 = manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url0), destPath,
+            NullDownloadValidator.Instance, ct);
+        var startTask1 = manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url1), destPath,
+            NullDownloadValidator.Instance, ct);
+        var dlTask0 = await startTask0;
+        await dlTask0.Task;
+        Assert.That(dlTask0.TotalBytes, Is.EqualTo(5));
+        Assert.That(dlTask0.BytesRead, Is.EqualTo(5));
+        Assert.That(dlTask0.Progress, Is.EqualTo(1));
+        Assert.That(dlTask0.IsCompleted, Is.True);
+        var dlTask1 = await startTask1;
+        await dlTask1.Task;
+        Assert.That(dlTask1.TotalBytes, Is.EqualTo(5));
+        Assert.That(dlTask1.BytesRead, Is.EqualTo(5));
+        Assert.That(dlTask1.Progress, Is.EqualTo(1));
+        Assert.That(dlTask1.IsCompleted, Is.True);
+    }
+
     [Test(Description = "Download with custom headers")]
     [CancelAfter(30_000)]
     public async Task WithHeaders(CancellationToken ct)
@@ -395,9 +423,9 @@ public class DownloaderTest
         var manager = new Downloader(NullLogger<Downloader>.Instance);
         // The "outer" Task should fail.
         var smallerCt = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
-        Assert.ThrowsAsync<TaskCanceledException>(
-            async () => await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
-                NullDownloadValidator.Instance, smallerCt));
+        Assert.ThrowsAsync<TaskCanceledException>(async () => await manager.StartDownloadAsync(
+            new HttpRequestMessage(HttpMethod.Get, url), destPath,
+            NullDownloadValidator.Instance, smallerCt));
     }
 
     [Test(Description = "Timeout on response body")]
