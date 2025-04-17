@@ -412,6 +412,32 @@ public class DownloaderTest
         Assert.That(ex.Message, Does.Contain("ETag does not match SHA1 hash of downloaded file").And.Contains("beef"));
     }
 
+    [Test(Description = "Timeout waiting for existing download")]
+    [CancelAfter(30_000)]
+    public async Task CancelledWaitingForOther(CancellationToken ct)
+    {
+        var testCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        using var httpServer = new TestHttpServer(async _ =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), testCts.Token);
+        });
+        var url0 = new Uri(httpServer.BaseUrl + "/test0");
+        var url1 = new Uri(httpServer.BaseUrl + "/test1");
+        var destPath = Path.Combine(_tempDir, "test");
+        var manager = new Downloader(NullLogger<Downloader>.Instance);
+
+        // first outer task succeeds, getting download started
+        var dlTask0 = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url0), destPath,
+            NullDownloadValidator.Instance, testCts.Token);
+
+        // The second request fails if the timeout is short
+        var smallerCt = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
+        Assert.ThrowsAsync<TaskCanceledException>(async () => await manager.StartDownloadAsync(
+            new HttpRequestMessage(HttpMethod.Get, url1), destPath,
+            NullDownloadValidator.Instance, smallerCt));
+        await testCts.CancelAsync();
+    }
+
     [Test(Description = "Timeout on response body")]
     [CancelAfter(30_000)]
     public async Task CancelledInner(CancellationToken ct)

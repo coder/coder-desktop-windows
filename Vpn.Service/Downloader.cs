@@ -287,6 +287,7 @@ public class Downloader : IDownloader
     {
         while (true)
         {
+            ct.ThrowIfCancellationRequested();
             var task = _downloads.GetOrAdd(destinationPath,
                 _ => new DownloadTask(_logger, req, destinationPath, validator));
             // EnsureStarted is a no-op if we didn't create a new DownloadTask.
@@ -322,7 +323,22 @@ public class Downloader : IDownloader
             _logger.LogWarning(
                 "Download for '{DestinationPath}' is already in progress, but is for a different Url - awaiting completion",
                 destinationPath);
-            await task.Task;
+            await TaskOrCancellation(task.Task, ct);
+        }
+    }
+
+    /// <summary>
+    /// TaskOrCancellation waits for either the task to complete, or the given token to be canceled.
+    /// </summary>
+    internal static async Task TaskOrCancellation(Task task, CancellationToken cancellationToken)
+    {
+        var cancellationTask = new TaskCompletionSource();
+        await using (cancellationToken.Register(() => cancellationTask.TrySetCanceled()))
+        {
+            // Wait for either the task or the cancellation
+            var completedTask = await Task.WhenAny(task, cancellationTask.Task);
+            // Await to propagate exceptions, if any
+            await completedTask;
         }
     }
 }
