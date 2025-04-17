@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Formats.Asn1;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Coder.Desktop.Vpn.Utilities;
@@ -290,7 +291,24 @@ public class Downloader : IDownloader
                 _ => new DownloadTask(_logger, req, destinationPath, validator));
             // EnsureStarted is a no-op if we didn't create a new DownloadTask.
             // So, we will only remove the destination once for each time we start a new task.
-            task.EnsureStarted(tsk => _downloads.TryRemove(destinationPath, out _), ct);
+            task.EnsureStarted(tsk =>
+            {
+                // remove the key first, before checking the exception, to ensure
+                // we still clean up.
+                _downloads.TryRemove(destinationPath, out _);
+                if (tsk.Exception == null)
+                {
+                    return;
+                }
+
+                if (tsk.Exception.InnerException != null)
+                {
+                    ExceptionDispatchInfo.Capture(tsk.Exception.InnerException).Throw();
+                }
+
+                // not sure if this is hittable, but just in case:
+                throw tsk.Exception;
+            }, ct);
 
             // If the existing (or new) task is for the same URL, return it.
             if (task.Request.RequestUri == req.RequestUri)
@@ -363,7 +381,7 @@ public class DownloadTask
     {
         using var _ = _semaphore.Lock();
         if (Task == null!)
-            Task = Start(ct).ContinueWith(continuation, CancellationToken.None);
+            Task = Start(ct).ContinueWith(continuation, ct);
     }
 
     /// <summary>
