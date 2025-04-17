@@ -465,7 +465,7 @@ public class DownloaderTest
         var manager = new Downloader(NullLogger<Downloader>.Instance);
         var dlTask = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
             new TestDownloadValidator(new Exception("test exception")), ct);
-        // The "outer" Task should fail because the inner task never starts.
+        // The "inner" Task should fail.
         var ex = Assert.ThrowsAsync<Exception>(async () => { await dlTask.Task; });
         Assert.That(ex.Message, Does.Contain("Existing file failed validation"));
         Assert.That(ex.InnerException, Is.Not.Null);
