@@ -284,6 +284,34 @@ public class DownloaderTest
         Assert.That(await File.ReadAllTextAsync(destPath, ct), Is.EqualTo("test"));
     }
 
+    [Test(Description = "Perform 2 downloads with the same destination")]
+    [CancelAfter(30_000)]
+    public async Task DownloadSameDest(CancellationToken ct)
+    {
+        using var httpServer = EchoServer();
+        var url0 = new Uri(httpServer.BaseUrl + "/test0");
+        var url1 = new Uri(httpServer.BaseUrl + "/test1");
+        var destPath = Path.Combine(_tempDir, "test");
+
+        var manager = new Downloader(NullLogger<Downloader>.Instance);
+        var startTask0 = manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url0), destPath,
+            NullDownloadValidator.Instance, ct);
+        var startTask1 = manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url1), destPath,
+            NullDownloadValidator.Instance, ct);
+        var dlTask0 = await startTask0;
+        await dlTask0.Task;
+        Assert.That(dlTask0.TotalBytes, Is.EqualTo(5));
+        Assert.That(dlTask0.BytesRead, Is.EqualTo(5));
+        Assert.That(dlTask0.Progress, Is.EqualTo(1));
+        Assert.That(dlTask0.IsCompleted, Is.True);
+        var dlTask1 = await startTask1;
+        await dlTask1.Task;
+        Assert.That(dlTask1.TotalBytes, Is.EqualTo(5));
+        Assert.That(dlTask1.BytesRead, Is.EqualTo(5));
+        Assert.That(dlTask1.Progress, Is.EqualTo(1));
+        Assert.That(dlTask1.IsCompleted, Is.True);
+    }
+
     [Test(Description = "Download with custom headers")]
     [CancelAfter(30_000)]
     public async Task WithHeaders(CancellationToken ct)
@@ -347,17 +375,17 @@ public class DownloaderTest
 
     [Test(Description = "Unexpected response code from server")]
     [CancelAfter(30_000)]
-    public void UnexpectedResponseCode(CancellationToken ct)
+    public async Task UnexpectedResponseCode(CancellationToken ct)
     {
         using var httpServer = new TestHttpServer(ctx => { ctx.Response.StatusCode = 404; });
         var url = new Uri(httpServer.BaseUrl + "/test");
         var destPath = Path.Combine(_tempDir, "test");
 
         var manager = new Downloader(NullLogger<Downloader>.Instance);
-        // The "outer" Task should fail.
-        var ex = Assert.ThrowsAsync<HttpRequestException>(async () =>
-            await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
-                NullDownloadValidator.Instance, ct));
+        // The "inner" Task should fail.
+        var dlTask = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
+            NullDownloadValidator.Instance, ct);
+        var ex = Assert.ThrowsAsync<HttpRequestException>(async () => await dlTask.Task);
         Assert.That(ex.Message, Does.Contain("404"));
     }
 
@@ -382,22 +410,6 @@ public class DownloaderTest
             NullDownloadValidator.Instance, ct);
         var ex = Assert.ThrowsAsync<HttpRequestException>(async () => await dlTask.Task);
         Assert.That(ex.Message, Does.Contain("ETag does not match SHA1 hash of downloaded file").And.Contains("beef"));
-    }
-
-    [Test(Description = "Timeout on response headers")]
-    [CancelAfter(30_000)]
-    public void CancelledOuter(CancellationToken ct)
-    {
-        using var httpServer = new TestHttpServer(async _ => { await Task.Delay(TimeSpan.FromSeconds(5), ct); });
-        var url = new Uri(httpServer.BaseUrl + "/test");
-        var destPath = Path.Combine(_tempDir, "test");
-
-        var manager = new Downloader(NullLogger<Downloader>.Instance);
-        // The "outer" Task should fail.
-        var smallerCt = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
-        Assert.ThrowsAsync<TaskCanceledException>(
-            async () => await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
-                NullDownloadValidator.Instance, smallerCt));
     }
 
     [Test(Description = "Timeout on response body")]
@@ -451,12 +463,10 @@ public class DownloaderTest
         await File.WriteAllTextAsync(destPath, "test", ct);
 
         var manager = new Downloader(NullLogger<Downloader>.Instance);
-        // The "outer" Task should fail because the inner task never starts.
-        var ex = Assert.ThrowsAsync<Exception>(async () =>
-        {
-            await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
-                new TestDownloadValidator(new Exception("test exception")), ct);
-        });
+        var dlTask = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
+            new TestDownloadValidator(new Exception("test exception")), ct);
+        // The "inner" Task should fail.
+        var ex = Assert.ThrowsAsync<Exception>(async () => { await dlTask.Task; });
         Assert.That(ex.Message, Does.Contain("Existing file failed validation"));
         Assert.That(ex.InnerException, Is.Not.Null);
         Assert.That(ex.InnerException!.Message, Is.EqualTo("test exception"));
