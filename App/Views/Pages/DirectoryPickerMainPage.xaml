@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Coder.Desktop.App.Views.Pages.DirectoryPickerMainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="using:Coder.Desktop.App.Converters"
+    xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
+    xmlns:viewmodels="using:Coder.Desktop.App.ViewModels"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+
+    <Grid>
+        <Grid
+            Visibility="{x:Bind ViewModel.ShowLoadingScreen, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Padding="60,60"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center">
+
+            <ProgressRing
+                Width="32"
+                Height="32"
+                Margin="0,30"
+                HorizontalAlignment="Center" />
+
+            <TextBlock HorizontalAlignment="Center" Text="Loading home directory..." />
+        </Grid>
+
+        <Grid
+            Visibility="{x:Bind ViewModel.ShowErrorScreen, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Padding="20">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <ScrollView Grid.Row="0">
+                <TextBlock
+                    Margin="0,0,0,20"
+                    Foreground="Red"
+                    TextWrapping="Wrap"
+                    Text="{x:Bind ViewModel.InitialLoadError, Mode=OneWay}" />
+            </ScrollView>
+
+            <Button Grid.Row="1" Command="{x:Bind ViewModel.RetryLoadCommand, Mode=OneWay}">
+                <TextBlock Text="Reload" />
+            </Button>
+        </Grid>
+
+        <Grid
+            Visibility="{x:Bind ViewModel.ShowListScreen, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Padding="20">
+
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock
+                    Grid.Column="0"
+                    Text="{x:Bind ViewModel.AgentFqdn}"
+                    Style="{StaticResource SubtitleTextBlockStyle}"
+                    TextTrimming="CharacterEllipsis"
+                    IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged"
+                    Margin="0,0,0,10" />
+                <ProgressRing
+                    Grid.Column="1"
+                    IsActive="{x:Bind ViewModel.NavigatingLoading, Mode=OneWay}"
+                    Width="24"
+                    Height="24"
+                    Margin="10,0"
+                    HorizontalAlignment="Right" />
+            </Grid>
+
+            <ItemsRepeater
+                Grid.Row="1"
+                Margin="-4,0,0,15"
+                ItemsSource="{x:Bind ViewModel.Breadcrumbs, Mode=OneWay}">
+
+                <ItemsRepeater.Layout>
+                    <toolkit:WrapLayout Orientation="Horizontal" />
+                </ItemsRepeater.Layout>
+
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="viewmodels:DirectoryPickerBreadcrumb">
+                        <StackPanel Orientation="Horizontal">
+                            <!-- Add a chevron before each item except the "root" item -->
+                            <FontIcon
+                                Glyph="&#xE974;"
+                                FontSize="14"
+                                Visibility="{x:Bind IsFirst, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                            <HyperlinkButton
+                                Content="{x:Bind Name}"
+                                Command="{x:Bind ViewModel.ListPathCommand}"
+                                CommandParameter="{x:Bind AbsolutePathSegments}"
+                                Padding="2,-1,2,0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+
+            <ScrollView Grid.Row="2" Margin="-12,0,-12,15">
+                <ItemsRepeater ItemsSource="{x:Bind ViewModel.Items, Mode=OneWay}">
+                    <ItemsRepeater.Layout>
+                        <StackLayout Orientation="Vertical" />
+                    </ItemsRepeater.Layout>
+
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="viewmodels:DirectoryPickerItem">
+                            <HyperlinkButton
+                                IsEnabled="{x:Bind Selectable}"
+                                Command="{x:Bind ViewModel.ListPathCommand}"
+                                CommandParameter="{x:Bind AbsolutePathSegments}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left">
+
+                                <Grid>
+                                    <Grid.Resources>
+                                        <converters:StringToStringSelector x:Key="Icon" SelectedKey="{x:Bind Path=Kind}">
+                                            <converters:StringToStringSelectorItem Value="&#xE8A5;" /> <!-- Document -->
+                                            <converters:StringToStringSelectorItem Key="ParentDirectory" Value="&#xE72B;" /> <!-- Back -->
+                                            <converters:StringToStringSelectorItem Key="Directory" Value="&#xE8B7;" /> <!-- Folder -->
+                                            <converters:StringToStringSelectorItem Key="File" Value="&#xE8A5;" /> <!-- Document -->
+                                        </converters:StringToStringSelector>
+                                    </Grid.Resources>
+                                    
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- The accent-colored icon actually looks nice here, so we don't override it -->
+                                    <FontIcon
+                                        Grid.Column="0"
+                                        Glyph="{Binding Source={StaticResource Icon}, Path=SelectedObject}"
+                                        Margin="0,0,10,0" FontSize="16" />
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Text="{x:Bind Name}"
+                                        Foreground="{ThemeResource DefaultTextForegroundThemeBrush}"
+                                        TextTrimming="CharacterEllipsis"
+                                        IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
+                                </Grid>
+                            </HyperlinkButton>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollView>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button
+                    Content="Cancel"
+                    Command="{x:Bind ViewModel.CancelCommand}"
+                    Margin="0,0,10,0" />
+                <Button
+                    IsEnabled="{x:Bind ViewModel.IsSelectable, Mode=OneWay}"
+                    Content="Use This Directory"
+                    Command="{x:Bind ViewModel.SelectCommand}"
+                    Style="{StaticResource AccentButtonStyle}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>

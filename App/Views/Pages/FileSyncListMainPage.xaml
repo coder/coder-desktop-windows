@@ -38,21 +38,27 @@
             <TextBlock HorizontalAlignment="Center" Text="Loading sync sessions..." />
         </Grid>
 
-        <StackPanel
+        <Grid
             Visibility="{x:Bind ViewModel.ShowError, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
-            Orientation="Vertical"
             Padding="20">
 
-            <TextBlock
-                Margin="0,0,0,20"
-                Foreground="Red"
-                TextWrapping="Wrap"
-                Text="{x:Bind ViewModel.Error, Mode=OneWay}" />
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
-            <Button Command="{x:Bind ViewModel.ReloadSessionsCommand, Mode=OneWay}">
+            <ScrollView Grid.Row="0">
+                <TextBlock
+                    Margin="0,0,0,20"
+                    Foreground="Red"
+                    TextWrapping="Wrap"
+                    Text="{x:Bind ViewModel.Error, Mode=OneWay}" />
+            </ScrollView>
+
+            <Button Grid.Row="1" Command="{x:Bind ViewModel.ReloadSessionsCommand, Mode=OneWay}">
                 <TextBlock Text="Reload" />
             </Button>
-        </StackPanel>
+        </Grid>
 
         <!-- This grid lets us fix the header and only scroll the content. -->
         <Grid
@@ -314,7 +320,7 @@
                                 <Button
                                     Grid.Column="1"
                                     IsEnabled="{x:Bind ViewModel.NewSessionLocalPathDialogOpen, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
-                                    Command="{x:Bind OpenLocalPathSelectDialogCommand}"
+                                    Command="{x:Bind ViewModel.OpenLocalPathSelectDialogCommand}"
                                     VerticalAlignment="Stretch">
 
                                     <FontIcon Glyph="&#xE838;" FontSize="13" />
@@ -335,10 +341,27 @@
                                 Text="{x:Bind ViewModel.NewSessionRemoteHost, Mode=TwoWay}" />
                         </Border>
                         <Border Grid.Column="3">
-                            <TextBox
-                                VerticalAlignment="Stretch"
-                                HorizontalAlignment="Stretch"
-                                Text="{x:Bind ViewModel.NewSessionRemotePath, Mode=TwoWay}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox
+                                    Grid.Column="0"
+                                    Margin="0,0,5,0"
+                                    VerticalAlignment="Stretch"
+                                    Text="{x:Bind ViewModel.NewSessionRemotePath, Mode=TwoWay}" />
+
+                                <Button
+                                    Grid.Column="1"
+                                    IsEnabled="{x:Bind ViewModel.NewSessionRemotePathDialogOpen, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
+                                    Command="{x:Bind ViewModel.OpenRemotePathSelectDialogCommand}"
+                                    VerticalAlignment="Stretch">
+
+                                    <FontIcon Glyph="&#xE838;" FontSize="13" />
+                                </Button>
+                            </Grid>
                         </Border>
                     </Grid>
                 </StackPanel>

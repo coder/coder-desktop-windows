@@ -1,5 +1,5 @@
 using System.Runtime.InteropServices;
-using Coder.Desktop.CoderSdk;
+using Coder.Desktop.CoderSdk.Coder;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Utilities;
 using Microsoft.Extensions.Logging;

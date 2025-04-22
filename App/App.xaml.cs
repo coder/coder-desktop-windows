@@ -7,6 +7,7 @@ using Coder.Desktop.App.Services;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
 using Coder.Desktop.App.Views.Pages;
+using Coder.Desktop.CoderSdk.Agent;
 using Coder.Desktop.Vpn;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -37,6 +38,8 @@ public partial class App : Application
 
         var services = builder.Services;
 
+        services.AddSingleton<IAgentApiClientFactory, AgentApiClientFactory>();
+
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
 
@@ -52,6 +55,8 @@ public partial class App : Application
         services.AddTransient<FileSyncListViewModel>();
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
+
+        // DirectoryPickerWindow views and view models are created by FileSyncListViewModel.
 
         // TrayWindow views and view models
         services.AddTransient<TrayWindowLoadingPage>();

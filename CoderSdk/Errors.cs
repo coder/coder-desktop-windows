@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Coder.Desktop.CoderSdk;
 
@@ -16,8 +17,20 @@ public class Response
     public List<ValidationError> Validations { get; set; } = [];
 }
 
+[JsonSerializable(typeof(Response))]
+[JsonSerializable(typeof(ValidationError))]
+public partial class ErrorJsonContext : JsonSerializerContext;
+
 public class CoderApiHttpException : Exception
 {
+    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+    {
+        TypeInfoResolver = ErrorJsonContext.Default,
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+    };
+
     private static readonly Dictionary<HttpStatusCode, string> Helpers = new()
     {
         { HttpStatusCode.Unauthorized, "Try signing in again" },
@@ -45,7 +58,7 @@ public class CoderApiHttpException : Exception
         Response? responseObject;
         try
         {
-            responseObject = JsonSerializer.Deserialize<Response>(content, CoderApiClient.JsonOptions);
+            responseObject = JsonSerializer.Deserialize<Response>(content, JsonOptions);
         }
         catch (JsonException)
         {

@@ -186,3 +186,7 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
 public sealed class StringToBrushSelectorItem : DependencyObjectSelectorItem<string, Brush>;
 
 public sealed class StringToBrushSelector : DependencyObjectSelector<string, Brush>;
+
+public sealed class StringToStringSelectorItem : DependencyObjectSelectorItem<string, string>;
+
+public sealed class StringToStringSelector : DependencyObjectSelector<string, string>;

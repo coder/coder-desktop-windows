@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using Windows.Storage.Pickers;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Views;
+using Coder.Desktop.CoderSdk.Agent;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI.Dispatching;
@@ -19,10 +21,12 @@ public partial class FileSyncListViewModel : ObservableObject
 {
     private Window? _window;
     private DispatcherQueue? _dispatcherQueue;
+    private Window? _remotePickerWindow;
 
     private readonly ISyncSessionController _syncSessionController;
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+    private readonly IAgentApiClientFactory _agentApiClientFactory;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowUnavailable))]
@@ -65,7 +69,10 @@ public partial class FileSyncListViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NewSessionCreateEnabled))]
     public partial string NewSessionRemotePath { get; set; } = "";
-    // TODO: NewSessionRemotePathDialogOpen for remote path
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NewSessionCreateEnabled))]
+    public partial bool NewSessionRemotePathDialogOpen { get; set; } = false;
 
     public bool NewSessionCreateEnabled
     {
@@ -75,6 +82,7 @@ public partial class FileSyncListViewModel : ObservableObject
             if (NewSessionLocalPathDialogOpen) return false;
             if (string.IsNullOrWhiteSpace(NewSessionRemoteHost)) return false;
             if (string.IsNullOrWhiteSpace(NewSessionRemotePath)) return false;
+            if (NewSessionRemotePathDialogOpen) return false;
             return true;
         }
     }
@@ -86,11 +94,12 @@ public partial class FileSyncListViewModel : ObservableObject
     public bool ShowSessions => !Loading && UnavailableMessage == null && Error == null;
 
     public FileSyncListViewModel(ISyncSessionController syncSessionController, IRpcController rpcController,
-        ICredentialManager credentialManager)
+        ICredentialManager credentialManager, IAgentApiClientFactory agentApiClientFactory)
     {
         _syncSessionController = syncSessionController;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _agentApiClientFactory = agentApiClientFactory;
     }
 
     public void Initialize(Window window, DispatcherQueue dispatcherQueue)
@@ -100,9 +109,28 @@ public partial class FileSyncListViewModel : ObservableObject
         if (!_dispatcherQueue.HasThreadAccess)
             throw new InvalidOperationException("Initialize must be called from the UI thread");
 
+        // Force the remote picker to activate when activating the file sync
+        // list window if open.
+        _window.Activated += (_, e) =>
+        {
+            if (_remotePickerWindow is not null && e.WindowActivationState is WindowActivationState.PointerActivated)
+            {
+                e.Handled = true;
+                _remotePickerWindow.Activate();
+            }
+        };
+
         _rpcController.StateChanged += RpcControllerStateChanged;
         _credentialManager.CredentialsChanged += CredentialManagerCredentialsChanged;
         _syncSessionController.StateChanged += SyncSessionStateChanged;
+        _window.Closed += (_, _) =>
+        {
+            _remotePickerWindow?.Close();
+
+            _rpcController.StateChanged -= RpcControllerStateChanged;
+            _credentialManager.CredentialsChanged -= CredentialManagerCredentialsChanged;
+            _syncSessionController.StateChanged -= SyncSessionStateChanged;
+        };
 
         var rpcModel = _rpcController.GetState();
         var credentialModel = _credentialManager.GetCachedCredentials();
@@ -187,6 +215,8 @@ public partial class FileSyncListViewModel : ObservableObject
         NewSessionLocalPath = "";
         NewSessionRemoteHost = "";
         NewSessionRemotePath = "";
+
+        _remotePickerWindow?.Close();
     }
 
     [RelayCommand]
@@ -230,14 +260,17 @@ public partial class FileSyncListViewModel : ObservableObject
         CreatingNewSession = true;
     }
 
-    public async Task OpenLocalPathSelectDialog(Window window)
+    [RelayCommand]
+    public async Task OpenLocalPathSelectDialog()
     {
+        if (_window is null) return;
+
         var picker = new FolderPicker
         {
             SuggestedStartLocation = PickerLocationId.ComputerFolder,
         };
 
-        var hwnd = WindowNative.GetWindowHandle(window);
+        var hwnd = WindowNative.GetWindowHandle(_window);
         InitializeWithWindow.Initialize(picker, hwnd);
 
         NewSessionLocalPathDialogOpen = true;
@@ -255,6 +288,37 @@ public partial class FileSyncListViewModel : ObservableObject
         {
             NewSessionLocalPathDialogOpen = false;
         }
+    }
+
+    [RelayCommand]
+    public void OpenRemotePathSelectDialog()
+    {
+        if (_remotePickerWindow is not null)
+        {
+            _remotePickerWindow.Activate();
+            return;
+        }
+
+        NewSessionRemotePathDialogOpen = true;
+        var pickerViewModel = new DirectoryPickerViewModel(_agentApiClientFactory, NewSessionRemoteHost);
+        pickerViewModel.PathSelected += OnRemotePathSelected;
+
+        _remotePickerWindow = new DirectoryPickerWindow(pickerViewModel);
+        _remotePickerWindow.Closed += (_, _) =>
+        {
+            _remotePickerWindow = null;
+            NewSessionRemotePathDialogOpen = false;
+        };
+        _remotePickerWindow.Activate();
+    }
+
+    private void OnRemotePathSelected(object? sender, string? path)
+    {
+        if (sender is not DirectoryPickerViewModel pickerViewModel) return;
+        pickerViewModel.PathSelected -= OnRemotePathSelected;
+
+        if (path == null) return;
+        NewSessionRemotePath = path;
     }
 
     [RelayCommand]

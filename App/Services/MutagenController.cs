@@ -12,6 +12,7 @@ using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
 using Coder.Desktop.MutagenSdk.Proto.Service.Prompting;
 using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Synchronization.Core.Ignore;
 using Coder.Desktop.MutagenSdk.Proto.Url;
 using Coder.Desktop.Vpn.Utilities;
 using Grpc.Core;
@@ -213,8 +214,11 @@ public sealed class MutagenController : ISyncSessionController
             {
                 Alpha = req.Alpha.MutagenUrl,
                 Beta = req.Beta.MutagenUrl,
-                // TODO: probably should set these at some point
-                Configuration = new Configuration(),
+                // TODO: probably should add a configuration page for these at some point
+                Configuration = new Configuration
+                {
+                    IgnoreVCSMode = IgnoreVCSMode.Ignore,
+                },
                 ConfigurationAlpha = new Configuration(),
                 ConfigurationBeta = new Configuration(),
             },
@@ -534,25 +538,43 @@ public sealed class MutagenController : ISyncSessionController
         Directory.CreateDirectory(_mutagenDataDirectory);
         var logPath = Path.Combine(_mutagenDataDirectory, "daemon.log");
         var logStream = new StreamWriter(logPath, true);
+        try
+        {
+            _daemonProcess = new Process();
+            _daemonProcess.StartInfo.FileName = _mutagenExecutablePath;
+            _daemonProcess.StartInfo.Arguments = "daemon run";
+            _daemonProcess.StartInfo.Environment.Add("MUTAGEN_DATA_DIRECTORY", _mutagenDataDirectory);
+            // hide the console window
+            _daemonProcess.StartInfo.CreateNoWindow = true;
+            // shell needs to be disabled since we set the environment
+            // https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.environment?view=net-8.0
+            _daemonProcess.StartInfo.UseShellExecute = false;
+            _daemonProcess.StartInfo.RedirectStandardError = true;
+            // TODO: log exited process
+            // _daemonProcess.Exited += ...
+            if (!_daemonProcess.Start())
+                throw new InvalidOperationException("Failed to start mutagen daemon process, Start returned false");
 
-        _daemonProcess = new Process();
-        _daemonProcess.StartInfo.FileName = _mutagenExecutablePath;
-        _daemonProcess.StartInfo.Arguments = "daemon run";
-        _daemonProcess.StartInfo.Environment.Add("MUTAGEN_DATA_DIRECTORY", _mutagenDataDirectory);
-        // hide the console window
-        _daemonProcess.StartInfo.CreateNoWindow = true;
-        // shell needs to be disabled since we set the environment
-        // https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.environment?view=net-8.0
-        _daemonProcess.StartInfo.UseShellExecute = false;
-        _daemonProcess.StartInfo.RedirectStandardError = true;
-        // TODO: log exited process
-        // _daemonProcess.Exited += ...
-        if (!_daemonProcess.Start())
-            throw new InvalidOperationException("Failed to start mutagen daemon process, Start returned false");
-
-        var writer = new LogWriter(_daemonProcess.StandardError, logStream);
-        Task.Run(() => { _ = writer.Run(); });
-        _logWriter = writer;
+            var writer = new LogWriter(_daemonProcess.StandardError, logStream);
+            Task.Run(() => { _ = writer.Run(); });
+            _logWriter = writer;
+        }
+        catch
+        {
+            try
+            {
+                _daemonProcess?.Kill();
+            }
+            catch
+            {
+                // ignored
+            }
+            _daemonProcess?.Dispose();
+            _logWriter?.Dispose();
+            _daemonProcess = null;
+            _logWriter = null;
+            throw;
+        }
     }
 
     /// <summary>

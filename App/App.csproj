@@ -30,6 +30,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <None Remove="Views\Pages\DirectoryPickerMainPage.xaml" />
+    </ItemGroup>
+
+    <ItemGroup>
         <Content Include="coder.ico" />
     </ItemGroup>
 
@@ -56,6 +60,7 @@
 
     <ItemGroup>
         <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.Primitives" Version="8.2.250402" />
         <PackageReference Include="DependencyPropertyGenerator" Version="1.5.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -73,5 +78,17 @@
         <ProjectReference Include="..\MutagenSdk\MutagenSdk.csproj" />
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
         <ProjectReference Include="..\Vpn\Vpn.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Page Update="Views\Pages\DirectoryPickerMainPage.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Page Update="Views\DirectoryPickerWindow.xaml">
+        <Generator>MSBuild:Compile</Generator>
+      </Page>
     </ItemGroup>
 </Project>

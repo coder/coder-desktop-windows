@@ -1,23 +1,18 @@
 using Coder.Desktop.App.ViewModels;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.Views.Pages;
 
-public sealed partial class FileSyncListMainPage : Page
+public sealed partial class DirectoryPickerMainPage : Page
 {
-    public FileSyncListViewModel ViewModel;
+    public readonly DirectoryPickerViewModel ViewModel;
 
-    private readonly Window _window;
-
-    public FileSyncListMainPage(FileSyncListViewModel viewModel, Window window)
+    public DirectoryPickerMainPage(DirectoryPickerViewModel viewModel)
     {
-        ViewModel = viewModel; // already initialized
-        _window = window;
+        ViewModel = viewModel;
         InitializeComponent();
     }
 
-    // Adds a tooltip with the full text when it's ellipsized.
     private void TooltipText_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs e)
     {
         ToolTipService.SetToolTip(sender, null);
