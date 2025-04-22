@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
 using Microsoft.UI.Dispatching;
@@ -26,7 +27,23 @@ public static class Program
         try
         {
             ComWrappersSupport.InitializeComWrappers();
-            if (!CheckSingleInstance()) return;
+            AppInstance mainInstance = GetMainInstance();
+            if (!mainInstance.IsCurrent)
+            {
+                var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
+                mainInstance.RedirectActivationToAsync(activationArgs).AsTask().Wait();
+                return;
+            }
+
+            // Register for URI handling (known as "protocol activation")
+#if DEBUG
+            const string scheme = "coder-debug";
+#else
+            const string scheme = "coder";
+#endif
+            var thisBin = Assembly.GetExecutingAssembly().Location;
+            ActivationRegistrationManager.RegisterForProtocolActivation(scheme, thisBin + ",1", "Coder Desktop", "");
+
             Application.Start(p =>
             {
                 var context = new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread());
@@ -38,6 +55,9 @@ public static class Program
                     e.Handled = true;
                     ShowExceptionAndCrash(e.Exception);
                 };
+
+                // redirections via RedirectActivationToAsync above get routed to the App
+                mainInstance.Activated += app.OnActivated;
             });
         }
         catch (Exception e)
@@ -46,8 +66,7 @@ public static class Program
         }
     }
 
-    [STAThread]
-    private static bool CheckSingleInstance()
+    private static AppInstance GetMainInstance()
     {
 #if !DEBUG
         const string appInstanceName = "Coder.Desktop.App";
@@ -55,11 +74,9 @@ public static class Program
         const string appInstanceName = "Coder.Desktop.App.Debug";
 #endif
 
-        var instance = AppInstance.FindOrRegisterForKey(appInstanceName);
-        return instance.IsCurrent;
+        return AppInstance.FindOrRegisterForKey(appInstanceName);
     }
 
-    [STAThread]
     private static void ShowExceptionAndCrash(Exception e)
     {
         const string title = "Coder Desktop Fatal Error";
