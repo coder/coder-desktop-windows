@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
@@ -13,6 +14,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
+using Microsoft.Windows.AppLifecycle;
+using Windows.ApplicationModel.Activation;
 
 namespace Coder.Desktop.App;
 
@@ -82,7 +85,7 @@ public partial class App : Application
         Environment.Exit(0);
     }
 
-    protected override void OnLaunched(LaunchActivatedEventArgs args)
+    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
         // Start connecting to the manager in the background.
         var rpcController = _services.GetRequiredService<IRpcController>();
@@ -137,5 +140,25 @@ public partial class App : Application
             closedArgs.Handled = true;
             trayWindow.AppWindow.Hide();
         };
+    }
+
+    public void OnActivated(object? sender, AppActivationArguments args)
+    {
+        switch (args.Kind)
+        {
+            case ExtendedActivationKind.Protocol:
+                var protoArgs = args.Data as IProtocolActivatedEventArgs;
+                HandleURIActivation(protoArgs.Uri);
+                break;
+
+            default:
+                // TODO: log
+                break;
+        }
+    }
+
+    public void HandleURIActivation(Uri uri)
+    {
+        // TODO: handle
     }
 }
