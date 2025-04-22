@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Formats.Asn1;
 using System.Net;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Coder.Desktop.Vpn.Utilities;
@@ -288,7 +289,26 @@ public class Downloader : IDownloader
         {
             var task = _downloads.GetOrAdd(destinationPath,
                 _ => new DownloadTask(_logger, req, destinationPath, validator));
-            await task.EnsureStartedAsync(ct);
+            // EnsureStarted is a no-op if we didn't create a new DownloadTask.
+            // So, we will only remove the destination once for each time we start a new task.
+            task.EnsureStarted(tsk =>
+            {
+                // remove the key first, before checking the exception, to ensure
+                // we still clean up.
+                _downloads.TryRemove(destinationPath, out _);
+                if (tsk.Exception == null)
+                {
+                    return;
+                }
+
+                if (tsk.Exception.InnerException != null)
+                {
+                    ExceptionDispatchInfo.Capture(tsk.Exception.InnerException).Throw();
+                }
+
+                // not sure if this is hittable, but just in case:
+                throw tsk.Exception;
+            }, ct);
 
             // If the existing (or new) task is for the same URL, return it.
             if (task.Request.RequestUri == req.RequestUri)
@@ -357,13 +377,11 @@ public class DownloadTask
                                                                   ".download-" + Path.GetRandomFileName());
     }
 
-    internal async Task<Task> EnsureStartedAsync(CancellationToken ct = default)
+    internal void EnsureStarted(Action<Task> continuation, CancellationToken ct = default)
     {
-        using var _ = await _semaphore.LockAsync(ct);
+        using var _ = _semaphore.Lock();
         if (Task == null!)
-            Task = await StartDownloadAsync(ct);
-
-        return Task;
+            Task = Start(ct).ContinueWith(continuation, ct);
     }
 
     /// <summary>
@@ -371,7 +389,7 @@ public class DownloadTask
     ///     and the download will continue in the background. The provided CancellationToken can be used to cancel the
     ///     download.
     /// </summary>
-    private async Task<Task> StartDownloadAsync(CancellationToken ct = default)
+    private async Task Start(CancellationToken ct = default)
     {
         Directory.CreateDirectory(_destinationDirectory);
 
@@ -398,8 +416,7 @@ public class DownloadTask
                 throw new Exception("Existing file failed validation after 304 Not Modified", e);
             }
 
-            Task = Task.CompletedTask;
-            return Task;
+            return;
         }
 
         if (res.StatusCode != HttpStatusCode.OK)
@@ -432,11 +449,11 @@ public class DownloadTask
             throw;
         }
 
-        Task = DownloadAsync(res, tempFile, ct);
-        return Task;
+        await Download(res, tempFile, ct);
+        return;
     }
 
-    private async Task DownloadAsync(HttpResponseMessage res, FileStream tempFile, CancellationToken ct)
+    private async Task Download(HttpResponseMessage res, FileStream tempFile, CancellationToken ct)
     {
         try
         {
