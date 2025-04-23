@@ -31,7 +31,7 @@ $goArch = switch ($arch) {
 
 # Download the mutagen binary from our bucket for this platform if we don't have
 # it yet (or it's different).
-$mutagenVersion = "v0.18.1"
+$mutagenVersion = "v0.18.2"
 $mutagenPath = Join-Path $PSScriptRoot "files\mutagen-windows-$($arch).exe"
 $mutagenUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-windows-$($goArch).exe"
 $mutagenEtagFile = $mutagenPath + ".etag"
