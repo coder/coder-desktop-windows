@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <Page
     x:Class="Coder.Desktop.App.Views.Pages.DirectoryPickerMainPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -32,8 +33,8 @@
             Padding="20">
 
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <ScrollView Grid.Row="0">
@@ -126,14 +127,19 @@
 
                                 <Grid>
                                     <Grid.Resources>
-                                        <converters:StringToStringSelector x:Key="Icon" SelectedKey="{x:Bind Path=Kind}">
-                                            <converters:StringToStringSelectorItem Value="&#xE8A5;" /> <!-- Document -->
-                                            <converters:StringToStringSelectorItem Key="ParentDirectory" Value="&#xE72B;" /> <!-- Back -->
-                                            <converters:StringToStringSelectorItem Key="Directory" Value="&#xE8B7;" /> <!-- Folder -->
-                                            <converters:StringToStringSelectorItem Key="File" Value="&#xE8A5;" /> <!-- Document -->
+                                        <converters:StringToStringSelector x:Key="Icon"
+                                                                           SelectedKey="{x:Bind Path=Kind}">
+                                            <converters:StringToStringSelectorItem Value="&#xE8A5;" />
+                                            <!-- Document -->
+                                            <converters:StringToStringSelectorItem Key="ParentDirectory"
+                                                Value="&#xE72B;" /> <!-- Back -->
+                                            <converters:StringToStringSelectorItem Key="Directory" Value="&#xE8B7;" />
+                                            <!-- Folder -->
+                                            <converters:StringToStringSelectorItem Key="File" Value="&#xE8A5;" />
+                                            <!-- Document -->
                                         </converters:StringToStringSelector>
                                     </Grid.Resources>
-                                    
+
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" />
                                         <ColumnDefinition Width="*" />

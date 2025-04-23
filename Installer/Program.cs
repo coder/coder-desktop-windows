@@ -128,7 +128,8 @@ public class BootstrapperOptions : SharedOptions
         if (!SystemFile.Exists(MsiPath))
             throw new ArgumentException($"MSI package not found at '{MsiPath}'", nameof(MsiPath));
         if (!SystemFile.Exists(WindowsAppSdkPath))
-            throw new ArgumentException($"Windows App Sdk package not found at '{WindowsAppSdkPath}'", nameof(WindowsAppSdkPath));
+            throw new ArgumentException($"Windows App Sdk package not found at '{WindowsAppSdkPath}'",
+                nameof(WindowsAppSdkPath));
     }
 }
 
@@ -381,8 +382,8 @@ public class Program
                 [
                     new ExePackagePayload
                     {
-                        SourceFile = opts.WindowsAppSdkPath
-                    }
+                        SourceFile = opts.WindowsAppSdkPath,
+                    },
                 ],
             },
             new MsiPackage(opts.MsiPath)

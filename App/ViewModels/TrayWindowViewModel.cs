@@ -178,6 +178,7 @@ public partial class TrayWindowViewModel : ObservableObject
             {
                 // We just assume that it's a single-agent workspace.
                 Hostname = workspace.Name,
+                // TODO: this needs to get the suffix from the server
                 HostnameSuffix = ".coder",
                 ConnectionStatus = AgentConnectionStatus.Gray,
                 DashboardUrl = WorkspaceUri(coderUri, workspace.Name),

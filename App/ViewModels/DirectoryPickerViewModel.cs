@@ -14,14 +14,16 @@ namespace Coder.Desktop.App.ViewModels;
 
 public class DirectoryPickerBreadcrumb
 {
+    // HACK: you cannot access the parent context when inside an ItemsRepeater.
+    public required DirectoryPickerViewModel ViewModel;
+
     public required string Name { get; init; }
+
     public required IReadOnlyList<string> AbsolutePathSegments { get; init; }
+
     // HACK: we need to know which one is first so we don't prepend an arrow
     // icon. You can't get the index of the current ItemsRepeater item in XAML.
     public required bool IsFirst { get; init; }
-
-    // HACK: you cannot access the parent context when inside an ItemsRepeater.
-    public required DirectoryPickerViewModel ViewModel;
 }
 
 public enum DirectoryPickerItemKind
@@ -33,12 +35,12 @@ public enum DirectoryPickerItemKind
 
 public class DirectoryPickerItem
 {
+    // HACK: you cannot access the parent context when inside an ItemsRepeater.
+    public required DirectoryPickerViewModel ViewModel;
+
     public required DirectoryPickerItemKind Kind { get; init; }
     public required string Name { get; init; }
     public required IReadOnlyList<string> AbsolutePathSegments { get; init; }
-
-    // HACK: you cannot access the parent context when inside an ItemsRepeater.
-    public required DirectoryPickerViewModel ViewModel;
 
     public bool Selectable => Kind is DirectoryPickerItemKind.ParentDirectory or DirectoryPickerItemKind.Directory;
 }
@@ -74,18 +76,15 @@ public partial class DirectoryPickerViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowListScreen))]
     public partial string? InitialLoadError { get; set; } = null;
 
-    [ObservableProperty]
-    public partial bool NavigatingLoading { get; set; } = false;
+    [ObservableProperty] public partial bool NavigatingLoading { get; set; } = false;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsSelectable))]
     public partial string CurrentDirectory { get; set; } = "";
 
-    [ObservableProperty]
-    public partial IReadOnlyList<DirectoryPickerBreadcrumb> Breadcrumbs { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<DirectoryPickerBreadcrumb> Breadcrumbs { get; set; } = [];
 
-    [ObservableProperty]
-    public partial IReadOnlyList<DirectoryPickerItem> Items { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<DirectoryPickerItem> Items { get; set; } = [];
 
     public bool ShowLoadingScreen => InitialLoadError == null && InitialLoading;
     public bool ShowErrorScreen => InitialLoadError != null;
@@ -100,7 +99,7 @@ public partial class DirectoryPickerViewModel : ObservableObject
 
     public DirectoryPickerViewModel(IAgentApiClientFactory clientFactory, string agentFqdn)
     {
-        _client = clientFactory.Create(hostname: agentFqdn);
+        _client = clientFactory.Create(agentFqdn);
         AgentFqdn = agentFqdn;
     }
 
@@ -218,7 +217,7 @@ public partial class DirectoryPickerViewModel : ObservableObject
 
         var breadcrumbs = new List<DirectoryPickerBreadcrumb>(res.AbsolutePath.Count + 1)
         {
-            new DirectoryPickerBreadcrumb
+            new()
             {
                 Name = "(root)",
                 AbsolutePathSegments = [],
@@ -227,7 +226,6 @@ public partial class DirectoryPickerViewModel : ObservableObject
             },
         };
         for (var i = 0; i < res.AbsolutePath.Count; i++)
-        {
             breadcrumbs.Add(new DirectoryPickerBreadcrumb
             {
                 Name = res.AbsolutePath[i],
@@ -235,11 +233,9 @@ public partial class DirectoryPickerViewModel : ObservableObject
                 IsFirst = false,
                 ViewModel = this,
             });
-        }
 
         var items = new List<DirectoryPickerItem>(res.Contents.Count + 1);
         if (res.AbsolutePath.Count != 0)
-        {
             items.Add(new DirectoryPickerItem
             {
                 Kind = DirectoryPickerItemKind.ParentDirectory,
@@ -247,7 +243,6 @@ public partial class DirectoryPickerViewModel : ObservableObject
                 AbsolutePathSegments = res.AbsolutePath[..^1],
                 ViewModel = this,
             });
-        }
 
         foreach (var item in res.Contents)
         {

@@ -43,8 +43,8 @@
             Padding="20">
 
             <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <ScrollView Grid.Row="0">
@@ -86,7 +86,7 @@
                             <Setter Property="Foreground" Value="{ThemeResource TextFillColorSecondaryBrush}" />
                         </Style>
                         <Style TargetType="Border">
-                            <Setter Property="Padding" Value="40,0,0,0" />
+                            <Setter Property="Padding" Value="30,0,0,0" />
                         </Style>
                     </Grid.Resources>
 
@@ -138,7 +138,7 @@
                                     <!-- These are (mostly) from the header Grid and should be copied here -->
                                     <Grid.Resources>
                                         <Style TargetType="Border">
-                                            <Setter Property="Padding" Value="40,0,0,0" />
+                                            <Setter Property="Padding" Value="30,0,0,0" />
                                         </Style>
                                     </Grid.Resources>
                                     <Grid.ColumnDefinitions>
@@ -272,7 +272,7 @@
                         <!-- These are (mostly) from the header Grid and should be copied here -->
                         <Grid.Resources>
                             <Style TargetType="Border">
-                                <Setter Property="Padding" Value="40,0,0,0" />
+                                <Setter Property="Padding" Value="30,0,0,0" />
                             </Style>
                         </Grid.Resources>
                         <Grid.ColumnDefinitions>
@@ -328,17 +328,13 @@
                             </Grid>
                         </Border>
                         <Border Grid.Column="2">
-                            <!-- TODO: use a combo box for workspace agents -->
-                            <!--
                             <ComboBox
-                                ItemsSource="{x:Bind WorkspaceAgents}"
+                                IsEnabled="{x:Bind ViewModel.NewSessionRemoteHostEnabled, Mode=OneWay}"
+                                ItemsSource="{x:Bind ViewModel.AvailableHosts, Mode=OneWay}"
+                                SelectedItem="{x:Bind ViewModel.NewSessionRemoteHost, Mode=TwoWay}"
+                                ToolTipService.ToolTip="{x:Bind ViewModel.NewSessionRemoteHost, Mode=OneWay}"
                                 VerticalAlignment="Stretch"
                                 HorizontalAlignment="Stretch" />
-                            -->
-                            <TextBox
-                                VerticalAlignment="Stretch"
-                                HorizontalAlignment="Stretch"
-                                Text="{x:Bind ViewModel.NewSessionRemoteHost, Mode=TwoWay}" />
                         </Border>
                         <Border Grid.Column="3">
                             <Grid>
@@ -355,7 +351,7 @@
 
                                 <Button
                                     Grid.Column="1"
-                                    IsEnabled="{x:Bind ViewModel.NewSessionRemotePathDialogOpen, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
+                                    IsEnabled="{x:Bind ViewModel.NewSessionRemotePathDialogEnabled, Mode=OneWay}"
                                     Command="{x:Bind ViewModel.OpenRemotePathSelectDialogCommand}"
                                     VerticalAlignment="Stretch">
 

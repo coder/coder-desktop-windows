@@ -23,7 +23,7 @@ public partial class ErrorJsonContext : JsonSerializerContext;
 
 public class CoderApiHttpException : Exception
 {
-    private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+    private static readonly JsonSerializerOptions JsonOptions = new()
     {
         TypeInfoResolver = ErrorJsonContext.Default,
         PropertyNameCaseInsensitive = true,

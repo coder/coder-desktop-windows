@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
-using Coder.Desktop.CoderSdk;
 using Moq;
 
 namespace Coder.Desktop.Tests.App.Services;

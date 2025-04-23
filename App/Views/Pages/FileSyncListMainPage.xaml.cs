@@ -1,5 +1,4 @@
 using Coder.Desktop.App.ViewModels;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.Views.Pages;
@@ -8,12 +7,9 @@ public sealed partial class FileSyncListMainPage : Page
 {
     public FileSyncListViewModel ViewModel;
 
-    private readonly Window _window;
-
-    public FileSyncListMainPage(FileSyncListViewModel viewModel, Window window)
+    public FileSyncListMainPage(FileSyncListViewModel viewModel)
     {
         ViewModel = viewModel; // already initialized
-        _window = window;
         InitializeComponent();
     }
 

@@ -30,10 +30,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <None Remove="Views\Pages\DirectoryPickerMainPage.xaml" />
-    </ItemGroup>
-
-    <ItemGroup>
         <Content Include="coder.ico" />
     </ItemGroup>
 
@@ -78,17 +74,5 @@
         <ProjectReference Include="..\MutagenSdk\MutagenSdk.csproj" />
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
         <ProjectReference Include="..\Vpn\Vpn.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Update="Views\Pages\DirectoryPickerMainPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Update="Views\DirectoryPickerWindow.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
     </ItemGroup>
 </Project>

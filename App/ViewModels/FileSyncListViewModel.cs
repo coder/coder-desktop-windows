@@ -21,7 +21,7 @@ public partial class FileSyncListViewModel : ObservableObject
 {
     private Window? _window;
     private DispatcherQueue? _dispatcherQueue;
-    private Window? _remotePickerWindow;
+    private DirectoryPickerWindow? _remotePickerWindow;
 
     private readonly ISyncSessionController _syncSessionController;
     private readonly IRpcController _rpcController;
@@ -50,7 +50,7 @@ public partial class FileSyncListViewModel : ObservableObject
 
     [ObservableProperty] public partial bool OperationInProgress { get; set; } = false;
 
-    [ObservableProperty] public partial List<SyncSessionViewModel> Sessions { get; set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<SyncSessionViewModel> Sessions { get; set; } = [];
 
     [ObservableProperty] public partial bool CreatingNewSession { get; set; } = false;
 
@@ -63,8 +63,13 @@ public partial class FileSyncListViewModel : ObservableObject
     public partial bool NewSessionLocalPathDialogOpen { get; set; } = false;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(NewSessionRemoteHostEnabled))]
+    public partial IReadOnlyList<string> AvailableHosts { get; set; } = [];
+
+    [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NewSessionCreateEnabled))]
-    public partial string NewSessionRemoteHost { get; set; } = "";
+    [NotifyPropertyChangedFor(nameof(NewSessionRemotePathDialogEnabled))]
+    public partial string? NewSessionRemoteHost { get; set; } = null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NewSessionCreateEnabled))]
@@ -72,7 +77,13 @@ public partial class FileSyncListViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NewSessionCreateEnabled))]
+    [NotifyPropertyChangedFor(nameof(NewSessionRemotePathDialogEnabled))]
     public partial bool NewSessionRemotePathDialogOpen { get; set; } = false;
+
+    public bool NewSessionRemoteHostEnabled => AvailableHosts.Count > 0;
+
+    public bool NewSessionRemotePathDialogEnabled =>
+        !string.IsNullOrWhiteSpace(NewSessionRemoteHost) && !NewSessionRemotePathDialogOpen;
 
     public bool NewSessionCreateEnabled
     {
@@ -108,17 +119,6 @@ public partial class FileSyncListViewModel : ObservableObject
         _dispatcherQueue = dispatcherQueue;
         if (!_dispatcherQueue.HasThreadAccess)
             throw new InvalidOperationException("Initialize must be called from the UI thread");
-
-        // Force the remote picker to activate when activating the file sync
-        // list window if open.
-        _window.Activated += (_, e) =>
-        {
-            if (_remotePickerWindow is not null && e.WindowActivationState is WindowActivationState.PointerActivated)
-            {
-                e.Handled = true;
-                _remotePickerWindow.Activate();
-            }
-        };
 
         _rpcController.StateChanged += RpcControllerStateChanged;
         _credentialManager.CredentialsChanged += CredentialManagerCredentialsChanged;
@@ -199,8 +199,13 @@ public partial class FileSyncListViewModel : ObservableObject
         else
         {
             UnavailableMessage = null;
+            // Reload if we transitioned from unavailable to available.
             if (oldMessage != null) ReloadSessions();
         }
+
+        // When transitioning from available to unavailable:
+        if (oldMessage == null && UnavailableMessage != null)
+            ClearNewForm();
     }
 
     private void UpdateSyncSessionState(SyncSessionControllerStateModel syncSessionState)
@@ -253,10 +258,34 @@ public partial class FileSyncListViewModel : ObservableObject
         Loading = false;
     }
 
+    // Overriding AvailableHosts seems to make the ComboBox clear its value, so
+    // we only do this while the create form is not open.
+    // Must be called in UI thread.
+    private void SetAvailableHostsFromRpcModel(RpcModel rpcModel)
+    {
+        var hosts = new List<string>(rpcModel.Agents.Count);
+        // Agents will only contain started agents.
+        foreach (var agent in rpcModel.Agents)
+        {
+            var fqdn = agent.Fqdn
+                .Select(a => a.Trim('.'))
+                .Where(a => !string.IsNullOrWhiteSpace(a))
+                .Aggregate((a, b) => a.Count(c => c == '.') < b.Count(c => c == '.') ? a : b);
+            if (string.IsNullOrWhiteSpace(fqdn))
+                continue;
+            hosts.Add(fqdn);
+        }
+
+        NewSessionRemoteHost = null;
+        AvailableHosts = hosts;
+    }
+
     [RelayCommand]
     private void StartCreatingNewSession()
     {
         ClearNewForm();
+        // Ensure we have a fresh hosts list before we open the form.
+        SetAvailableHostsFromRpcModel(_rpcController.GetState());
         CreatingNewSession = true;
     }
 
@@ -293,6 +322,8 @@ public partial class FileSyncListViewModel : ObservableObject
     [RelayCommand]
     public void OpenRemotePathSelectDialog()
     {
+        if (string.IsNullOrWhiteSpace(NewSessionRemoteHost))
+            return;
         if (_remotePickerWindow is not null)
         {
             _remotePickerWindow.Activate();
@@ -304,6 +335,7 @@ public partial class FileSyncListViewModel : ObservableObject
         pickerViewModel.PathSelected += OnRemotePathSelected;
 
         _remotePickerWindow = new DirectoryPickerWindow(pickerViewModel);
+        _remotePickerWindow.SetParent(_window);
         _remotePickerWindow.Closed += (_, _) =>
         {
             _remotePickerWindow = null;
@@ -347,7 +379,7 @@ public partial class FileSyncListViewModel : ObservableObject
                 Beta = new CreateSyncSessionRequest.Endpoint
                 {
                     Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Ssh,
-                    Host = NewSessionRemoteHost,
+                    Host = NewSessionRemoteHost!,
                     Path = NewSessionRemotePath,
                 },
             }, cts.Token);

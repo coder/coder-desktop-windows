@@ -569,6 +569,7 @@ public sealed class MutagenController : ISyncSessionController
             {
                 // ignored
             }
+
             _daemonProcess?.Dispose();
             _logWriter?.Dispose();
             _daemonProcess = null;

@@ -34,7 +34,7 @@ internal class JsonHttpClient
             PropertyNamingPolicy = new SnakeCaseNamingPolicy(),
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         };
-        _jsonOptions.Converters.Add(new JsonStringEnumConverter(new SnakeCaseNamingPolicy(), allowIntegerValues: false));
+        _jsonOptions.Converters.Add(new JsonStringEnumConverter(new SnakeCaseNamingPolicy(), false));
         _httpClient.BaseAddress = baseUri;
     }
 
