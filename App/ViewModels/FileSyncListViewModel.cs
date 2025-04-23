@@ -67,6 +67,9 @@ public partial class FileSyncListViewModel : ObservableObject
     public partial string NewSessionRemotePath { get; set; } = "";
     // TODO: NewSessionRemotePathDialogOpen for remote path
 
+    [ObservableProperty]
+    public partial string NewSessionStatus { get; set; } = "";
+
     public bool NewSessionCreateEnabled
     {
         get
@@ -187,6 +190,7 @@ public partial class FileSyncListViewModel : ObservableObject
         NewSessionLocalPath = "";
         NewSessionRemoteHost = "";
         NewSessionRemotePath = "";
+        NewSessionStatus = "";
     }
 
     [RelayCommand]
@@ -263,13 +267,26 @@ public partial class FileSyncListViewModel : ObservableObject
         ClearNewForm();
     }
 
+    private void OnCreateSessionProgress(string message)
+    {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => OnCreateSessionProgress(message));
+            return;
+        }
+
+        NewSessionStatus = message;
+    }
+
     [RelayCommand]
     private async Task ConfirmNewSession()
     {
         if (OperationInProgress || !NewSessionCreateEnabled) return;
         OperationInProgress = true;
 
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         try
         {
             // The controller will send us a state changed event.
@@ -286,7 +303,7 @@ public partial class FileSyncListViewModel : ObservableObject
                     Host = NewSessionRemoteHost,
                     Path = NewSessionRemotePath,
                 },
-            }, cts.Token);
+            }, OnCreateSessionProgress, cts.Token);
 
             ClearNewForm();
         }
@@ -304,6 +321,7 @@ public partial class FileSyncListViewModel : ObservableObject
         finally
         {
             OperationInProgress = false;
+            NewSessionStatus = "";
         }
     }
 

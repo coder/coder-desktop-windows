@@ -112,6 +112,13 @@ public class MutagenControllerTest
         // Ensure the daemon is stopped because all sessions are terminated.
         await AssertDaemonStopped(dataDirectory, ct);
 
+        var progressMessages = new List<string>();
+        void OnProgress(string message)
+        {
+            TestContext.Out.WriteLine("Create session progress: " + message);
+            progressMessages.Add(message);
+        }
+
         var session1 = await controller.CreateSyncSession(new CreateSyncSessionRequest
         {
             Alpha = new CreateSyncSessionRequest.Endpoint
@@ -124,7 +131,10 @@ public class MutagenControllerTest
                 Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                 Path = betaDirectory.FullName,
             },
-        }, ct);
+        }, OnProgress, ct);
+
+        // There should've been at least one progress message.
+        Assert.That(progressMessages, Is.Not.Empty);
 
         state = controller.GetState();
         Assert.That(state.SyncSessions, Has.Count.EqualTo(1));
@@ -142,7 +152,7 @@ public class MutagenControllerTest
                 Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                 Path = betaDirectory.FullName,
             },
-        }, ct);
+        }, null, ct);
 
         state = controller.GetState();
         Assert.That(state.SyncSessions, Has.Count.EqualTo(2));
@@ -225,7 +235,7 @@ public class MutagenControllerTest
                     Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = betaDirectory.FullName,
                 },
-            }, ct);
+            }, null, ct);
         }
 
         await AssertDaemonStopped(dataDirectory, ct);
@@ -265,7 +275,7 @@ public class MutagenControllerTest
                     Protocol = CreateSyncSessionRequest.Endpoint.ProtocolKind.Local,
                     Path = betaDirectory.FullName,
                 },
-            }, ct);
+            }, null, ct);
 
             controller2 = new MutagenController(_mutagenBinaryPath, dataDirectory);
             await controller2.RefreshState(ct);
