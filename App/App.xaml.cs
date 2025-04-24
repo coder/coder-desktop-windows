@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
@@ -16,6 +17,8 @@ using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 using Windows.ApplicationModel.Activation;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace Coder.Desktop.App;
 
@@ -24,21 +27,50 @@ public partial class App : Application
     private readonly IServiceProvider _services;
 
     private bool _handleWindowClosed = true;
+    private const string MutagenControllerConfigSection = "MutagenController";
+
+    private const string logTemplate =
+        "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
 
 #if !DEBUG
-    private const string MutagenControllerConfigSection = "AppMutagenController";
+    private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\App";
+    private const string logFilename = "app.log";
 #else
-    private const string MutagenControllerConfigSection = "DebugAppMutagenController";
+    private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\DebugApp";
+    private const string logFilename = "debug-app.log";
 #endif
+
+    private readonly ILogger<App> _logger;
 
     public App()
     {
         var builder = Host.CreateApplicationBuilder();
 
         (builder.Configuration as IConfigurationBuilder).Add(
-            new RegistryConfigurationSource(Registry.LocalMachine, @"SOFTWARE\Coder Desktop"));
+            new RegistryConfigurationSource(Registry.LocalMachine, ConfigSubKey));
 
         var services = builder.Services;
+
+        // Logging
+        builder.Services.AddSerilog((_, loggerConfig) =>
+        {
+            loggerConfig.ReadFrom.Configuration(builder.Configuration);
+            var sinkConfig = builder.Configuration.GetSection("Serilog").GetSection("WriteTo");
+            if (!sinkConfig.GetChildren().Any())
+            {
+                // no log sink defined in the registry, so we'll add one here.
+                // We can't generally define these in the registry because we don't
+                // know, a priori, what user will execute Coder Desktop, and therefore
+                // what directories are writable by them. But, it's nice to be able to
+                // directly customize Serilog via the registry if you know what you are
+                // doing.
+                var logPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "CoderDesktop",
+                    logFilename);
+                loggerConfig.WriteTo.File(logPath, outputTemplate: logTemplate, rollingInterval: RollingInterval.Day);
+            }
+        });
 
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
@@ -69,6 +101,7 @@ public partial class App : Application
         services.AddTransient<TrayWindow>();
 
         _services = services.BuildServiceProvider();
+        _logger = (ILogger<App>)(_services.GetService(typeof(ILogger<App>))!);
 
         InitializeComponent();
     }
@@ -87,6 +120,7 @@ public partial class App : Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        _logger.LogInformation("new instance launched");
         // Start connecting to the manager in the background.
         var rpcController = _services.GetRequiredService<IRpcController>();
         if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
@@ -110,13 +144,15 @@ public partial class App : Application
         _ = credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
         {
             // TODO: log
-#if DEBUG
             if (t.Exception != null)
             {
+                _logger.LogError(t.Exception, "failed to load credentials");
+#if DEBUG
                 Debug.WriteLine(t.Exception);
                 Debugger.Break();
-            }
 #endif
+            }
+
             credentialManagerCts.Dispose();
         }, CancellationToken.None);
 
@@ -126,9 +162,13 @@ public partial class App : Application
         _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
         {
             // TODO: log
+            if (t.IsCanceled || t.Exception != null)
+            {
+                _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
 #if DEBUG
-            if (t.IsCanceled || t.Exception != null) Debugger.Break();
+                Debugger.Break();
 #endif
+            }
             syncSessionCts.Dispose();
         }, CancellationToken.None);
 
@@ -148,17 +188,24 @@ public partial class App : Application
         {
             case ExtendedActivationKind.Protocol:
                 var protoArgs = args.Data as IProtocolActivatedEventArgs;
+                if (protoArgs == null)
+                {
+                    _logger.LogWarning("URI activation with null data");
+                    return;
+                }
+
                 HandleURIActivation(protoArgs.Uri);
                 break;
 
             default:
-                // TODO: log
+                _logger.LogWarning("activation for {kind}, which is unhandled", args.Kind);
                 break;
         }
     }
 
     public void HandleURIActivation(Uri uri)
     {
-        // TODO: handle
+        // don't log the query string as that's where we include some sensitive information like passwords
+        _logger.LogInformation("handling URI activation for {path}", uri.AbsolutePath);
     }
 }

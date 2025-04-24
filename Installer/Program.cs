@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using CommandLine;
+using Microsoft.Extensions.Configuration;
 using WixSharp;
 using WixSharp.Bootstrapper;
 using WixSharp.CommonTasks;
@@ -138,6 +140,7 @@ public class Program
     private const string Manufacturer = "Coder Technologies Inc.";
     private const string HelpUrl = "https://coder.com/docs";
     private const string RegistryKey = @"SOFTWARE\Coder Desktop";
+    private const string AppConfigRegistryKey = RegistryKey + @"\App";
 
     private const string DotNetCheckName = "DOTNET_RUNTIME_CHECK";
     private const RollForward DotNetCheckRollForward = RollForward.minor;
@@ -256,6 +259,7 @@ public class Program
         project.AddDir(programFiles64Folder);
 
 
+
         project.AddRegValues(
             // Add registry values that are consumed by the manager. Note that these
             // should not be changed. See Vpn.Service/Program.cs and
@@ -266,11 +270,31 @@ public class Program
             new RegValue(RegistryHive, RegistryKey, "Manager:LogFileLocation",
                 @"[INSTALLFOLDER]coder-desktop-service.log"),
             new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinarySignatureSigner", "Coder Technologies Inc."),
-            new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryAllowVersionMismatch", "false"),
-            // Add registry values that are consumed by the App MutagenController. See App/Services/MutagenController.cs
-            new RegValue(RegistryHive, RegistryKey, "AppMutagenController:MutagenExecutablePath",
-                @"[INSTALLFOLDER]mutagen.exe")
+            new RegValue(RegistryHive, RegistryKey, "Manager:TunnelBinaryAllowVersionMismatch", "false")
         );
+
+        // rather than adding individual reg values, it's much clearer to write the whole config as JSON then
+        // programmatically spit out the registry values.
+        var appConfigJson = """
+                            {
+                                "MutagenController": {
+                                    "MutagenExecutablePath": "[INSTALLFOLDER]vpn\mutagen.exe"
+                                },
+                                "Serilog": {
+                                    "Using": ["Serilog.Sinks.File"],
+                                    "MinimumLevel": "Information",
+                                    "Enrich": [ "FromLogContext" ],
+                                }
+                            }
+                            """;
+        var appConfig =
+            new ConfigurationBuilder().AddJsonStream(new MemoryStream(Encoding.UTF8.GetBytes(appConfigJson))).Build();
+
+        foreach (var kvp in appConfig.AsEnumerable())
+        {
+            if (kvp.Value is null) continue;
+            project.AddRegValue(new RegValue(RegistryHive, AppConfigRegistryKey, kvp.Key, kvp.Value));
+        }
 
         // Note: most of this control panel info will not be visible as this
         // package is usually hidden in favor of the bootstrapper showing
