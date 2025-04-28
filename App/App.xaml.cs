@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
@@ -19,6 +18,7 @@ using Microsoft.Windows.AppLifecycle;
 using Windows.ApplicationModel.Activation;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using System.Collections.Generic;
 
 namespace Coder.Desktop.App;
 
@@ -28,9 +28,6 @@ public partial class App : Application
 
     private bool _handleWindowClosed = true;
     private const string MutagenControllerConfigSection = "MutagenController";
-
-    private const string logTemplate =
-        "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}";
 
 #if !DEBUG
     private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\App";
@@ -45,9 +42,15 @@ public partial class App : Application
     public App()
     {
         var builder = Host.CreateApplicationBuilder();
+        var configBuilder = builder.Configuration as IConfigurationBuilder;
 
-        (builder.Configuration as IConfigurationBuilder).Add(
+        // Add config in increasing order of precedence: first builtin defaults, then HKLM, finally HKCU
+        // so that the user's settings in the registry take precedence.
+        AddDefaultConfig(configBuilder);
+        configBuilder.Add(
             new RegistryConfigurationSource(Registry.LocalMachine, ConfigSubKey));
+        configBuilder.Add(
+            new RegistryConfigurationSource(Registry.CurrentUser, ConfigSubKey));
 
         var services = builder.Services;
 
@@ -55,21 +58,6 @@ public partial class App : Application
         builder.Services.AddSerilog((_, loggerConfig) =>
         {
             loggerConfig.ReadFrom.Configuration(builder.Configuration);
-            var sinkConfig = builder.Configuration.GetSection("Serilog").GetSection("WriteTo");
-            if (!sinkConfig.GetChildren().Any())
-            {
-                // no log sink defined in the registry, so we'll add one here.
-                // We can't generally define these in the registry because we don't
-                // know, a priori, what user will execute Coder Desktop, and therefore
-                // what directories are writable by them. But, it's nice to be able to
-                // directly customize Serilog via the registry if you know what you are
-                // doing.
-                var logPath = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "CoderDesktop",
-                    logFilename);
-                loggerConfig.WriteTo.File(logPath, outputTemplate: logTemplate, rollingInterval: RollingInterval.Day);
-            }
         });
 
         services.AddSingleton<ICredentialManager, CredentialManager>();
@@ -108,6 +96,7 @@ public partial class App : Application
 
     public async Task ExitApplication()
     {
+        _logger.LogDebug("exiting app");
         _handleWindowClosed = false;
         Exit();
         var syncController = _services.GetRequiredService<ISyncSessionController>();
@@ -169,6 +158,7 @@ public partial class App : Application
                 Debugger.Break();
 #endif
             }
+
             syncSessionCts.Dispose();
         }, CancellationToken.None);
 
@@ -207,5 +197,25 @@ public partial class App : Application
     {
         // don't log the query string as that's where we include some sensitive information like passwords
         _logger.LogInformation("handling URI activation for {path}", uri.AbsolutePath);
+    }
+
+    private static void AddDefaultConfig(IConfigurationBuilder builder)
+    {
+        var logPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "CoderDesktop",
+            logFilename);
+        builder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [MutagenControllerConfigSection + ":MutagenExecutablePath"] = @"C:\mutagen.exe",
+            ["Serilog:Using:0"] = "Serilog.Sinks.File",
+            ["Serilog:MinimumLevel"] = "Information",
+            ["Serilog:Enrich:0"] = "FromLogContext",
+            ["Serilog:WriteTo:0:Name"] = "File",
+            ["Serilog:WriteTo:0:Args:path"] = logPath,
+            ["Serilog:WriteTo:0:Args:outputTemplate"] =
+                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
+            ["Serilog:WriteTo:0:Args:rollingInterval"] = "Day",
+        });
     }
 }
