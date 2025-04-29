@@ -115,24 +115,24 @@ public partial class App : Application
         if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
             // Passing in a CT with no cancellation is desired here, because
             // the named pipe open will block until the pipe comes up.
-            // TODO: log
-            _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
+            _logger.LogDebug("reconnecting with VPN service");
+        _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
+        {
+            if (t.Exception != null)
             {
+                _logger.LogError(t.Exception, "failed to connect to VPN service");
 #if DEBUG
-                if (t.Exception != null)
-                {
-                    Debug.WriteLine(t.Exception);
-                    Debugger.Break();
-                }
+                Debug.WriteLine(t.Exception);
+                Debugger.Break();
 #endif
-            });
+            }
+        });
 
         // Load the credentials in the background.
         var credentialManagerCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var credentialManager = _services.GetRequiredService<ICredentialManager>();
         _ = credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
         {
-            // TODO: log
             if (t.Exception != null)
             {
                 _logger.LogError(t.Exception, "failed to load credentials");
@@ -150,7 +150,6 @@ public partial class App : Application
         var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
         _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
         {
-            // TODO: log
             if (t.IsCanceled || t.Exception != null)
             {
                 _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
