@@ -395,9 +395,9 @@ public class DownloaderTest
         var manager = new Downloader(NullLogger<Downloader>.Instance);
         // The "outer" Task should fail.
         var smallerCt = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
-        Assert.ThrowsAsync<TaskCanceledException>(
-            async () => await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
-                NullDownloadValidator.Instance, smallerCt));
+        Assert.ThrowsAsync<TaskCanceledException>(async () => await manager.StartDownloadAsync(
+            new HttpRequestMessage(HttpMethod.Get, url), destPath,
+            NullDownloadValidator.Instance, smallerCt));
     }
 
     [Test(Description = "Timeout on response body")]
