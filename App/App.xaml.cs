@@ -16,6 +16,9 @@ using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 using Windows.ApplicationModel.Activation;
+using Microsoft.Extensions.Logging;
+using Serilog;
+using System.Collections.Generic;
 
 namespace Coder.Desktop.App;
 
@@ -24,21 +27,38 @@ public partial class App : Application
     private readonly IServiceProvider _services;
 
     private bool _handleWindowClosed = true;
+    private const string MutagenControllerConfigSection = "MutagenController";
 
 #if !DEBUG
-    private const string MutagenControllerConfigSection = "AppMutagenController";
+    private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\App";
+    private const string logFilename = "app.log";
 #else
-    private const string MutagenControllerConfigSection = "DebugAppMutagenController";
+    private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\DebugApp";
+    private const string logFilename = "debug-app.log";
 #endif
+
+    private readonly ILogger<App> _logger;
 
     public App()
     {
         var builder = Host.CreateApplicationBuilder();
+        var configBuilder = builder.Configuration as IConfigurationBuilder;
 
-        (builder.Configuration as IConfigurationBuilder).Add(
-            new RegistryConfigurationSource(Registry.LocalMachine, @"SOFTWARE\Coder Desktop"));
+        // Add config in increasing order of precedence: first builtin defaults, then HKLM, finally HKCU
+        // so that the user's settings in the registry take precedence.
+        AddDefaultConfig(configBuilder);
+        configBuilder.Add(
+            new RegistryConfigurationSource(Registry.LocalMachine, ConfigSubKey));
+        configBuilder.Add(
+            new RegistryConfigurationSource(Registry.CurrentUser, ConfigSubKey));
 
         var services = builder.Services;
+
+        // Logging
+        builder.Services.AddSerilog((_, loggerConfig) =>
+        {
+            loggerConfig.ReadFrom.Configuration(builder.Configuration);
+        });
 
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
@@ -69,12 +89,14 @@ public partial class App : Application
         services.AddTransient<TrayWindow>();
 
         _services = services.BuildServiceProvider();
+        _logger = (ILogger<App>)(_services.GetService(typeof(ILogger<App>))!);
 
         InitializeComponent();
     }
 
     public async Task ExitApplication()
     {
+        _logger.LogDebug("exiting app");
         _handleWindowClosed = false;
         Exit();
         var syncController = _services.GetRequiredService<ISyncSessionController>();
@@ -87,36 +109,39 @@ public partial class App : Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        _logger.LogInformation("new instance launched");
         // Start connecting to the manager in the background.
         var rpcController = _services.GetRequiredService<IRpcController>();
         if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
             // Passing in a CT with no cancellation is desired here, because
             // the named pipe open will block until the pipe comes up.
-            // TODO: log
-            _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
+            _logger.LogDebug("reconnecting with VPN service");
+        _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
+        {
+            if (t.Exception != null)
             {
+                _logger.LogError(t.Exception, "failed to connect to VPN service");
 #if DEBUG
-                if (t.Exception != null)
-                {
-                    Debug.WriteLine(t.Exception);
-                    Debugger.Break();
-                }
+                Debug.WriteLine(t.Exception);
+                Debugger.Break();
 #endif
-            });
+            }
+        });
 
         // Load the credentials in the background.
         var credentialManagerCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var credentialManager = _services.GetRequiredService<ICredentialManager>();
         _ = credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
         {
-            // TODO: log
-#if DEBUG
             if (t.Exception != null)
             {
+                _logger.LogError(t.Exception, "failed to load credentials");
+#if DEBUG
                 Debug.WriteLine(t.Exception);
                 Debugger.Break();
-            }
 #endif
+            }
+
             credentialManagerCts.Dispose();
         }, CancellationToken.None);
 
@@ -125,10 +150,14 @@ public partial class App : Application
         var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
         _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
         {
-            // TODO: log
+            if (t.IsCanceled || t.Exception != null)
+            {
+                _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
 #if DEBUG
-            if (t.IsCanceled || t.Exception != null) Debugger.Break();
+                Debugger.Break();
 #endif
+            }
+
             syncSessionCts.Dispose();
         }, CancellationToken.None);
 
@@ -148,17 +177,44 @@ public partial class App : Application
         {
             case ExtendedActivationKind.Protocol:
                 var protoArgs = args.Data as IProtocolActivatedEventArgs;
+                if (protoArgs == null)
+                {
+                    _logger.LogWarning("URI activation with null data");
+                    return;
+                }
+
                 HandleURIActivation(protoArgs.Uri);
                 break;
 
             default:
-                // TODO: log
+                _logger.LogWarning("activation for {kind}, which is unhandled", args.Kind);
                 break;
         }
     }
 
     public void HandleURIActivation(Uri uri)
     {
-        // TODO: handle
+        // don't log the query string as that's where we include some sensitive information like passwords
+        _logger.LogInformation("handling URI activation for {path}", uri.AbsolutePath);
+    }
+
+    private static void AddDefaultConfig(IConfigurationBuilder builder)
+    {
+        var logPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "CoderDesktop",
+            logFilename);
+        builder.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            [MutagenControllerConfigSection + ":MutagenExecutablePath"] = @"C:\mutagen.exe",
+            ["Serilog:Using:0"] = "Serilog.Sinks.File",
+            ["Serilog:MinimumLevel"] = "Information",
+            ["Serilog:Enrich:0"] = "FromLogContext",
+            ["Serilog:WriteTo:0:Name"] = "File",
+            ["Serilog:WriteTo:0:Args:path"] = logPath,
+            ["Serilog:WriteTo:0:Args:outputTemplate"] =
+                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
+            ["Serilog:WriteTo:0:Args:rollingInterval"] = "Day",
+        });
     }
 }

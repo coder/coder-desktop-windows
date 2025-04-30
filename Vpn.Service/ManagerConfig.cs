@@ -15,8 +15,6 @@ public class ManagerConfig
 
     [Required] public string TunnelBinaryPath { get; set; } = @"C:\coder-vpn.exe";
 
-    [Required] public string LogFileLocation { get; set; } = @"C:\coder-desktop-service.log";
-
     // If empty, signatures will not be verified.
     [Required] public string TunnelBinarySignatureSigner { get; set; } = "Coder Technologies Inc.";
 
