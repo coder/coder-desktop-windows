@@ -465,8 +465,7 @@ public class DownloadTask
             FileStream tempFile;
             try
             {
-                tempFile = File.Create(TempDestinationPath, BufferSize,
-                    FileOptions.Asynchronous | FileOptions.SequentialScan);
+                tempFile = File.Create(TempDestinationPath, BufferSize, FileOptions.SequentialScan);
             }
             catch (Exception e)
             {
