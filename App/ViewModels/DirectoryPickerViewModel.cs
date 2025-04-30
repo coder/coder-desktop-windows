@@ -219,7 +219,7 @@ public partial class DirectoryPickerViewModel : ObservableObject
         {
             new()
             {
-                Name = "(root)",
+                Name = "🖥️",
                 AbsolutePathSegments = [],
                 IsFirst = true,
                 ViewModel = this,

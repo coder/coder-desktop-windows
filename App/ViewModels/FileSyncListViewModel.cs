@@ -284,7 +284,9 @@ public partial class FileSyncListViewModel : ObservableObject
     private void StartCreatingNewSession()
     {
         ClearNewForm();
-        // Ensure we have a fresh hosts list before we open the form.
+        // Ensure we have a fresh hosts list before we open the form. We don't
+        // bind directly to the list on RPC state updates as updating the list
+        // while in use seems to break it.
         SetAvailableHostsFromRpcModel(_rpcController.GetState());
         CreatingNewSession = true;
     }
