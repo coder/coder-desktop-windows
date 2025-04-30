@@ -85,7 +85,7 @@ public interface ISyncSessionController : IAsyncDisposable
     /// </summary>
     Task<SyncSessionControllerStateModel> RefreshState(CancellationToken ct = default);
 
-    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct = default);
+    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, Action<string> progressCallback, CancellationToken ct = default);
     Task<SyncSessionModel> PauseSyncSession(string identifier, CancellationToken ct = default);
     Task<SyncSessionModel> ResumeSyncSession(string identifier, CancellationToken ct = default);
     Task TerminateSyncSession(string identifier, CancellationToken ct = default);
@@ -200,12 +200,15 @@ public sealed class MutagenController : ISyncSessionController
         return state;
     }
 
-    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, CancellationToken ct = default)
+    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, Action<string>? progressCallback = null, CancellationToken ct = default)
     {
         using var _ = await _lock.LockAsync(ct);
         var client = await EnsureDaemon(ct);
 
         await using var prompter = await Prompter.Create(client, true, ct);
+        if (progressCallback != null)
+            prompter.OnProgress += (_, progress) => progressCallback(progress);
+
         var createRes = await client.Synchronization.CreateAsync(new CreateRequest
         {
             Prompter = prompter.Identifier,
@@ -603,6 +606,8 @@ public sealed class MutagenController : ISyncSessionController
 
     private class Prompter : IAsyncDisposable
     {
+        public event EventHandler<string>? OnProgress;
+
         private readonly AsyncDuplexStreamingCall<HostRequest, HostResponse> _dup;
         private readonly CancellationTokenSource _cts;
         private readonly Task _handleRequestsTask;
@@ -683,6 +688,9 @@ public sealed class MutagenController : ISyncSessionController
                         throw new InvalidOperationException("Prompting.Host response stream returned null");
                     if (response.Message == null)
                         throw new InvalidOperationException("Prompting.Host response stream returned a null message");
+
+                    if (!response.IsPrompt)
+                        OnProgress?.Invoke(this, response.Message);
 
                     // Currently we only reply to SSH fingerprint messages with
                     // "yes" and send an empty reply for everything else.
