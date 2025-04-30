@@ -453,27 +453,25 @@ public class DownloadTask
         if (res.Content.Headers.ContentLength >= 0)
             TotalBytes = (ulong)res.Content.Headers.ContentLength;
 
-        FileStream tempFile;
-        try
-        {
-            tempFile = File.Create(TempDestinationPath, BufferSize,
-                FileOptions.Asynchronous | FileOptions.SequentialScan);
-        }
-        catch (Exception e)
-        {
-            _logger.LogError(e, "Failed to create temporary file '{TempDestinationPath}'", TempDestinationPath);
-            throw;
-        }
-
-        await Download(res, tempFile, ct);
+        await Download(res, ct);
         return;
     }
 
-    private async Task Download(HttpResponseMessage res, FileStream tempFile, CancellationToken ct)
+    private async Task Download(HttpResponseMessage res, CancellationToken ct)
     {
         try
         {
             var sha1 = res.Headers.Contains("ETag") ? SHA1.Create() : null;
+            FileStream tempFile;
+            try
+            {
+                tempFile = File.Create(TempDestinationPath, BufferSize, FileOptions.SequentialScan);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to create temporary file '{TempDestinationPath}'", TempDestinationPath);
+                throw;
+            }
             await using (tempFile)
             {
                 var stream = await res.Content.ReadAsStreamAsync(ct);

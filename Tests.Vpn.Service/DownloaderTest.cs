@@ -442,23 +442,28 @@ public class DownloaderTest
     [CancelAfter(30_000)]
     public async Task CancelledInner(CancellationToken ct)
     {
+        var httpCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var taskCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
         using var httpServer = new TestHttpServer(async ctx =>
         {
             ctx.Response.StatusCode = 200;
-            await ctx.Response.OutputStream.WriteAsync("test"u8.ToArray(), ct);
-            await ctx.Response.OutputStream.FlushAsync(ct);
-            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            await ctx.Response.OutputStream.WriteAsync("test"u8.ToArray(), httpCts.Token);
+            await ctx.Response.OutputStream.FlushAsync(httpCts.Token);
+            // wait up to 5 seconds.
+            await Task.Delay(TimeSpan.FromSeconds(5), httpCts.Token);
         });
         var url = new Uri(httpServer.BaseUrl + "/test");
         var destPath = Path.Combine(_tempDir, "test");
 
         var manager = new Downloader(NullLogger<Downloader>.Instance);
         // The "inner" Task should fail.
-        var smallerCt = new CancellationTokenSource(TimeSpan.FromSeconds(1)).Token;
+        var taskCt = taskCts.Token;
         var dlTask = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
-            NullDownloadValidator.Instance, smallerCt);
+            NullDownloadValidator.Instance, taskCt);
+        await taskCts.CancelAsync();
         var ex = Assert.ThrowsAsync<TaskCanceledException>(async () => await dlTask.Task);
-        Assert.That(ex.CancellationToken, Is.EqualTo(smallerCt));
+        Assert.That(ex.CancellationToken, Is.EqualTo(taskCt));
+        await httpCts.CancelAsync();
     }
 
     [Test(Description = "Validation failure")]
