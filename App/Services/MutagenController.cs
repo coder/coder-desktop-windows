@@ -17,9 +17,12 @@ using Coder.Desktop.MutagenSdk.Proto.Url;
 using Coder.Desktop.Vpn.Utilities;
 using Grpc.Core;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using Serilog;
 using DaemonTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Daemon.TerminateRequest;
 using MutagenProtocol = Coder.Desktop.MutagenSdk.Proto.Url.Protocol;
 using SynchronizationTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Synchronization.TerminateRequest;
+using Microsoft.Extensions.Hosting;
 
 namespace Coder.Desktop.App.Services;
 
@@ -113,6 +116,8 @@ public sealed class MutagenController : ISyncSessionController
     // Protects all private non-readonly class members.
     private readonly RaiiSemaphoreSlim _lock = new(1, 1);
 
+    private readonly ILogger<MutagenController> _logger;
+
     private readonly CancellationTokenSource _stateUpdateCts = new();
     private Task? _stateUpdateTask;
 
@@ -142,15 +147,19 @@ public sealed class MutagenController : ISyncSessionController
 
     private string MutagenDaemonLog => Path.Combine(_mutagenDataDirectory, "daemon.log");
 
-    public MutagenController(IOptions<MutagenControllerConfig> config)
+    public MutagenController(IOptions<MutagenControllerConfig> config, ILogger<MutagenController> logger)
     {
         _mutagenExecutablePath = config.Value.MutagenExecutablePath;
+        _logger = logger;
     }
 
     public MutagenController(string executablePath, string dataDirectory)
     {
         _mutagenExecutablePath = executablePath;
         _mutagenDataDirectory = dataDirectory;
+        var builder = Host.CreateApplicationBuilder();
+        builder.Services.AddSerilog();
+        _logger = (ILogger<MutagenController>)builder.Build().Services.GetService(typeof(ILogger<MutagenController>))!;
     }
 
     public event EventHandler<SyncSessionControllerStateModel>? StateChanged;
@@ -447,9 +456,9 @@ public sealed class MutagenController : ISyncSessionController
             {
                 await StopDaemon(cts.Token);
             }
-            catch
+            catch (Exception stopEx)
             {
-                // ignored
+                _logger.LogError(stopEx, "failed to stop daemon");
             }
 
             ReplaceState(new SyncSessionControllerStateModel
@@ -501,6 +510,8 @@ public sealed class MutagenController : ISyncSessionController
             }
             catch (Exception e) when (e is not OperationCanceledException)
             {
+                _logger.LogWarning(e, "failed to start daemon process, attempt {attempt} of {maxAttempts}", attempts,
+                    maxAttempts);
                 if (attempts == maxAttempts)
                     throw;
                 // back off a little and try again.
@@ -556,8 +567,11 @@ public sealed class MutagenController : ISyncSessionController
         // https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.environment?view=net-8.0
         _daemonProcess.StartInfo.UseShellExecute = false;
         _daemonProcess.StartInfo.RedirectStandardError = true;
-        // TODO: log exited process
-        // _daemonProcess.Exited += ...
+        _daemonProcess.EnableRaisingEvents = true;
+        _daemonProcess.Exited += (object? sender, EventArgs e) =>
+        {
+            _logger.LogInformation("mutagen daemon exited with code {exitCode}", _daemonProcess?.ExitCode);
+        };
         if (!_daemonProcess.Start())
             throw new InvalidOperationException("Failed to start mutagen daemon process, Start returned false");
 
@@ -572,6 +586,7 @@ public sealed class MutagenController : ISyncSessionController
     /// </summary>
     private async Task StopDaemon(CancellationToken ct)
     {
+        _logger.LogDebug("stopping mutagen daemon");
         var process = _daemonProcess;
         var client = _mutagenClient;
         var writer = _logWriter;
@@ -584,17 +599,21 @@ public sealed class MutagenController : ISyncSessionController
             if (client == null)
             {
                 if (process == null) return;
+                _logger.LogDebug("no client; killing daemon process");
                 process.Kill(true);
             }
             else
             {
                 try
                 {
+                    _logger.LogDebug("sending DaemonTerminateRequest");
                     await client.Daemon.TerminateAsync(new DaemonTerminateRequest(), cancellationToken: ct);
                 }
-                catch
+                catch (Exception e)
                 {
+                    _logger.LogError(e, "failed to gracefully terminate agent");
                     if (process == null) return;
+                    _logger.LogDebug("killing daemon process after failed graceful termination");
                     process.Kill(true);
                 }
             }
@@ -602,10 +621,12 @@ public sealed class MutagenController : ISyncSessionController
             if (process == null) return;
             var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(TimeSpan.FromSeconds(5));
+            _logger.LogDebug("waiting for process to exit");
             await process.WaitForExitAsync(cts.Token);
         }
         finally
         {
+            _logger.LogDebug("cleaning up daemon process objects");
             client?.Dispose();
             process?.Dispose();
             writer?.Dispose();
