@@ -41,6 +41,7 @@ public partial class App : Application
 #endif
 
     private readonly ILogger<App> _logger;
+    private readonly IUriHandler _uriHandler;
 
     public App()
     {
@@ -72,6 +73,8 @@ public partial class App : Application
             .Bind(builder.Configuration.GetSection(MutagenControllerConfigSection));
         services.AddSingleton<ISyncSessionController, MutagenController>();
         services.AddSingleton<IUserNotifier, UserNotifier>();
+        services.AddSingleton<IRdpConnector, RdpConnector>();
+        services.AddSingleton<IUriHandler, UriHandler>();
 
         // SignInWindow views and view models
         services.AddTransient<SignInViewModel>();
@@ -98,6 +101,7 @@ public partial class App : Application
 
         _services = services.BuildServiceProvider();
         _logger = (ILogger<App>)_services.GetService(typeof(ILogger<App>))!;
+        _uriHandler = (IUriHandler)_services.GetService(typeof(IUriHandler))!;
 
         InitializeComponent();
     }
@@ -190,7 +194,18 @@ public partial class App : Application
                     _logger.LogWarning("URI activation with null data");
                     return;
                 }
-                HandleURIActivation(protoArgs.Uri);
+
+                try
+                {
+                    // don't need to wait for it to complete.
+                    _ = _uriHandler.HandleUri(protoArgs.Uri);
+                }
+                catch (System.Exception e)
+                {
+                    _logger.LogError(e, "unhandled exception while processing URI coder://{authority}{path}",
+                        protoArgs.Uri.Authority, protoArgs.Uri.AbsolutePath);
+                }
+
                 break;
 
             case ExtendedActivationKind.AppNotification:
@@ -202,12 +217,6 @@ public partial class App : Application
                 _logger.LogWarning("activation for {kind}, which is unhandled", args.Kind);
                 break;
         }
-    }
-
-    public void HandleURIActivation(Uri uri)
-    {
-        // don't log the query string as that's where we include some sensitive information like passwords
-        _logger.LogInformation("handling URI activation for {path}", uri.AbsolutePath);
     }
 
     public void HandleNotification(AppNotificationManager? sender, AppNotificationActivatedEventArgs args)
