@@ -21,6 +21,7 @@ using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 using Serilog;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
+using Microsoft.Windows.AppNotifications;
 
 namespace Coder.Desktop.App;
 
@@ -70,6 +71,7 @@ public partial class App : Application
         services.AddOptions<MutagenControllerConfig>()
             .Bind(builder.Configuration.GetSection(MutagenControllerConfigSection));
         services.AddSingleton<ISyncSessionController, MutagenController>();
+        services.AddSingleton<IUserNotifier, UserNotifier>();
 
         // SignInWindow views and view models
         services.AddTransient<SignInViewModel>();
@@ -188,8 +190,12 @@ public partial class App : Application
                     _logger.LogWarning("URI activation with null data");
                     return;
                 }
-
                 HandleURIActivation(protoArgs.Uri);
+                break;
+
+            case ExtendedActivationKind.AppNotification:
+                var notificationArgs = (args.Data as AppNotificationActivatedEventArgs)!;
+                HandleNotification(null, notificationArgs);
                 break;
 
             default:
@@ -202,6 +208,12 @@ public partial class App : Application
     {
         // don't log the query string as that's where we include some sensitive information like passwords
         _logger.LogInformation("handling URI activation for {path}", uri.AbsolutePath);
+    }
+
+    public void HandleNotification(AppNotificationManager? sender, AppNotificationActivatedEventArgs args)
+    {
+        // right now, we don't do anything other than log
+        _logger.LogInformation("handled notification activation");
     }
 
     private static void AddDefaultConfig(IConfigurationBuilder builder)
