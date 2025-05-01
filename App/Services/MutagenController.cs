@@ -542,6 +542,7 @@ public sealed class MutagenController : ISyncSessionController
         _daemonProcess.StartInfo.FileName = _mutagenExecutablePath;
         _daemonProcess.StartInfo.Arguments = "daemon run";
         _daemonProcess.StartInfo.Environment.Add("MUTAGEN_DATA_DIRECTORY", _mutagenDataDirectory);
+        _daemonProcess.StartInfo.Environment.Add("MUTAGEN_SSH_CONFIG_PATH", "none"); // do not use ~/.ssh/config
         // hide the console window
         _daemonProcess.StartInfo.CreateNoWindow = true;
         // shell needs to be disabled since we set the environment
