@@ -556,25 +556,59 @@ public sealed class MutagenController : ISyncSessionController
         var logPath = Path.Combine(_mutagenDataDirectory, "daemon.log");
         var logStream = new StreamWriter(logPath, true);
 
-        _daemonProcess = new Process();
-        _daemonProcess.StartInfo.FileName = _mutagenExecutablePath;
-        _daemonProcess.StartInfo.Arguments = "daemon run";
-        _daemonProcess.StartInfo.Environment.Add("MUTAGEN_DATA_DIRECTORY", _mutagenDataDirectory);
-        _daemonProcess.StartInfo.Environment.Add("MUTAGEN_SSH_CONFIG_PATH", "none"); // do not use ~/.ssh/config
+        _logger.LogInformation("starting mutagen daemon process with executable path '{path}'", _mutagenExecutablePath);
+        _logger.LogInformation("mutagen data directory '{path}'", _mutagenDataDirectory);
+        _logger.LogInformation("mutagen daemon log path '{path}'", logPath);
+
+        var daemonProcess = new Process();
+        daemonProcess.StartInfo.FileName = _mutagenExecutablePath;
+        daemonProcess.StartInfo.Arguments = "daemon run";
+        daemonProcess.StartInfo.Environment.Add("MUTAGEN_DATA_DIRECTORY", _mutagenDataDirectory);
+        daemonProcess.StartInfo.Environment.Add("MUTAGEN_SSH_CONFIG_PATH", "none"); // do not use ~/.ssh/config
         // hide the console window
-        _daemonProcess.StartInfo.CreateNoWindow = true;
+        daemonProcess.StartInfo.CreateNoWindow = true;
         // shell needs to be disabled since we set the environment
         // https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.environment?view=net-8.0
-        _daemonProcess.StartInfo.UseShellExecute = false;
-        _daemonProcess.StartInfo.RedirectStandardError = true;
-        _daemonProcess.EnableRaisingEvents = true;
-        _daemonProcess.Exited += (object? sender, EventArgs e) =>
+        daemonProcess.StartInfo.UseShellExecute = false;
+        daemonProcess.StartInfo.RedirectStandardError = true;
+        daemonProcess.EnableRaisingEvents = true;
+        daemonProcess.Exited += (_, _) =>
         {
-            _logger.LogInformation("mutagen daemon exited with code {exitCode}", _daemonProcess?.ExitCode);
+            var exitCode = -1;
+            try
+            {
+                // ReSharper disable once AccessToDisposedClosure
+                exitCode = daemonProcess.ExitCode;
+            }
+            catch
+            {
+                // ignored
+            }
+            _logger.LogInformation("mutagen daemon exited with code {exitCode}", exitCode);
         };
-        if (!_daemonProcess.Start())
-            throw new InvalidOperationException("Failed to start mutagen daemon process, Start returned false");
 
+        try
+        {
+            if (!daemonProcess.Start())
+                throw new InvalidOperationException("Failed to start mutagen daemon process, Start returned false");
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "mutagen daemon failed to start");
+
+            logStream.Dispose();
+            try
+            {
+                daemonProcess.Kill();
+            }
+            catch
+            {
+                // ignored, the process likely doesn't exist
+            }
+            daemonProcess.Dispose();
+        }
+
+        _daemonProcess = daemonProcess;
         var writer = new LogWriter(_daemonProcess.StandardError, logStream);
         Task.Run(() => { _ = writer.Run(); });
         _logWriter = writer;
