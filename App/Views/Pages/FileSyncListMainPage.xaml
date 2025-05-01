@@ -280,8 +280,11 @@
                             <ColumnDefinition Width="2*" MinWidth="200" />
                             <ColumnDefinition Width="1*" MinWidth="120" />
                             <ColumnDefinition Width="2*" MinWidth="200" />
-                            <ColumnDefinition Width="1*" MinWidth="100" MaxWidth="200" />
-                            <ColumnDefinition Width="1*" MinWidth="100" MaxWidth="200" />
+                            <!--
+                                To fit the status better, the last two columns
+                                are merged for the new sync row.
+                            -->
+                            <ColumnDefinition Width="2*" MinWidth="200" MaxWidth="400" />
                         </Grid.ColumnDefinitions>
 
                         <Border Grid.Column="0" Padding="0">
@@ -358,6 +361,13 @@
                                     <FontIcon Glyph="&#xE838;" FontSize="13" />
                                 </Button>
                             </Grid>
+                        </Border>
+                        <Border Grid.Column="4">
+                            <TextBlock
+                                Text="{x:Bind ViewModel.NewSessionStatus, Mode=OneWay}"
+                                VerticalAlignment="Center"
+                                TextTrimming="CharacterEllipsis"
+                                IsTextTrimmedChanged="TooltipText_IsTextTrimmedChanged" />
                         </Border>
                     </Grid>
                 </StackPanel>

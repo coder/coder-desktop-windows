@@ -1,6 +1,6 @@
 /*
  * This file was taken from
- * https://github.com/mutagen-io/mutagen/tree/v0.18.1/pkg/synchronization/scan_mode.proto
+ * https://github.com/coder/mutagen/tree/v0.18.2/pkg/synchronization/scan_mode.proto
  *
  * MIT License
  *

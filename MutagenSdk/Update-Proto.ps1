@@ -6,7 +6,7 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-$repo = "mutagen-io/mutagen"
+$repo = "coder/mutagen"
 $protoPrefix = "pkg"
 $entryFiles = @(
     "service/daemon/daemon.proto",
@@ -24,7 +24,7 @@ if (Test-Path $cloneDir) {
     Push-Location $cloneDir
     try {
         & git.exe clean -fdx
-        if ($LASTEXITCODE -ne 0) { throw "Failed to clean $mutagenTag" }
+        if ($LASTEXITCODE -ne 0) { throw "Failed to clean $cloneDir" }
         # If we're already on the tag, we don't need to fetch or checkout.
         if ((& git.exe name-rev --name-only HEAD) -eq "tags/$mutagenTag") {
             Write-Host "Already on $mutagenTag"
@@ -96,6 +96,7 @@ foreach ($entryFile in $entryFiles) {
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Push-Location $repoRoot
+$outputDir = Resolve-Path $outputDir
 if (Test-Path $outputDir) {
     Remove-Item -Recurse -Force $outputDir
 }
