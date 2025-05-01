@@ -608,6 +608,7 @@ public sealed class MutagenController : ISyncSessionController
             }
 
             daemonProcess.Dispose();
+            throw;
         }
 
         _daemonProcess = daemonProcess;
