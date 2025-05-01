@@ -16,13 +16,13 @@ using Coder.Desktop.MutagenSdk.Proto.Synchronization.Core.Ignore;
 using Coder.Desktop.MutagenSdk.Proto.Url;
 using Coder.Desktop.Vpn.Utilities;
 using Grpc.Core;
-using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Serilog;
 using DaemonTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Daemon.TerminateRequest;
 using MutagenProtocol = Coder.Desktop.MutagenSdk.Proto.Url.Protocol;
 using SynchronizationTerminateRequest = Coder.Desktop.MutagenSdk.Proto.Service.Synchronization.TerminateRequest;
-using Microsoft.Extensions.Hosting;
 
 namespace Coder.Desktop.App.Services;
 
@@ -584,6 +584,7 @@ public sealed class MutagenController : ISyncSessionController
             {
                 // ignored
             }
+
             _logger.LogInformation("mutagen daemon exited with code {exitCode}", exitCode);
         };
 
@@ -605,6 +606,7 @@ public sealed class MutagenController : ISyncSessionController
             {
                 // ignored, the process likely doesn't exist
             }
+
             daemonProcess.Dispose();
         }
 
