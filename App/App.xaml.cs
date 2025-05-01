@@ -1,24 +1,26 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Windows.ApplicationModel.Activation;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
 using Coder.Desktop.App.Views.Pages;
+using Coder.Desktop.CoderSdk.Agent;
 using Coder.Desktop.Vpn;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
-using Windows.ApplicationModel.Activation;
-using Microsoft.Extensions.Logging;
 using Serilog;
-using System.Collections.Generic;
+using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
 namespace Coder.Desktop.App;
 
@@ -60,6 +62,8 @@ public partial class App : Application
             loggerConfig.ReadFrom.Configuration(builder.Configuration);
         });
 
+        services.AddSingleton<IAgentApiClientFactory, AgentApiClientFactory>();
+
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
 
@@ -76,6 +80,8 @@ public partial class App : Application
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
 
+        // DirectoryPickerWindow views and view models are created by FileSyncListViewModel.
+
         // TrayWindow views and view models
         services.AddTransient<TrayWindowLoadingPage>();
         services.AddTransient<TrayWindowDisconnectedViewModel>();
@@ -89,7 +95,7 @@ public partial class App : Application
         services.AddTransient<TrayWindow>();
 
         _services = services.BuildServiceProvider();
-        _logger = (ILogger<App>)(_services.GetService(typeof(ILogger<App>))!);
+        _logger = (ILogger<App>)_services.GetService(typeof(ILogger<App>))!;
 
         InitializeComponent();
     }
@@ -107,7 +113,7 @@ public partial class App : Application
         Environment.Exit(0);
     }
 
-    protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
+    protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _logger.LogInformation("new instance launched");
         // Start connecting to the manager in the background.

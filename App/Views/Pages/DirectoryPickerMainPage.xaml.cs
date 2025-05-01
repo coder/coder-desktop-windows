@@ -3,17 +3,16 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.Views.Pages;
 
-public sealed partial class FileSyncListMainPage : Page
+public sealed partial class DirectoryPickerMainPage : Page
 {
-    public FileSyncListViewModel ViewModel;
+    public readonly DirectoryPickerViewModel ViewModel;
 
-    public FileSyncListMainPage(FileSyncListViewModel viewModel)
+    public DirectoryPickerMainPage(DirectoryPickerViewModel viewModel)
     {
-        ViewModel = viewModel; // already initialized
+        ViewModel = viewModel;
         InitializeComponent();
     }
 
-    // Adds a tooltip with the full text when it's ellipsized.
     private void TooltipText_IsTextTrimmedChanged(TextBlock sender, IsTextTrimmedChangedEventArgs e)
     {
         ToolTipService.SetToolTip(sender, null);

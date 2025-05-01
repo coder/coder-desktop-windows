@@ -12,6 +12,7 @@ using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
 using Coder.Desktop.MutagenSdk.Proto.Service.Prompting;
 using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Synchronization.Core.Ignore;
 using Coder.Desktop.MutagenSdk.Proto.Url;
 using Coder.Desktop.Vpn.Utilities;
 using Grpc.Core;
@@ -85,7 +86,9 @@ public interface ISyncSessionController : IAsyncDisposable
     /// </summary>
     Task<SyncSessionControllerStateModel> RefreshState(CancellationToken ct = default);
 
-    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, Action<string> progressCallback, CancellationToken ct = default);
+    Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, Action<string> progressCallback,
+        CancellationToken ct = default);
+
     Task<SyncSessionModel> PauseSyncSession(string identifier, CancellationToken ct = default);
     Task<SyncSessionModel> ResumeSyncSession(string identifier, CancellationToken ct = default);
     Task TerminateSyncSession(string identifier, CancellationToken ct = default);
@@ -200,7 +203,8 @@ public sealed class MutagenController : ISyncSessionController
         return state;
     }
 
-    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req, Action<string>? progressCallback = null, CancellationToken ct = default)
+    public async Task<SyncSessionModel> CreateSyncSession(CreateSyncSessionRequest req,
+        Action<string>? progressCallback = null, CancellationToken ct = default)
     {
         using var _ = await _lock.LockAsync(ct);
         var client = await EnsureDaemon(ct);
@@ -216,8 +220,11 @@ public sealed class MutagenController : ISyncSessionController
             {
                 Alpha = req.Alpha.MutagenUrl,
                 Beta = req.Beta.MutagenUrl,
-                // TODO: probably should set these at some point
-                Configuration = new Configuration(),
+                // TODO: probably should add a configuration page for these at some point
+                Configuration = new Configuration
+                {
+                    IgnoreVCSMode = IgnoreVCSMode.Ignore,
+                },
                 ConfigurationAlpha = new Configuration(),
                 ConfigurationBeta = new Configuration(),
             },

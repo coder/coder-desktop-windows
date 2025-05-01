@@ -113,6 +113,7 @@ public class MutagenControllerTest
         await AssertDaemonStopped(dataDirectory, ct);
 
         var progressMessages = new List<string>();
+
         void OnProgress(string message)
         {
             TestContext.Out.WriteLine("Create session progress: " + message);

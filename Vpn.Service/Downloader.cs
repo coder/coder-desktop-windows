@@ -297,15 +297,10 @@ public class Downloader : IDownloader
                 // remove the key first, before checking the exception, to ensure
                 // we still clean up.
                 _downloads.TryRemove(destinationPath, out _);
-                if (tsk.Exception == null)
-                {
-                    return;
-                }
+                if (tsk.Exception == null) return;
 
                 if (tsk.Exception.InnerException != null)
-                {
                     ExceptionDispatchInfo.Capture(tsk.Exception.InnerException).Throw();
-                }
 
                 // not sure if this is hittable, but just in case:
                 throw tsk.Exception;
@@ -328,7 +323,7 @@ public class Downloader : IDownloader
     }
 
     /// <summary>
-    /// TaskOrCancellation waits for either the task to complete, or the given token to be canceled.
+    ///     TaskOrCancellation waits for either the task to complete, or the given token to be canceled.
     /// </summary>
     internal static async Task TaskOrCancellation(Task task, CancellationToken cancellationToken)
     {
@@ -454,7 +449,6 @@ public class DownloadTask
             TotalBytes = (ulong)res.Content.Headers.ContentLength;
 
         await Download(res, ct);
-        return;
     }
 
     private async Task Download(HttpResponseMessage res, CancellationToken ct)
@@ -472,6 +466,7 @@ public class DownloadTask
                 _logger.LogError(e, "Failed to create temporary file '{TempDestinationPath}'", TempDestinationPath);
                 throw;
             }
+
             await using (tempFile)
             {
                 var stream = await res.Content.ReadAsStreamAsync(ct);

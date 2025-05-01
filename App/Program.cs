@@ -27,7 +27,7 @@ public static class Program
         try
         {
             ComWrappersSupport.InitializeComWrappers();
-            AppInstance mainInstance = GetMainInstance();
+            var mainInstance = GetMainInstance();
             if (!mainInstance.IsCurrent)
             {
                 var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();

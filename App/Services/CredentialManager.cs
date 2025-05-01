@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.CoderSdk;
+using Coder.Desktop.CoderSdk.Coder;
 using Coder.Desktop.Vpn.Utilities;
 
 namespace Coder.Desktop.App.Services;

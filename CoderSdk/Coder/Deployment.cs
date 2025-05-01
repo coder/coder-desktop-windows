@@ -1,4 +1,4 @@
-namespace Coder.Desktop.CoderSdk;
+namespace Coder.Desktop.CoderSdk.Coder;
 
 public partial interface ICoderApiClient
 {

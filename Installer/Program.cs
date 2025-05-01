@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using CommandLine;
-using Microsoft.Extensions.Configuration;
 using WixSharp;
 using WixSharp.Bootstrapper;
 using WixSharp.CommonTasks;
@@ -389,8 +387,8 @@ public class Program
                 [
                     new ExePackagePayload
                     {
-                        SourceFile = opts.WindowsAppSdkPath
-                    }
+                        SourceFile = opts.WindowsAppSdkPath,
+                    },
                 ],
             },
             new MsiPackage(opts.MsiPath)
