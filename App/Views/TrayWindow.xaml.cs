@@ -6,6 +6,7 @@ using Windows.UI.Core;
 using Coder.Desktop.App.Controls;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;

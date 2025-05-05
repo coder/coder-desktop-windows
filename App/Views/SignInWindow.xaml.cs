@@ -1,6 +1,7 @@
 using System;
 using Windows.Graphics;
 using Coder.Desktop.App.Controls;
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views.Pages;
 using Microsoft.UI.Windowing;

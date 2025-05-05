@@ -156,6 +156,15 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
         ClearValue(SelectedObjectProperty);
     }
 
+    private static void VerifyReferencesProperty(IObservableVector<DependencyObject> references)
+    {
+        // Ensure unique keys and that the values are DependencyObjectSelectorItem<K, V>.
+        var items = references.OfType<DependencyObjectSelectorItem<TK, TV>>().ToArray();
+        var keys = items.Select(i => i.Key).Distinct().ToArray();
+        if (keys.Length != references.Count)
+            throw new ArgumentException("ObservableCollection Keys must be unique.");
+    }
+
     // Called when the References property is replaced.
     private static void ReferencesPropertyChanged(DependencyObject obj, DependencyPropertyChangedEventArgs args)
     {
@@ -166,12 +175,16 @@ public class DependencyObjectSelector<TK, TV> : DependencyObject
             oldValue.VectorChanged -= self.OnVectorChangedReferences;
         var newValue = args.NewValue as DependencyObjectCollection;
         if (newValue != null)
+        {
+            VerifyReferencesProperty(newValue);
             newValue.VectorChanged += self.OnVectorChangedReferences;
+        }
     }
 
     // Called when the References collection changes without being replaced.
     private void OnVectorChangedReferences(IObservableVector<DependencyObject> sender, IVectorChangedEventArgs args)
     {
+        VerifyReferencesProperty(sender);
         UpdateSelectedObject();
     }
 

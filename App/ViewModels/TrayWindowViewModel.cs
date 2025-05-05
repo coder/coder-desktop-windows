@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -25,10 +28,16 @@ public partial class TrayWindowViewModel : ObservableObject
     private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+    private readonly IAgentViewModelFactory _agentViewModelFactory;
 
     private FileSyncListWindow? _fileSyncListWindow;
 
     private DispatcherQueue? _dispatcherQueue;
+
+    // This isn't an ObservableProperty because the property itself never
+    // changes. We add an event listener for the collection changing in the
+    // constructor.
+    public readonly ObservableCollection<AgentViewModel> Agents = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEnableSection))]
@@ -48,13 +57,6 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowAgentOverflowButton))]
     [NotifyPropertyChangedFor(nameof(ShowFailedSection))]
     public partial string? VpnFailedMessage { get; set; } = null;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VisibleAgents))]
-    [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
-    [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
-    [NotifyPropertyChangedFor(nameof(ShowAgentOverflowButton))]
-    public partial List<AgentViewModel> Agents { get; set; } = [];
 
     public bool ShowEnableSection => VpnFailedMessage is null && VpnLifecycle is not VpnLifecycle.Started;
 
@@ -79,11 +81,22 @@ public partial class TrayWindowViewModel : ObservableObject
     [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
 
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
-        ICredentialManager credentialManager)
+        ICredentialManager credentialManager, IAgentViewModelFactory agentViewModelFactory)
     {
         _services = services;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _agentViewModelFactory = agentViewModelFactory;
+
+        // Since the property value itself never changes, we add event
+        // listeners for the underlying collection changing instead.
+        Agents.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(VisibleAgents)));
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowNoAgentsSection)));
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowAgentsSection)));
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowAgentOverflowButton)));
+        };
     }
 
     public void Initialize(DispatcherQueue dispatcherQueue)
@@ -107,31 +120,21 @@ public partial class TrayWindowViewModel : ObservableObject
             return;
         }
 
-        // As a failsafe, if RPC is disconnected we disable the switch. The
-        // Window should not show the current Page if the RPC is disconnected.
-        if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
+        // As a failsafe, if RPC is disconnected (or we're not signed in) we
+        // disable the switch. The Window should not show the current Page if
+        // the RPC is disconnected.
+        var credentialModel = _credentialManager.GetCachedCredentials();
+        if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected || credentialModel.State is not CredentialState.Valid ||
+            credentialModel.CoderUrl == null)
         {
             VpnLifecycle = VpnLifecycle.Unknown;
             VpnSwitchActive = false;
-            Agents = [];
+            Agents.Clear();
             return;
         }
 
         VpnLifecycle = rpcModel.VpnLifecycle;
         VpnSwitchActive = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
-
-        // Get the current dashboard URL.
-        var credentialModel = _credentialManager.GetCachedCredentials();
-        Uri? coderUri = null;
-        if (credentialModel.State == CredentialState.Valid && !string.IsNullOrWhiteSpace(credentialModel.CoderUrl))
-            try
-            {
-                coderUri = new Uri(credentialModel.CoderUrl, UriKind.Absolute);
-            }
-            catch
-            {
-                // Ignore
-            }
 
         // Add every known agent.
         HashSet<ByteString> workspacesWithAgents = [];
@@ -156,58 +159,46 @@ public partial class TrayWindowViewModel : ObservableObject
             }
 
             var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
+            var connectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
+                ? AgentConnectionStatus.Green
+                : AgentConnectionStatus.Yellow;
             workspacesWithAgents.Add(agent.WorkspaceId);
             var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
 
-            agents.Add(new AgentViewModel
-            {
-                Hostname = fqdnPrefix,
-                HostnameSuffix = fqdnSuffix,
-                ConnectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
-                    ? AgentConnectionStatus.Green
-                    : AgentConnectionStatus.Yellow,
-                DashboardUrl = WorkspaceUri(coderUri, workspace?.Name),
-            });
+            agents.Add(_agentViewModelFactory.Create(
+                agent.ParseId(),
+                fqdnPrefix,
+                fqdnSuffix,
+                connectionStatus,
+                credentialModel.CoderUrl,
+                workspace?.Name));
         }
 
         // For every stopped workspace that doesn't have any agents, add a
         // dummy agent row.
         foreach (var workspace in rpcModel.Workspaces.Where(w =>
                      w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
-            agents.Add(new AgentViewModel
-            {
-                // We just assume that it's a single-agent workspace.
-                Hostname = workspace.Name,
+            agents.Add(_agentViewModelFactory.Create(
+                // Workspace ID is fine as a stand-in here, it shouldn't
+                // conflict with any agent IDs.
+                workspace.ParseId(),
+                // We assume that it's a single-agent workspace.
+                workspace.Name,
                 // TODO: this needs to get the suffix from the server
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Gray,
-                DashboardUrl = WorkspaceUri(coderUri, workspace.Name),
-            });
+                ".coder",
+                AgentConnectionStatus.Gray,
+                credentialModel.CoderUrl,
+                workspace.Name));
 
         // Sort by status green, red, gray, then by hostname.
-        agents.Sort((a, b) =>
+        ModelMerge.MergeLists(Agents, agents, (a, b) =>
         {
             if (a.ConnectionStatus != b.ConnectionStatus)
                 return a.ConnectionStatus.CompareTo(b.ConnectionStatus);
             return string.Compare(a.FullHostname, b.FullHostname, StringComparison.Ordinal);
         });
-        Agents = agents;
 
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
-    }
-
-    private string WorkspaceUri(Uri? baseUri, string? workspaceName)
-    {
-        if (baseUri == null) return DefaultDashboardUrl;
-        if (string.IsNullOrWhiteSpace(workspaceName)) return baseUri.ToString();
-        try
-        {
-            return new Uri(baseUri, $"/@me/{workspaceName}").ToString();
-        }
-        catch
-        {
-            return DefaultDashboardUrl;
-        }
     }
 
     private void UpdateFromCredentialsModel(CredentialModel credentialModel)
@@ -224,7 +215,7 @@ public partial class TrayWindowViewModel : ObservableObject
         // or this URI is invalid. CredentialModel.CoderUrl should never be
         // null while the Page is active as the Page is only displayed when
         // CredentialModel.Status == Valid.
-        DashboardUrl = credentialModel.CoderUrl ?? DefaultDashboardUrl;
+        DashboardUrl = credentialModel.CoderUrl?.ToString() ?? DefaultDashboardUrl;
     }
 
     public void VpnSwitch_Toggled(object sender, RoutedEventArgs e)

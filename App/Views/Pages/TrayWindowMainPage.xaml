@@ -97,108 +97,192 @@
 
             <ItemsRepeater.ItemTemplate>
                 <DataTemplate x:DataType="viewModels:AgentViewModel">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
+                    <StackPanel
+                        Orientation="Vertical"
+                        HorizontalAlignment="Stretch">
 
-                        <HyperlinkButton
-                            Grid.Column="0"
-                            NavigateUri="{x:Bind DashboardUrl, Mode=OneWay}"
-                            Margin="-12,0,0,0"
-                            HorizontalAlignment="Stretch"
-                            HorizontalContentAlignment="Left">
+                        <Grid HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
 
-                            <StackPanel
-                                Orientation="Horizontal"
+                            <HyperlinkButton
+                                Grid.Column="0"
+                                Command="{x:Bind ToggleExpandedCommand, Mode=OneWay}"
+                                Margin="-12,0,0,0"
+                                Padding="8,5,8,6"
                                 HorizontalAlignment="Stretch"
-                                Spacing="10">
+                                HorizontalContentAlignment="Stretch">
 
-                                <StackPanel.Resources>
-                                    <converters:StringToBrushSelector
-                                        x:Key="StatusColor"
-                                        SelectedKey="{x:Bind Path=ConnectionStatus, Mode=OneWay}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
 
-                                        <converters:StringToBrushSelectorItem>
-                                            <converters:StringToBrushSelectorItem.Value>
-                                                <SolidColorBrush Color="#8e8e93" />
-                                            </converters:StringToBrushSelectorItem.Value>
-                                        </converters:StringToBrushSelectorItem>
-                                        <converters:StringToBrushSelectorItem Key="Red">
-                                            <converters:StringToBrushSelectorItem.Value>
-                                                <SolidColorBrush Color="#ff3b30" />
-                                            </converters:StringToBrushSelectorItem.Value>
-                                        </converters:StringToBrushSelectorItem>
-                                        <converters:StringToBrushSelectorItem Key="Yellow">
-                                            <converters:StringToBrushSelectorItem.Value>
-                                                <SolidColorBrush Color="#ffcc01" />
-                                            </converters:StringToBrushSelectorItem.Value>
-                                        </converters:StringToBrushSelectorItem>
-                                        <converters:StringToBrushSelectorItem Key="Green">
-                                            <converters:StringToBrushSelectorItem.Value>
-                                                <SolidColorBrush Color="#34c759" />
-                                            </converters:StringToBrushSelectorItem.Value>
-                                        </converters:StringToBrushSelectorItem>
-                                    </converters:StringToBrushSelector>
-                                </StackPanel.Resources>
+                                    <Grid.Resources>
+                                        <converters:StringToBrushSelector
+                                            x:Key="StatusColor"
+                                            SelectedKey="{x:Bind Path=ConnectionStatus, Mode=OneWay}">
 
-                                <Canvas
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Height="14" Width="14"
-                                    Margin="0,1,0,0">
+                                            <converters:StringToBrushSelectorItem>
+                                                <converters:StringToBrushSelectorItem.Value>
+                                                    <SolidColorBrush Color="#8e8e93" />
+                                                </converters:StringToBrushSelectorItem.Value>
+                                            </converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem Key="Red">
+                                                <converters:StringToBrushSelectorItem.Value>
+                                                    <SolidColorBrush Color="#ff3b30" />
+                                                </converters:StringToBrushSelectorItem.Value>
+                                            </converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem Key="Yellow">
+                                                <converters:StringToBrushSelectorItem.Value>
+                                                    <SolidColorBrush Color="#ffcc01" />
+                                                </converters:StringToBrushSelectorItem.Value>
+                                            </converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem Key="Green">
+                                                <converters:StringToBrushSelectorItem.Value>
+                                                    <SolidColorBrush Color="#34c759" />
+                                                </converters:StringToBrushSelectorItem.Value>
+                                            </converters:StringToBrushSelectorItem>
+                                        </converters:StringToBrushSelector>
+                                    </Grid.Resources>
 
-                                    <Ellipse
-                                        Fill="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
-                                        Opacity="0.2"
-                                        Width="14"
-                                        Height="14"
-                                        Canvas.Left="0"
-                                        Canvas.Top="0" />
+                                    <controls:ExpandChevron
+                                        Grid.Column="0"
+                                        Width="24"
+                                        Height="16"
+                                        Margin="0,0,0,0"
+                                        IsOpen="{x:Bind IsExpanded, Mode=OneWay}"
+                                        Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
 
-                                    <Ellipse
-                                        Fill="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
-                                        Width="8"
-                                        Height="8"
+                                    <!-- See .cs for why the Loaded event handler is needed -->
+                                    <TextBlock
+                                        Grid.Column="1"
+                                        Loaded="AgentHostnameText_OnLoaded"
                                         VerticalAlignment="Center"
-                                        Canvas.Left="3"
-                                        Canvas.Top="3" />
-                                </Canvas>
+                                        HorizontalTextAlignment="Left"
+                                        HorizontalAlignment="Stretch"
+                                        TextTrimming="CharacterEllipsis"
+                                        TextWrapping="NoWrap">
 
-                                <!-- See .cs for why the Loaded event handler is needed -->
-                                <!-- TODO: I couldn't get ellipsis to work without hardcoding a width here -->
-                                <TextBlock
-                                    Loaded="AgentHostnameText_OnLoaded"
-                                    VerticalAlignment="Center"
-                                    HorizontalAlignment="Stretch"
-                                    HorizontalTextAlignment="Left"
-                                    TextTrimming="CharacterEllipsis"
-                                    TextWrapping="NoWrap"
-                                    Width="180">
+                                        <Run Text="{x:Bind Hostname, Mode=OneWay}"
+                                             Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+                                        <Run Text="{x:Bind HostnameSuffix, Mode=OneWay}"
+                                             Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
+                                    </TextBlock>
 
-                                    <Run Text="{x:Bind Hostname, Mode=OneWay}"
-                                         Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
-                                    <Run Text="{x:Bind HostnameSuffix, Mode=OneWay}"
-                                         Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
-                                </TextBlock>
-                            </StackPanel>
-                        </HyperlinkButton>
+                                    <Canvas
+                                        Grid.Column="2"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Height="14" Width="14"
+                                        Margin="0,1,0,0">
 
-                        <HyperlinkButton
-                            Grid.Column="1"
-                            x:Name="AgentHostnameCopyButton"
-                            Command="{x:Bind CopyHostnameCommand}"
-                            CommandParameter="{Binding ElementName=AgentHostnameCopyButton}"
-                            Margin="0,0,-12,0"
-                            VerticalAlignment="Stretch">
+                                        <Ellipse
+                                            Fill="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
+                                            Opacity="0.2"
+                                            Width="14"
+                                            Height="14"
+                                            Canvas.Left="0"
+                                            Canvas.Top="0" />
 
-                            <FontIcon
-                                Glyph="&#xE8C8;"
-                                FontSize="16"
-                                Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
-                        </HyperlinkButton>
-                    </Grid>
+                                        <Ellipse
+                                            Fill="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
+                                            Width="8"
+                                            Height="8"
+                                            VerticalAlignment="Center"
+                                            Canvas.Left="3"
+                                            Canvas.Top="3" />
+                                    </Canvas>
+                                </Grid>
+                            </HyperlinkButton>
+
+                            <HyperlinkButton
+                                Grid.Column="1"
+                                x:Name="AgentHostnameCopyButton"
+                                Command="{x:Bind CopyHostnameCommand}"
+                                CommandParameter="{Binding ElementName=AgentHostnameCopyButton}"
+                                ToolTipService.ToolTip="Copy hostname to clipboard"
+                                Padding="8,0"
+                                VerticalAlignment="Stretch">
+
+                                <FontIcon
+                                    Glyph="&#xE8C8;"
+                                    FontSize="16"
+                                    Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
+                            </HyperlinkButton>
+
+                            <HyperlinkButton
+                                Grid.Column="2"
+                                NavigateUri="{x:Bind DashboardUrl, Mode=OneWay}"
+                                ToolTipService.ToolTip="Open in dashboard"
+                                Margin="0,0,-12,0"
+                                Padding="8,0"
+                                VerticalAlignment="Stretch">
+
+                                <FontIcon
+                                    Glyph="&#xE774;"
+                                    FontSize="16"
+                                    Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
+                            </HyperlinkButton>
+                        </Grid>
+
+                        <controls:ExpandContent IsOpen="{x:Bind IsExpanded, Mode=OneWay}">
+                            <TextBlock
+                                Text="{x:Bind ExpandAppsMessage, Mode=OneWay}"
+                                Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                Margin="10,8,10,16"
+                                TextAlignment="Center"
+                                Visibility="{x:Bind ShowExpandAppsMessage, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+
+                            <ItemsRepeater
+                                ItemsSource="{x:Bind VisibleApps, Mode=OneWay}"
+                                Visibility="{x:Bind ShowExpandAppsMessage, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
+                                Margin="17,0">
+
+                                <ItemsRepeater.Layout>
+                                    <StackLayout Orientation="Horizontal" />
+                                </ItemsRepeater.Layout>
+
+                                <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="viewModels:AgentAppViewModel">
+                                        <HyperlinkButton
+                                            Padding="6"
+                                            Margin="0"
+                                            Command="{x:Bind OpenAppCommand}"
+                                            Width="34"
+                                            Height="34"
+                                            ToolTipService.ToolTip="{x:Bind Details}">
+
+                                            <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                                                <!-- Icon width and height need to be synced to the constants in the view model -->
+                                                <Image
+                                                    Source="{x:Bind ImageSource}"
+                                                    ImageOpened="{x:Bind OnImageOpened}"
+                                                    ImageFailed="{x:Bind OnImageFailed}"
+                                                    Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
+                                                    Width="20"
+                                                    Height="20"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center" />
+
+                                                <FontIcon
+                                                    Glyph="&#xECAA;"
+                                                    FontSize="20"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"
+                                                    Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                            </Grid>
+                                        </HyperlinkButton>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                            </ItemsRepeater>
+                        </controls:ExpandContent>
+                    </StackPanel>
                 </DataTemplate>
             </ItemsRepeater.ItemTemplate>
         </ItemsRepeater>

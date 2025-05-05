@@ -170,7 +170,7 @@ public class RpcController : IRpcController
             {
                 Start = new StartRequest
                 {
-                    CoderUrl = credentials.CoderUrl,
+                    CoderUrl = credentials.CoderUrl?.ToString(),
                     ApiToken = credentials.ApiToken,
                 },
             }, ct);

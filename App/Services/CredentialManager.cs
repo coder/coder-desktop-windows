@@ -21,7 +21,7 @@ public class RawCredentials
 [JsonSerializable(typeof(RawCredentials))]
 public partial class RawCredentialsJsonContext : JsonSerializerContext;
 
-public interface ICredentialManager
+public interface ICredentialManager : ICoderApiClientCredentialProvider
 {
     public event EventHandler<CredentialModel> CredentialsChanged;
 
@@ -59,7 +59,8 @@ public interface ICredentialBackend
 /// </summary>
 public class CredentialManager : ICredentialManager
 {
-    private const string CredentialsTargetName = "Coder.Desktop.App.Credentials";
+    private readonly ICredentialBackend Backend;
+    private readonly ICoderApiClientFactory CoderApiClientFactory;
 
     // _opLock is held for the full duration of SetCredentials, and partially
     // during LoadCredentials. _opLock protects _inFlightLoad, _loadCts, and
@@ -79,14 +80,6 @@ public class CredentialManager : ICredentialManager
     // immediate).
     private volatile CredentialModel? _latestCredentials;
 
-    private ICredentialBackend Backend { get; } = new WindowsCredentialBackend(CredentialsTargetName);
-
-    private ICoderApiClientFactory CoderApiClientFactory { get; } = new CoderApiClientFactory();
-
-    public CredentialManager()
-    {
-    }
-
     public CredentialManager(ICredentialBackend backend, ICoderApiClientFactory coderApiClientFactory)
     {
         Backend = backend;
@@ -105,6 +98,20 @@ public class CredentialManager : ICredentialManager
         return new CredentialModel
         {
             State = CredentialState.Unknown,
+        };
+    }
+
+    // Implements ICoderApiClientCredentialProvider
+    public CoderApiClientCredential? GetCoderApiClientCredential()
+    {
+        var latestCreds = _latestCredentials;
+        if (latestCreds is not { State: CredentialState.Valid })
+            return null;
+
+        return new CoderApiClientCredential
+        {
+            CoderUrl = latestCreds.CoderUrl,
+            ApiToken = latestCreds.ApiToken ?? "",
         };
     }
 
@@ -253,6 +260,12 @@ public class CredentialManager : ICredentialManager
                 State = CredentialState.Invalid,
             };
 
+        if (!Uri.TryCreate(credentials.CoderUrl, UriKind.Absolute, out var uri))
+            return new CredentialModel
+            {
+                State = CredentialState.Invalid,
+            };
+
         BuildInfo buildInfo;
         User me;
         try
@@ -279,7 +292,7 @@ public class CredentialManager : ICredentialManager
         return new CredentialModel
         {
             State = CredentialState.Valid,
-            CoderUrl = credentials.CoderUrl,
+            CoderUrl = uri,
             ApiToken = credentials.ApiToken,
             Username = me.Username,
         };
@@ -298,6 +311,8 @@ public class CredentialManager : ICredentialManager
 
 public class WindowsCredentialBackend : ICredentialBackend
 {
+    public const string CoderCredentialsTargetName = "Coder.Desktop.App.Credentials";
+
     private readonly string _credentialsTargetName;
 
     public WindowsCredentialBackend(string credentialsTargetName)

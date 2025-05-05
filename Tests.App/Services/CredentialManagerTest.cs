@@ -9,7 +9,7 @@ namespace Coder.Desktop.Tests.App.Services;
 [TestFixture]
 public class CredentialManagerTest
 {
-    private const string TestServerUrl = "https://dev.coder.com";
+    private const string TestServerUrl = "https://dev.coder.com/";
     private const string TestApiToken = "abcdef1234-abcdef1234567890ABCDEF";
     private const string TestUsername = "dean";
 
@@ -50,7 +50,7 @@ public class CredentialManagerTest
             // Cached credential should be valid.
             cred = manager1.GetCachedCredentials();
             Assert.That(cred.State, Is.EqualTo(CredentialState.Valid));
-            Assert.That(cred.CoderUrl, Is.EqualTo(TestServerUrl));
+            Assert.That(cred.CoderUrl?.ToString(), Is.EqualTo(TestServerUrl));
             Assert.That(cred.ApiToken, Is.EqualTo(TestApiToken));
             Assert.That(cred.Username, Is.EqualTo(TestUsername));
 
@@ -62,7 +62,7 @@ public class CredentialManagerTest
             var manager2 = new CredentialManager(credentialBackend, apiClientFactory.Object);
             cred = await manager2.LoadCredentials(ct).WaitAsync(ct);
             Assert.That(cred.State, Is.EqualTo(CredentialState.Valid));
-            Assert.That(cred.CoderUrl, Is.EqualTo(TestServerUrl));
+            Assert.That(cred.CoderUrl?.ToString(), Is.EqualTo(TestServerUrl));
             Assert.That(cred.ApiToken, Is.EqualTo(TestApiToken));
             Assert.That(cred.Username, Is.EqualTo(TestUsername));
 
