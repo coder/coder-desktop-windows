@@ -22,6 +22,7 @@ public sealed partial class SignInWindow : Window
     public SignInWindow(SignInViewModel viewModel)
     {
         InitializeComponent();
+        TitleBarIcon.SetTitlebarIcon(this);
         SystemBackdrop = new DesktopAcrylicBackdrop();
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 

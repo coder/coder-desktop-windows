@@ -22,6 +22,7 @@ using Microsoft.Windows.AppLifecycle;
 using Serilog;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 using Microsoft.Windows.AppNotifications;
+using Coder.Desktop.App.Controls;
 
 namespace Coder.Desktop.App;
 
@@ -106,6 +107,7 @@ public partial class App : Application
     {
         _logger.LogDebug("exiting app");
         _handleWindowClosed = false;
+        TitleBarIcon.DisposeIconsManager();
         Exit();
         var syncController = _services.GetRequiredService<ISyncSessionController>();
         await syncController.DisposeAsync();

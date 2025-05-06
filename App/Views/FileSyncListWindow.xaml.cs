@@ -20,12 +20,12 @@ public sealed partial class FileSyncListWindow : WindowEx
     {
         ViewModel = viewModel;
         InitializeComponent();
+        TitleBarIcon.SetTitlebarIcon(this);
+
         SystemBackdrop = new DesktopAcrylicBackdrop();
 
         ViewModel.Initialize(this, DispatcherQueue);
         RootFrame.Content = new FileSyncListMainPage(ViewModel);
-
-        TitleBarIcon.SetTitlebarIcon(this);
 
         this.CenterOnScreen();
     }
