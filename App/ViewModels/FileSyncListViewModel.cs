@@ -339,7 +339,8 @@ public partial class FileSyncListViewModel : ObservableObject
         pickerViewModel.PathSelected += OnRemotePathSelected;
 
         _remotePickerWindow = new DirectoryPickerWindow(pickerViewModel);
-        _remotePickerWindow.SetParent(_window);
+        if (_window is not null)
+            _remotePickerWindow.SetParent(_window);
         _remotePickerWindow.Closed += (_, _) =>
         {
             _remotePickerWindow = null;

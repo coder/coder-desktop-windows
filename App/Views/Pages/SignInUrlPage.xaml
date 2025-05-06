@@ -61,7 +61,7 @@
             Content="Next"
             HorizontalAlignment="Center"
             Command="{x:Bind ViewModel.UrlPage_NextCommand, Mode=OneWay}"
-            CommandParameter="{x:Bind SignInWindow, Mode=OneWay}"
+            CommandParameter="{x:Bind SignInWindow}"
             Style="{StaticResource AccentButtonStyle}" />
     </StackPanel>
 </Page>

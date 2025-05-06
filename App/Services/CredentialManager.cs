@@ -105,7 +105,7 @@ public class CredentialManager : ICredentialManager
     public CoderApiClientCredential? GetCoderApiClientCredential()
     {
         var latestCreds = _latestCredentials;
-        if (latestCreds is not { State: CredentialState.Valid })
+        if (latestCreds is not { State: CredentialState.Valid } || latestCreds.CoderUrl is null)
             return null;
 
         return new CoderApiClientCredential
