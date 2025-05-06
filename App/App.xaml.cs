@@ -22,7 +22,6 @@ using Microsoft.Windows.AppLifecycle;
 using Serilog;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 using Microsoft.Windows.AppNotifications;
-using Coder.Desktop.App.Controls;
 
 namespace Coder.Desktop.App;
 
