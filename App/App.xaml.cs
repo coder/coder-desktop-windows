@@ -107,7 +107,6 @@ public partial class App : Application
     {
         _logger.LogDebug("exiting app");
         _handleWindowClosed = false;
-        TitleBarIcon.DisposeIconsManager();
         Exit();
         var syncController = _services.GetRequiredService<ISyncSessionController>();
         await syncController.DisposeAsync();
