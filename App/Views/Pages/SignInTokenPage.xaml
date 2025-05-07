@@ -62,6 +62,7 @@
                 Grid.Row="2"
                 HorizontalAlignment="Stretch"
                 PlaceholderText="Paste your token here"
+                KeyDown="PasswordBox_KeyDown"
                 LostFocus="{x:Bind ViewModel.ApiToken_FocusLost, Mode=OneWay}"
                 Password="{x:Bind ViewModel.ApiToken, Mode=TwoWay}" />
 
