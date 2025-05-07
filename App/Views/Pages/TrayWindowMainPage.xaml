@@ -259,7 +259,6 @@
                                             ToolTipService.ToolTip="{x:Bind Details}">
 
                                             <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                                <!-- Icon width and height need to be synced to the constants in the view model -->
                                                 <Image
                                                     Source="{x:Bind ImageSource}"
                                                     ImageOpened="{x:Bind OnImageOpened}"

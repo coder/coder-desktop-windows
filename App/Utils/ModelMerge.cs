@@ -29,7 +29,7 @@ public static class ModelMerge
     ///     to avoid excessive/unncessary UI updates.
     ///     It's assumed that the target list is already sorted.
     /// </summary>
-    public static void MergeLists<T>(IList<T> target, IList<T> update, Comparison<T> sorter)
+    public static void MergeLists<T>(IList<T> target, IEnumerable<T> update, Comparison<T> sorter)
         where T : IModelMergeable<T>
     {
         var newItems = update.ToList();
@@ -54,7 +54,7 @@ public static class ModelMerge
 
             // A merge couldn't occur, so we need to remove the old item and
             // decrement `i` for the next iteration.
-            target.Remove(target[i]);
+            target.RemoveAt(i);
             i--;
 
             OuterLoopEnd: ;

@@ -40,16 +40,11 @@ public class AgentAppViewModelFactory : IAgentAppViewModelFactory
 
 public partial class AgentAppViewModel : ObservableObject, IModelMergeable<AgentAppViewModel>
 {
-    // HACK: We need to set the icon size for SVGs otherwise they might get cut
-    //       off. These must be kept in sync with the XAML code.
-    public const int IconWidth = 20;
-    public const int IconHeight = 20;
-
     private readonly ILogger<AgentAppViewModel> _logger;
 
     public required Uuid Id { get; init; }
 
-    public required string Name { get; set; }
+    [ObservableProperty] public required partial string Name { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Details))]
@@ -82,11 +77,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelMergeable<Agent
             {
                 // TODO: Some SVGs like `/icon/cursor.svg` contain PNG data and
                 //       don't render at all.
-                var svg = new SvgImageSource(IconUrl)
-                {
-                    RasterizePixelWidth = IconWidth,
-                    RasterizePixelHeight = IconHeight,
-                };
+                var svg = new SvgImageSource(IconUrl);
                 svg.Opened += (_, _) => _logger.LogDebug("app icon opened (svg): {uri}", IconUrl);
                 svg.OpenFailed += (_, args) =>
                     _logger.LogDebug("app icon failed to open (svg): {uri}: {Status}", IconUrl, args.Status);
