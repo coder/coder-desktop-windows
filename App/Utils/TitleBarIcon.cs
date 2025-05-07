@@ -5,7 +5,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using WinRT.Interop;
 
-namespace Coder.Desktop.App.Controls
+namespace Coder.Desktop.App.Utils
 {
     public static class TitleBarIcon
     {
