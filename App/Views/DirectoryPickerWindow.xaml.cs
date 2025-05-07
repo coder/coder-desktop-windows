@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 using WinUIEx;
+using Coder.Desktop.App.Utils;
 
 namespace Coder.Desktop.App.Views;
 
@@ -16,6 +17,8 @@ public sealed partial class DirectoryPickerWindow : WindowEx
     public DirectoryPickerWindow(DirectoryPickerViewModel viewModel)
     {
         InitializeComponent();
+        TitleBarIcon.SetTitlebarIcon(this);
+
         SystemBackdrop = new DesktopAcrylicBackdrop();
 
         viewModel.Initialize(this, DispatcherQueue);
