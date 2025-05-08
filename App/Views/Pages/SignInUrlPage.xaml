@@ -49,7 +49,7 @@
                 Loaded="{x:Bind ViewModel.CoderUrl_Loaded, Mode=OneWay}"
                 LostFocus="{x:Bind ViewModel.CoderUrl_FocusLost, Mode=OneWay}"
                 Text="{x:Bind ViewModel.CoderUrl, Mode=TwoWay}"
-                KeyDown="TextBox_KeyDown"/>
+                KeyDown="TextBox_KeyDown" />
 
             <TextBlock
                 Grid.Column="1"
