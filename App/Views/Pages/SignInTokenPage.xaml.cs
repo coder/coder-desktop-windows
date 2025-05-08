@@ -23,7 +23,6 @@ public sealed partial class SignInTokenPage : Page
     {
         if (e.Key == VirtualKey.Enter)
         {
-            ViewModel.ApiToken = ((PasswordBox)sender).Password;
             await ViewModel.TokenPage_SignIn(SignInWindow);
             e.Handled = true;
         }

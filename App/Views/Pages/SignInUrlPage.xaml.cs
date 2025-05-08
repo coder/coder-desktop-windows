@@ -23,7 +23,6 @@ public sealed partial class SignInUrlPage : Page
     {
         if(e.Key == VirtualKey.Enter)
         {
-            ViewModel.CoderUrl = ((TextBox)sender).Text;
             ViewModel.UrlPage_Next(SignInWindow);
             e.Handled = true;
         }
