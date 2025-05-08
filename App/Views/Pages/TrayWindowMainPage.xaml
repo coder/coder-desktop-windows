@@ -241,7 +241,7 @@
                                     Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
                                     TextAlignment="Center"
                                     VerticalAlignment="Center"
-                                    Margin="0,-1,0,0" />
+                                    Margin="0,-3,0,0" />
                             </Grid>
 
                             <ItemsRepeater

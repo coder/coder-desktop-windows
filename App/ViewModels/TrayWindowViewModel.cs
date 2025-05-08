@@ -16,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Exception = System.Exception;
 
 namespace Coder.Desktop.App.ViewModels;
 
@@ -106,8 +105,8 @@ public partial class TrayWindowViewModel : ObservableObject
         _rpcController.StateChanged += (_, rpcModel) => UpdateFromRpcModel(rpcModel);
         UpdateFromRpcModel(_rpcController.GetState());
 
-        _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialsModel(credentialModel);
-        UpdateFromCredentialsModel(_credentialManager.GetCachedCredentials());
+        _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialModel(credentialModel);
+        UpdateFromCredentialModel(_credentialManager.GetCachedCredentials());
     }
 
     private void UpdateFromRpcModel(RpcModel rpcModel)
@@ -211,15 +210,31 @@ public partial class TrayWindowViewModel : ObservableObject
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
     }
 
-    private void UpdateFromCredentialsModel(CredentialModel credentialModel)
+    private void UpdateFromCredentialModel(CredentialModel credentialModel)
     {
         // Ensure we're on the UI thread.
         if (_dispatcherQueue == null) return;
         if (!_dispatcherQueue.HasThreadAccess)
         {
-            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialsModel(credentialModel));
+            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialModel(credentialModel));
             return;
         }
+
+        // CredentialModel updates trigger RpcStateModel updates first. This
+        // resolves an issue on startup where the window would be locked for 5
+        // seconds, even if all startup preconditions have been met:
+        //
+        // 1. RPC state updates, but credentials are invalid so the window
+        //    enters the invalid loading state to prevent interaction.
+        // 2. Credential model finally becomes valid after reaching out to the
+        //    server to check credentials.
+        // 3. UpdateFromCredentialModel previously did not re-trigger RpcModel
+        //    update.
+        // 4. Five seconds after step 1, a new RPC state update would come in
+        //    and finally unlock the window.
+        //
+        // Calling UpdateFromRpcModel at step 3 resolves this issue.
+        UpdateFromRpcModel(_rpcController.GetState());
 
         // HACK: the HyperlinkButton crashes the whole app if the initial URI
         // or this URI is invalid. CredentialModel.CoderUrl should never be
