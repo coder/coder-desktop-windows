@@ -65,7 +65,7 @@ public enum AgentConnectionStatus
     Gray,
 }
 
-public partial class AgentViewModel : ObservableObject, IModelMergeable<AgentViewModel>
+public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentViewModel>
 {
     private const string DefaultDashboardUrl = "https://coder.com";
     private const int MaxAppsPerRow = 6;
@@ -182,7 +182,7 @@ public partial class AgentViewModel : ObservableObject, IModelMergeable<AgentVie
         };
     }
 
-    public bool ApplyMerge(AgentViewModel model)
+    public bool TryApplyChanges(AgentViewModel model)
     {
         if (Id != model.Id) return false;
 
@@ -285,7 +285,7 @@ public partial class AgentViewModel : ObservableObject, IModelMergeable<AgentVie
         }
 
         // Sort by name.
-        ModelMerge.MergeLists(Apps, apps, (a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
+        ModelUpdate.ApplyLists(Apps, apps, (a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
     }
 
     [RelayCommand]

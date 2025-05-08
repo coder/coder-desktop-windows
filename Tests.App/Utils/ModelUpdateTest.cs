@@ -5,17 +5,17 @@ namespace Coder.Desktop.Tests.App.Utils;
 
 #region ModelMerge test classes
 
-public class MergeableItem : IModelMergeable<MergeableItem>
+public class UpdateableItem : IModelUpdateable<UpdateableItem>
 {
     public List<int> AttemptedMerges = [];
     public int Id { get; }
 
-    public MergeableItem(int id)
+    public UpdateableItem(int id)
     {
         Id = id;
     }
 
-    public bool ApplyMerge(MergeableItem obj)
+    public bool TryApplyChanges(UpdateableItem obj)
     {
         AttemptedMerges.Add(obj.Id);
         return Id == obj.Id;
@@ -30,10 +30,10 @@ public class MergeableItem : IModelMergeable<MergeableItem>
 
     public override bool Equals(object? obj)
     {
-        return obj is MergeableItem other && Equals(other);
+        return obj is UpdateableItem other && Equals(other);
     }
 
-    public bool Equals(MergeableItem? other)
+    public bool Equals(UpdateableItem? other)
     {
         return other is not null && Id == other.Id;
     }
@@ -43,12 +43,12 @@ public class MergeableItem : IModelMergeable<MergeableItem>
         return Id.GetHashCode();
     }
 
-    public static bool operator ==(MergeableItem left, MergeableItem right)
+    public static bool operator ==(UpdateableItem left, UpdateableItem right)
     {
         return left.Equals(right);
     }
 
-    public static bool operator !=(MergeableItem left, MergeableItem right)
+    public static bool operator !=(UpdateableItem left, UpdateableItem right)
     {
         return !left.Equals(right);
     }
@@ -71,6 +71,17 @@ public class TrackableList<T> : IList<T>
         {
             Type = ListOperation<T>.OperationType.Insert,
             Index = index,
+            Item = item,
+        });
+    }
+
+    public void Add(T item)
+    {
+        Items.Add(item);
+        Operations.Add(new ListOperation<T>
+        {
+            Type = ListOperation<T>.OperationType.Insert,
+            Index = Items.Count - 1,
             Item = item,
         });
     }
@@ -107,12 +118,6 @@ public class TrackableList<T> : IList<T>
     }
 
     IEnumerator IEnumerable.GetEnumerator()
-    {
-        // We don't expect this to be called in the test.
-        throw new NotImplementedException();
-    }
-
-    public void Add(T item)
     {
         // We don't expect this to be called in the test.
         throw new NotImplementedException();
@@ -173,7 +178,7 @@ public class ListOperation<TO>
 
     public bool Equals(ListOperation<TO>? other)
     {
-        return other is not null && Type == other.Type && Index == other.Index && Item.Equals(other.Item);
+        return other is not null && Type == other.Type && Index == other.Index && Item!.Equals(other.Item);
     }
 
     public override int GetHashCode()
@@ -197,18 +202,18 @@ public class ListOperation<TO>
 #endregion
 
 [TestFixture]
-public class ModelMergeTest
+public class ModelUpdateTest
 {
     [Test(Description = "Full merge test with merged, removed and added items")]
     public void Full()
     {
-        var original1 = new MergeableItem(1);
-        var original3 = new MergeableItem(3);
-        var original4 = new MergeableItem(4);
-        var update2 = new MergeableItem(2);
-        var update1 = new MergeableItem(1);
-        var update4 = new MergeableItem(4);
-        var target = new TrackableList<MergeableItem>
+        var original1 = new UpdateableItem(1);
+        var original3 = new UpdateableItem(3);
+        var original4 = new UpdateableItem(4);
+        var update2 = new UpdateableItem(2);
+        var update1 = new UpdateableItem(1);
+        var update4 = new UpdateableItem(4);
+        var target = new TrackableList<UpdateableItem>
         {
             Items =
             [
@@ -217,14 +222,14 @@ public class ModelMergeTest
                 original4,
             ],
         };
-        var update = new List<MergeableItem>
+        var update = new List<UpdateableItem>
         {
             update2,
             update1,
             update4,
         };
 
-        ModelMerge.MergeLists(
+        ModelUpdate.ApplyLists(
             target,
             update,
             (a, b) => a.Id - b.Id);
@@ -247,19 +252,19 @@ public class ModelMergeTest
 
         // We should've only performed two list writes operations. Removes are
         // processed first, then inserts.
-        Assert.That(target.Operations, Is.EquivalentTo(new List<ListOperation<MergeableItem>>
+        Assert.That(target.Operations, Is.EquivalentTo(new List<ListOperation<UpdateableItem>>
         {
             // RemoveAt(1) => original3 => [original1, original4]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.RemoveAt,
+                Type = ListOperation<UpdateableItem>.OperationType.RemoveAt,
                 Index = 1,
                 Item = original3,
             },
             // Insert(1, update2) => [original1, update2, original4]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 1,
                 Item = update2,
             },
@@ -269,8 +274,8 @@ public class ModelMergeTest
     [Test(Description = "Sorts when inserting")]
     public void Sorts()
     {
-        var target = new TrackableList<MergeableItem>();
-        var update = new List<MergeableItem>
+        var target = new TrackableList<UpdateableItem>();
+        var update = new List<UpdateableItem>
         {
             new(3),
             new(2),
@@ -283,7 +288,7 @@ public class ModelMergeTest
             new(7),
             new(9),
         };
-        ModelMerge.MergeLists(
+        ModelUpdate.ApplyLists(
             target,
             update,
             (a, b) => a.Id - b.Id);
@@ -295,77 +300,77 @@ public class ModelMergeTest
 
         // Ensure it performed the correct operations.
         Assert.That(target.Operations.Count, Is.EqualTo(10));
-        Assert.That(target.Operations, Is.EquivalentTo(new List<ListOperation<MergeableItem>>
+        Assert.That(target.Operations, Is.EquivalentTo(new List<ListOperation<UpdateableItem>>
         {
             // Insert(0, 3) => [3]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 0,
-                Item = new MergeableItem(3),
+                Item = new UpdateableItem(3),
             },
             // Insert(0, 2) => [2, 3]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 0,
-                Item = new MergeableItem(2),
+                Item = new UpdateableItem(2),
             },
             // Insert(2, 5) => [2, 3, 5]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 2,
-                Item = new MergeableItem(5),
+                Item = new UpdateableItem(5),
             },
             // Insert(0, 0) => [0, 2, 3, 5]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 0,
-                Item = new MergeableItem(0),
+                Item = new UpdateableItem(0),
             },
             // Insert(3, 4) => [0, 2, 3, 4, 5]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 3,
-                Item = new MergeableItem(4),
+                Item = new UpdateableItem(4),
             },
             // Insert11, 1) => [0, 1, 2, 3, 4, 5]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 1,
-                Item = new MergeableItem(1),
+                Item = new UpdateableItem(1),
             },
             // Insert(6, 6) => [0, 1, 2, 3, 4, 5, 6]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 6,
-                Item = new MergeableItem(6),
+                Item = new UpdateableItem(6),
             },
             // Insert(7, 8) => [0, 1, 2, 3, 4, 5, 6, 8]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 7,
-                Item = new MergeableItem(8),
+                Item = new UpdateableItem(8),
             },
             // Insert(7, 7) => [0, 1, 2, 3, 4, 5, 6, 7, 8]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 7,
-                Item = new MergeableItem(7),
+                Item = new UpdateableItem(7),
             },
             // Insert(9, 9) => [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
             new()
             {
-                Type = ListOperation<MergeableItem>.OperationType.Insert,
+                Type = ListOperation<UpdateableItem>.OperationType.Insert,
                 Index = 9,
-                Item = new MergeableItem(9),
+                Item = new UpdateableItem(9),
             },
         }));
     }
@@ -373,24 +378,27 @@ public class ModelMergeTest
     [Test(Description = "Sorts AFTER when inserting with matching sort order")]
     public void SortsAfter()
     {
-        var target = new List<MergeableItem>
+        var target = new List<UpdateableItem>
         {
             new(1),
             new(3),
+            new(3),
             new(4),
         };
-        var update = new List<MergeableItem>
+        var update = new List<UpdateableItem>
         {
             new(4),
             new(2),
             new(3),
+            new(3),
             new(1),
         };
 
-        ModelMerge.MergeLists(
+        ModelUpdate.ApplyLists(
             target,
             update,
-            // Sort 2 and 3 as equal, so that 2 is inserted after 3.
+            // Sort 2 and 3 as equal, so that 2 is inserted after both of the
+            // 3s.
             (a, b) =>
             {
                 if (a.Id is 2 or 3) return 0;
@@ -398,8 +406,8 @@ public class ModelMergeTest
             });
 
         // Ensure it inserted with correct sorting.
-        Assert.That(target.Count, Is.EqualTo(4));
+        Assert.That(target.Count, Is.EqualTo(5));
         var ids = target.Select(i => i.Id).ToList();
-        Assert.That(ids, Is.EquivalentTo([1, 3, 2, 4]));
+        Assert.That(ids, Is.EquivalentTo([1, 3, 3, 2, 4]));
     }
 }

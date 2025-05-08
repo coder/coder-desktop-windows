@@ -191,7 +191,7 @@ public partial class TrayWindowViewModel : ObservableObject
                 workspace.Name));
 
         // Sort by status green, red, gray, then by hostname.
-        ModelMerge.MergeLists(Agents, agents, (a, b) =>
+        ModelUpdate.ApplyLists(Agents, agents, (a, b) =>
         {
             if (a.ConnectionStatus != b.ConnectionStatus)
                 return a.ConnectionStatus.CompareTo(b.ConnectionStatus);

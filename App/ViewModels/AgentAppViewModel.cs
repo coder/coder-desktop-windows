@@ -38,7 +38,7 @@ public class AgentAppViewModelFactory : IAgentAppViewModelFactory
     }
 }
 
-public partial class AgentAppViewModel : ObservableObject, IModelMergeable<AgentAppViewModel>
+public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<AgentAppViewModel>
 {
     private readonly ILogger<AgentAppViewModel> _logger;
 
@@ -97,7 +97,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelMergeable<Agent
         _logger = logger;
     }
 
-    public bool ApplyMerge(AgentAppViewModel obj)
+    public bool TryApplyChanges(AgentAppViewModel obj)
     {
         if (Id != obj.Id) return false;
 
