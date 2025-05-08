@@ -85,15 +85,18 @@ public class UriHandler(
         }
 
         var workspace = state.Workspaces.FirstOrDefault(w => w.Name == workspaceName);
-        if (workspace == null) {
+        if (workspace == null)
+        {
             logger.LogDebug("got URI to open workspace '{workspace}', but the workspace doesn't exist", workspaceName);
             throw new UriException(errTitle,
                 $"Failed to open application on workspace '{workspaceName}' because it doesn't exist");
         }
 
         var agent = state.Agents.FirstOrDefault(a => a.WorkspaceId == workspace.Id && a.Name == agentName);
-        if (agent == null) {
-            logger.LogDebug("got URI to open workspace/agent '{workspaceName}/{agentName}', but the agent doesn't exist",
+        if (agent == null)
+        {
+            logger.LogDebug(
+                "got URI to open workspace/agent '{workspaceName}/{agentName}', but the agent doesn't exist",
                 workspaceName, agentName);
             // If the workspace isn't running, that is almost certainly why we can't find the agent, so report that
             // to the user.
@@ -102,6 +105,7 @@ public class UriHandler(
                 throw new UriException(errTitle,
                     $"Failed to open application on workspace '{workspaceName}', because the workspace is not running.");
             }
+
             throw new UriException(errTitle,
                 $"Failed to open application on workspace '{workspaceName}', because agent '{agentName}' doesn't exist.");
         }

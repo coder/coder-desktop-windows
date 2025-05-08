@@ -195,11 +195,12 @@ public partial class App : Application
                     return;
                 }
 
-                    // don't need to wait for it to complete.
+                // don't need to wait for it to complete.
                 _uriHandler.HandleUri(protoArgs.Uri).ContinueWith(t =>
                 {
                     if (t.Exception != null)
                     {
+                        // don't log query params, as they contain secrets.
                         _logger.LogError(t.Exception,
                             "unhandled exception while processing URI coder://{authority}{path}",
                             protoArgs.Uri.Authority, protoArgs.Uri.AbsolutePath);
