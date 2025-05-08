@@ -1,5 +1,6 @@
 using Coder.Desktop.App.ViewModels;
 using Microsoft.UI.Xaml.Controls;
+using Windows.System;
 
 namespace Coder.Desktop.App.Views.Pages;
 
@@ -16,5 +17,14 @@ public sealed partial class SignInTokenPage : Page
         InitializeComponent();
         ViewModel = viewModel;
         SignInWindow = parent;
+    }
+
+    private async void PasswordBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
+    {
+        if (e.Key == VirtualKey.Enter)
+        {
+            await ViewModel.TokenPage_SignIn(SignInWindow);
+            e.Handled = true;
+        }
     }
 }
