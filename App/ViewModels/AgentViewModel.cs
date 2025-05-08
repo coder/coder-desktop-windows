@@ -26,26 +26,16 @@ public interface IAgentViewModelFactory
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName);
 }
 
-public class AgentViewModelFactory : IAgentViewModelFactory
+public class AgentViewModelFactory(
+    ILogger<AgentViewModel> childLogger,
+    ICoderApiClientFactory coderApiClientFactory,
+    ICredentialManager credentialManager,
+    IAgentAppViewModelFactory agentAppViewModelFactory) : IAgentViewModelFactory
 {
-    private readonly ILogger<AgentViewModel> _childLogger;
-    private readonly ICoderApiClientFactory _coderApiClientFactory;
-    private readonly ICredentialManager _credentialManager;
-    private readonly IAgentAppViewModelFactory _agentAppViewModelFactory;
-
-    public AgentViewModelFactory(ILogger<AgentViewModel> childLogger, ICoderApiClientFactory coderApiClientFactory,
-        ICredentialManager credentialManager, IAgentAppViewModelFactory agentAppViewModelFactory)
-    {
-        _childLogger = childLogger;
-        _coderApiClientFactory = coderApiClientFactory;
-        _credentialManager = credentialManager;
-        _agentAppViewModelFactory = agentAppViewModelFactory;
-    }
-
     public AgentViewModel Create(Uuid id, string hostname, string hostnameSuffix,
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName)
     {
-        return new AgentViewModel(_childLogger, _coderApiClientFactory, _credentialManager, _agentAppViewModelFactory)
+        return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory)
         {
             Id = id,
             Hostname = hostname,
@@ -270,10 +260,10 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
                 continue;
             }
 
-            if (!Uri.TryCreate(app.Url, UriKind.Absolute, out var appUri))
+            if (string.IsNullOrEmpty(app.Url))
             {
-                _logger.LogWarning("Could not parse app URI '{Url}' for '{DisplayName}', app will not appear in list",
-                    app.Url, app.DisplayName);
+                _logger.LogWarning("App URI '{Url}' for '{DisplayName}' is empty, app will not appear in list", app.Url,
+                    app.DisplayName);
                 continue;
             }
 
@@ -281,7 +271,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             // icon.
             _ = Uri.TryCreate(DashboardBaseUrl, app.Icon, out var iconUrl);
 
-            apps.Add(_agentAppViewModelFactory.Create(uuid, app.DisplayName, appUri, iconUrl));
+            apps.Add(_agentAppViewModelFactory.Create(uuid, app.DisplayName, app.Url, iconUrl));
         }
 
         // Sort by name.

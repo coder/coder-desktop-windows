@@ -251,16 +251,18 @@
                                 <ItemsRepeater.ItemTemplate>
                                     <DataTemplate x:DataType="viewModels:AgentAppViewModel">
                                         <HyperlinkButton
+                                            x:Name="AppButton"
                                             Padding="6"
                                             Margin="0"
                                             Command="{x:Bind OpenAppCommand}"
+                                            CommandParameter="{Binding ElementName=AppButton}"
                                             Width="34"
                                             Height="34"
                                             ToolTipService.ToolTip="{x:Bind Details}">
 
                                             <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                                 <Image
-                                                    Source="{x:Bind ImageSource}"
+                                                    Source="{x:Bind IconImageSource, Mode=OneWay}"
                                                     ImageOpened="{x:Bind OnImageOpened}"
                                                     ImageFailed="{x:Bind OnImageFailed}"
                                                     Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"

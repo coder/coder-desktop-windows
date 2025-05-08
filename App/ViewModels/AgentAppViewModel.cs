@@ -1,12 +1,16 @@
 using System;
 using System.Linq;
 using Windows.System;
+using Coder.Desktop.App.Models;
+using Coder.Desktop.App.Services;
 using Coder.Desktop.App.Utils;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 
@@ -14,21 +18,15 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl);
+    public AgentAppViewModel Create(Uuid id, string name, string appUri, Uri? iconUrl);
 }
 
-public class AgentAppViewModelFactory : IAgentAppViewModelFactory
+public class AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger, ICredentialManager credentialManager)
+    : IAgentAppViewModelFactory
 {
-    private readonly ILogger<AgentAppViewModel> _childLogger;
-
-    public AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger)
+    public AgentAppViewModel Create(Uuid id, string name, string appUri, Uri? iconUrl)
     {
-        _childLogger = childLogger;
-    }
-
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl)
-    {
-        return new AgentAppViewModel(_childLogger)
+        return new AgentAppViewModel(childLogger, credentialManager)
         {
             Id = id,
             Name = name,
@@ -40,7 +38,10 @@ public class AgentAppViewModelFactory : IAgentAppViewModelFactory
 
 public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<AgentAppViewModel>
 {
+    private const string SessionTokenUriVar = "$SESSION_TOKEN";
+
     private readonly ILogger<AgentAppViewModel> _logger;
+    private readonly ICredentialManager _credentialManager;
 
     public required Uuid Id { get; init; }
 
@@ -48,53 +49,29 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Details))]
-    public required partial Uri AppUri { get; set; }
+    public required partial string AppUri { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ImageSource))]
-    public partial Uri? IconUrl { get; set; }
+    [ObservableProperty] public partial Uri? IconUrl { get; set; }
+
+    [ObservableProperty] public partial ImageSource IconImageSource { get; set; }
 
     [ObservableProperty] public partial bool UseFallbackIcon { get; set; } = true;
 
     public string Details =>
         (string.IsNullOrWhiteSpace(Name) ? "(no name)" : Name) + ":\n\n" + AppUri;
 
-    public ImageSource ImageSource
-    {
-        get
-        {
-            if (IconUrl is null || (IconUrl.Scheme != "http" && IconUrl.Scheme != "https"))
-            {
-                UseFallbackIcon = true;
-                return new BitmapImage();
-            }
-
-            // Determine what image source to use based on extension, use a
-            // BitmapImage as last resort.
-            var ext = IconUrl.AbsolutePath.Split('/').LastOrDefault()?.Split('.').LastOrDefault();
-            // TODO: this is definitely a hack, URLs shouldn't need to end in .svg
-            if (ext is "svg")
-            {
-                // TODO: Some SVGs like `/icon/cursor.svg` contain PNG data and
-                //       don't render at all.
-                var svg = new SvgImageSource(IconUrl);
-                svg.Opened += (_, _) => _logger.LogDebug("app icon opened (svg): {uri}", IconUrl);
-                svg.OpenFailed += (_, args) =>
-                    _logger.LogDebug("app icon failed to open (svg): {uri}: {Status}", IconUrl, args.Status);
-                return svg;
-            }
-
-            var bitmap = new BitmapImage(IconUrl);
-            bitmap.ImageOpened += (_, _) => _logger.LogDebug("app icon opened (bitmap): {uri}", IconUrl);
-            bitmap.ImageFailed += (_, args) =>
-                _logger.LogDebug("app icon failed to open (bitmap): {uri}: {ErrorMessage}", IconUrl, args.ErrorMessage);
-            return bitmap;
-        }
-    }
-
-    public AgentAppViewModel(ILogger<AgentAppViewModel> logger)
+    public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager)
     {
         _logger = logger;
+        _credentialManager = credentialManager;
+
+        // Apply the icon URL to the icon image source when it is updated.
+        IconImageSource = UpdateIcon();
+        PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(IconUrl))
+                IconImageSource = UpdateIcon();
+        };
     }
 
     public bool TryApplyChanges(AgentAppViewModel obj)
@@ -116,6 +93,36 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
         return true;
     }
 
+    private ImageSource UpdateIcon()
+    {
+        if (IconUrl is null || (IconUrl.Scheme != "http" && IconUrl.Scheme != "https"))
+        {
+            UseFallbackIcon = true;
+            return new BitmapImage();
+        }
+
+        // Determine what image source to use based on extension, use a
+        // BitmapImage as last resort.
+        var ext = IconUrl.AbsolutePath.Split('/').LastOrDefault()?.Split('.').LastOrDefault();
+        // TODO: this is definitely a hack, URLs shouldn't need to end in .svg
+        if (ext is "svg")
+        {
+            // TODO: Some SVGs like `/icon/cursor.svg` contain PNG data and
+            //       don't render at all.
+            var svg = new SvgImageSource(IconUrl);
+            svg.Opened += (_, _) => _logger.LogDebug("app icon opened (svg): {uri}", IconUrl);
+            svg.OpenFailed += (_, args) =>
+                _logger.LogDebug("app icon failed to open (svg): {uri}: {Status}", IconUrl, args.Status);
+            return svg;
+        }
+
+        var bitmap = new BitmapImage(IconUrl);
+        bitmap.ImageOpened += (_, _) => _logger.LogDebug("app icon opened (bitmap): {uri}", IconUrl);
+        bitmap.ImageFailed += (_, args) =>
+            _logger.LogDebug("app icon failed to open (bitmap): {uri}: {ErrorMessage}", IconUrl, args.ErrorMessage);
+        return bitmap;
+    }
+
     public void OnImageOpened(object? sender, RoutedEventArgs e)
     {
         UseFallbackIcon = false;
@@ -127,15 +134,45 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     }
 
     [RelayCommand]
-    private void OpenApp()
+    private void OpenApp(object parameter)
     {
         try
         {
-            _ = Launcher.LaunchUriAsync(AppUri);
+            var uriString = AppUri;
+            var cred = _credentialManager.GetCachedCredentials();
+            if (cred.State is CredentialState.Valid && cred.ApiToken is not null)
+                uriString = uriString.Replace(SessionTokenUriVar, cred.ApiToken);
+            uriString += SessionTokenUriVar;
+            if (uriString.Contains(SessionTokenUriVar))
+                throw new Exception($"URI contains {SessionTokenUriVar} variable but could not be replaced");
+
+            var uri = new Uri(uriString);
+            _ = Launcher.LaunchUriAsync(uri);
         }
-        catch
+        catch (Exception e)
         {
-            // TODO: log/notify
+            _logger.LogWarning(e, "could not parse or launch app");
+
+            if (parameter is not FrameworkElement frameworkElement) return;
+            var flyout = new Flyout
+            {
+                Content = new TextBlock
+                {
+                    Text = $"Could not open app: {e.Message}",
+                    Margin = new Thickness(4),
+                    TextWrapping = TextWrapping.Wrap,
+                },
+                FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
+                {
+                    Setters =
+                    {
+                        new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled),
+                        new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled),
+                    },
+                },
+            };
+            FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
+            FlyoutBase.ShowAttachedFlyout(frameworkElement);
         }
     }
 }
