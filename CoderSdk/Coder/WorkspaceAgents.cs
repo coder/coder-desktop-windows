@@ -7,7 +7,16 @@ public partial interface ICoderApiClient
 
 public class WorkspaceAgent
 {
+    public const string DisplayAppVscode = "vscode";
+    public const string DisplayAppVscodeInsiders = "vscode_insiders";
+
+    public string ExpandedDirectory { get; set; } = "";
+
     public WorkspaceApp[] Apps { get; set; } = [];
+
+    // This isn't an enum to avoid future display apps breaking the desktop
+    // app.
+    public string[] DisplayApps { get; set; } = [];
 }
 
 public class WorkspaceApp

@@ -142,7 +142,6 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
             var cred = _credentialManager.GetCachedCredentials();
             if (cred.State is CredentialState.Valid && cred.ApiToken is not null)
                 uriString = uriString.Replace(SessionTokenUriVar, cred.ApiToken);
-            uriString += SessionTokenUriVar;
             if (uriString.Contains(SessionTokenUriVar))
                 throw new Exception($"URI contains {SessionTokenUriVar} variable but could not be replaced");
 

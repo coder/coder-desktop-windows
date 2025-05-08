@@ -60,6 +60,11 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     private const string DefaultDashboardUrl = "https://coder.com";
     private const int MaxAppsPerRow = 6;
 
+    // These are fake UUIDs, for UI purposes only. Display apps don't exist on
+    // the backend as real app resources and therefore don't have an ID.
+    private static readonly Uuid VscodeAppUuid = new("819828b1-5213-4c3d-855e-1b74db6ddd19");
+    private static readonly Uuid VscodeInsidersAppUuid = new("becf1e10-5101-4940-a853-59af86468069");
+
     private readonly ILogger<AgentViewModel> _logger;
     private readonly ICoderApiClientFactory _coderApiClientFactory;
     private readonly ICredentialManager _credentialManager;
@@ -272,6 +277,32 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             _ = Uri.TryCreate(DashboardBaseUrl, app.Icon, out var iconUrl);
 
             apps.Add(_agentAppViewModelFactory.Create(uuid, app.DisplayName, app.Url, iconUrl));
+        }
+
+        foreach (var displayApp in workspaceAgent.DisplayApps)
+        {
+            if (displayApp is not WorkspaceAgent.DisplayAppVscode and not WorkspaceAgent.DisplayAppVscodeInsiders)
+                continue;
+
+            var id = VscodeAppUuid;
+            var displayName = "VS Code";
+            var icon = "/icon/code.svg";
+            var scheme = "vscode";
+            if (displayApp is WorkspaceAgent.DisplayAppVscodeInsiders)
+            {
+                id = VscodeInsidersAppUuid;
+                displayName = "VS Code Insiders";
+                icon = "/icon/code-insiders.svg";
+                scheme = "vscode-insiders";
+            }
+
+            var appUri = $"{scheme}://vscode-remote/ssh-remote+{FullHostname}/{workspaceAgent.ExpandedDirectory}";
+
+            // Icon parse failures are not fatal, we will just use the fallback
+            // icon.
+            _ = Uri.TryCreate(DashboardBaseUrl, icon, out var iconUrl);
+
+            apps.Add(_agentAppViewModelFactory.Create(id, displayName, appUri, iconUrl));
         }
 
         // Sort by name.
