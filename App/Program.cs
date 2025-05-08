@@ -5,6 +5,7 @@ using System.Threading;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
+using Microsoft.Windows.AppNotifications;
 using WinRT;
 
 namespace Coder.Desktop.App;
@@ -28,9 +29,9 @@ public static class Program
         {
             ComWrappersSupport.InitializeComWrappers();
             var mainInstance = GetMainInstance();
+            var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
             if (!mainInstance.IsCurrent)
             {
-                var activationArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
                 mainInstance.RedirectActivationToAsync(activationArgs).AsTask().Wait();
                 return;
             }
@@ -58,6 +59,15 @@ public static class Program
 
                 // redirections via RedirectActivationToAsync above get routed to the App
                 mainInstance.Activated += app.OnActivated;
+                var notificationManager = AppNotificationManager.Default;
+                notificationManager.NotificationInvoked += app.HandleNotification;
+                notificationManager.Register();
+                if (activationArgs.Kind != ExtendedActivationKind.Launch)
+                {
+                    // this means we were activated without having already launched, so handle
+                    // the activation as well.
+                    app.OnActivated(null, activationArgs);
+                }
             });
         }
         catch (Exception e)

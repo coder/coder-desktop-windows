@@ -7,6 +7,7 @@ using Coder.Desktop.App.Views.Pages;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
+using Coder.Desktop.App.Utils;
 
 namespace Coder.Desktop.App.Views;
 
@@ -23,6 +24,7 @@ public sealed partial class SignInWindow : Window
     public SignInWindow(SignInViewModel viewModel)
     {
         InitializeComponent();
+        TitleBarIcon.SetTitlebarIcon(this);
         SystemBackdrop = new DesktopAcrylicBackdrop();
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 
