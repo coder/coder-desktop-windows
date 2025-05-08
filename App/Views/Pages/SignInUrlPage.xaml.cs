@@ -21,7 +21,7 @@ public sealed partial class SignInUrlPage : Page
 
     private void TextBox_KeyDown(object sender, Microsoft.UI.Xaml.Input.KeyRoutedEventArgs e)
     {
-        if(e.Key == VirtualKey.Enter)
+        if (e.Key == VirtualKey.Enter)
         {
             ViewModel.UrlPage_Next(SignInWindow);
             e.Handled = true;
