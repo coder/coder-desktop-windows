@@ -190,6 +190,16 @@ public partial class TrayWindowViewModel : ObservableObject
                 credentialModel.CoderUrl,
                 workspace.Name));
 
+        foreach (var agent in agents)
+            agent.PropertyChanged += (_, args) =>
+            {
+                // When an agent is expanded:
+                if (args.PropertyName == nameof(AgentViewModel.IsExpanded) && agent.IsExpanded)
+                    // Collapse every other agent.
+                    foreach (var otherAgent in Agents.Where(a => a.Id != agent.Id && a.IsExpanded))
+                        otherAgent.IsExpanded = false;
+            };
+
         // Sort by status green, red, gray, then by hostname.
         ModelUpdate.ApplyLists(Agents, agents, (a, b) =>
         {

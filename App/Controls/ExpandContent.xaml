@@ -18,16 +18,6 @@
             <VisualStateGroup>
                 <VisualState x:Name="ExpandedState">
                     <Storyboard>
-                        <ObjectAnimationUsingKeyFrames
-                            Storyboard.TargetName="CollapsiblePanel"
-                            Storyboard.TargetProperty="Visibility">
-
-                            <DiscreteObjectKeyFrame KeyTime="0">
-                                <DiscreteObjectKeyFrame.Value>
-                                    <Visibility>Visible</Visibility>
-                                </DiscreteObjectKeyFrame.Value>
-                            </DiscreteObjectKeyFrame>
-                        </ObjectAnimationUsingKeyFrames>
                         <DoubleAnimation
                             Storyboard.TargetName="CollapsiblePanel"
                             Storyboard.TargetProperty="Opacity"

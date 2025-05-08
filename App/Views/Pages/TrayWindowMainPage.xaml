@@ -232,16 +232,22 @@
                         </Grid>
 
                         <controls:ExpandContent IsOpen="{x:Bind IsExpanded, Mode=OneWay}">
-                            <TextBlock
-                                Text="{x:Bind ExpandAppsMessage, Mode=OneWay}"
-                                Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
-                                Margin="10,8,10,16"
-                                TextAlignment="Center"
-                                Visibility="{x:Bind ShowExpandAppsMessage, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                            <Grid
+                                Height="34"
+                                Visibility="{x:Bind ShowExpandAppsMessage, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
+
+                                <TextBlock
+                                    Text="{x:Bind ExpandAppsMessage, Mode=OneWay}"
+                                    Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}"
+                                    TextAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Margin="0,-1,0,0" />
+                            </Grid>
 
                             <ItemsRepeater
                                 ItemsSource="{x:Bind VisibleApps, Mode=OneWay}"
                                 Visibility="{x:Bind ShowExpandAppsMessage, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
+                                Height="34"
                                 Margin="17,0">
 
                                 <ItemsRepeater.Layout>
