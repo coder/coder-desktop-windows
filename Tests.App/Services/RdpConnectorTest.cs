@@ -11,7 +11,7 @@ public class RdpConnectorTest
     [Test(Description = "Spawns RDP for real")]
     [Ignore("Comment out to run manually")]
     [CancelAfter(30_000)]
-    public async Task ConnectToRdp()
+    public async Task ConnectToRdp(CancellationToken ct)
     {
         var builder = Host.CreateApplicationBuilder();
         builder.Services.AddSerilog();
@@ -21,7 +21,7 @@ public class RdpConnectorTest
         var rdpConnector = (RdpConnector)services.GetService<IRdpConnector>()!;
         var creds = new RdpCredentials("Administrator", "coderRDP!");
         var workspace = "myworkspace.coder";
-        await rdpConnector.WriteCredentials(workspace, creds);
-        await rdpConnector.Connect(workspace);
+        rdpConnector.WriteCredentials(workspace, creds);
+        await rdpConnector.Connect(workspace, ct: ct);
     }
 }

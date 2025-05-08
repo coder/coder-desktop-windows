@@ -11,7 +11,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Coder.Desktop.App.Services;
 
-public interface IUriHandler : IAsyncDisposable
+public interface IUriHandler
 {
     public Task HandleUri(Uri uri, CancellationToken ct = default);
 }
@@ -24,10 +24,16 @@ public class UriHandler(
 {
     private const string OpenWorkspacePrefix = "/v0/open/ws/";
 
-    internal class UriException(string title, string detail) : Exception
+    internal class UriException : Exception
     {
-        internal readonly string Title = title;
-        internal readonly string Detail = detail;
+        internal readonly string Title;
+        internal readonly string Detail;
+
+        internal UriException(string title, string detail) : base($"{title}: {detail}")
+        {
+            Title = title;
+            Detail = detail;
+        }
     }
 
     public async Task HandleUri(Uri uri, CancellationToken ct = default)
@@ -52,7 +58,7 @@ public class UriHandler(
 
         logger.LogWarning("unhandled URI path {path}", uri.AbsolutePath);
         throw new UriException("URI handling error",
-            $"URI with path {uri.AbsolutePath} is unsupported or malformed");
+            $"URI with path '{uri.AbsolutePath}' is unsupported or malformed");
     }
 
     public async Task HandleOpenWorkspaceApp(Uri uri, CancellationToken ct = default)
@@ -63,7 +69,7 @@ public class UriHandler(
         if (components.Length != 4 || components[1] != "agent")
         {
             logger.LogWarning("unsupported open workspace app format in URI {path}", uri.AbsolutePath);
-            throw new UriException(errTitle, $"Failed to open {uri.AbsolutePath} because the format is unsupported.");
+            throw new UriException(errTitle, $"Failed to open '{uri.AbsolutePath}' because the format is unsupported.");
         }
 
         var workspaceName = components[0];
@@ -73,41 +79,38 @@ public class UriHandler(
         var state = rpcController.GetState();
         if (state.VpnLifecycle != VpnLifecycle.Started)
         {
-            logger.LogDebug("got URI to open workspace {workspace}, but Coder Connect is not started", workspaceName);
+            logger.LogDebug("got URI to open workspace '{workspace}', but Coder Connect is not started", workspaceName);
             throw new UriException(errTitle,
-                $"Failed to open application on {workspaceName} because Coder Connect is not started.");
+                $"Failed to open application on '{workspaceName}' because Coder Connect is not started.");
         }
 
-        Workspace workspace;
-        try
-        {
-            workspace = state.Workspaces.Single(w => w.Name == workspaceName);
-        }
-        catch (InvalidOperationException) // Single() throws this when nothing matches.
-        {
-            logger.LogDebug("got URI to open workspace {workspace}, but the workspace doesn't exist", workspaceName);
+        var workspace = state.Workspaces.FirstOrDefault(w => w.Name == workspaceName);
+        if (workspace == null) {
+            logger.LogDebug("got URI to open workspace '{workspace}', but the workspace doesn't exist", workspaceName);
             throw new UriException(errTitle,
-                $"Failed to open application on workspace {workspaceName} because it doesn't exist");
+                $"Failed to open application on workspace '{workspaceName}' because it doesn't exist");
         }
 
-        Agent agent;
-        try
-        {
-            agent = state.Agents.Single(a => a.WorkspaceId == workspace.Id && a.Name == agentName);
-        }
-        catch (InvalidOperationException) // Single() throws this when nothing matches.
-        {
-            logger.LogDebug("got URI to open workspace/agent {workspaceName}/{agentName}, but the agent doesn't exist",
+        var agent = state.Agents.FirstOrDefault(a => a.WorkspaceId == workspace.Id && a.Name == agentName);
+        if (agent == null) {
+            logger.LogDebug("got URI to open workspace/agent '{workspaceName}/{agentName}', but the agent doesn't exist",
                 workspaceName, agentName);
+            // If the workspace isn't running, that is almost certainly why we can't find the agent, so report that
+            // to the user.
+            if (workspace.Status != Workspace.Types.Status.Running)
+            {
+                throw new UriException(errTitle,
+                    $"Failed to open application on workspace '{workspaceName}', because the workspace is not running.");
+            }
             throw new UriException(errTitle,
-                $"Failed to open application on workspace {workspaceName}, agent {agentName} because it doesn't exist.");
+                $"Failed to open application on workspace '{workspaceName}', because agent '{agentName}' doesn't exist.");
         }
 
         if (appName != "rdp")
         {
             logger.LogWarning("unsupported agent application type {app}", appName);
             throw new UriException(errTitle,
-                $"Failed to open agent in URI {uri.AbsolutePath} because application {appName} is unsupported");
+                $"Failed to open agent in URI '{uri.AbsolutePath}' because application '{appName}' is unsupported");
         }
 
         await OpenRDP(agent.Fqdn.First(), uri.Query, ct);
@@ -137,14 +140,9 @@ public class UriHandler(
         if (!string.IsNullOrEmpty(username))
         {
             password ??= string.Empty;
-            await rdpConnector.WriteCredentials(domainName, new RdpCredentials(username, password), ct);
+            rdpConnector.WriteCredentials(domainName, new RdpCredentials(username, password));
         }
 
         await rdpConnector.Connect(domainName, ct: ct);
-    }
-
-    public ValueTask DisposeAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 }

@@ -27,12 +27,6 @@ public class UriHandlerTest
         uriHandler = new UriHandler(logger, _mRpcController.Object, _mUserNotifier.Object, _mRdpConnector.Object);
     }
 
-    [TearDown]
-    public async Task CleanupUriHandler()
-    {
-        await uriHandler.DisposeAsync();
-    }
-
     private Mock<IUserNotifier> _mUserNotifier;
     private Mock<IRdpConnector> _mRdpConnector;
     private Mock<IRpcController> _mRpcController;
@@ -51,6 +45,7 @@ public class UriHandlerTest
         {
             Id = ByteString.CopyFrom(0x1, 0x0),
             Name = "workspace1",
+            Status = Workspace.Types.Status.Running,
         };
 
         modelWithWorkspace1 = new RpcModel
@@ -73,8 +68,7 @@ public class UriHandlerTest
 
         _mRpcController.Setup(m => m.GetState()).Returns(modelWithWorkspace1);
         var expectedCred = new RdpCredentials("testy", "sesame");
-        _ = _mRdpConnector.Setup(m => m.WriteCredentials(agent11.Fqdn[0], expectedCred, ct))
-            .Returns(Task.CompletedTask);
+        _ = _mRdpConnector.Setup(m => m.WriteCredentials(agent11.Fqdn[0], expectedCred));
         _ = _mRdpConnector.Setup(m => m.Connect(agent11.Fqdn[0], IRdpConnector.DefaultPort, ct))
             .Returns(Task.CompletedTask);
         await uriHandler.HandleUri(input, ct);

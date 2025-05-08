@@ -195,16 +195,16 @@ public partial class App : Application
                     return;
                 }
 
-                try
-                {
                     // don't need to wait for it to complete.
-                    _ = _uriHandler.HandleUri(protoArgs.Uri);
-                }
-                catch (System.Exception e)
+                _uriHandler.HandleUri(protoArgs.Uri).ContinueWith(t =>
                 {
-                    _logger.LogError(e, "unhandled exception while processing URI coder://{authority}{path}",
-                        protoArgs.Uri.Authority, protoArgs.Uri.AbsolutePath);
-                }
+                    if (t.Exception != null)
+                    {
+                        _logger.LogError(t.Exception,
+                            "unhandled exception while processing URI coder://{authority}{path}",
+                            protoArgs.Uri.Authority, protoArgs.Uri.AbsolutePath);
+                    }
+                });
 
                 break;
 
