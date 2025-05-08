@@ -33,6 +33,11 @@ public partial class TrayWindowViewModel : ObservableObject
 
     private DispatcherQueue? _dispatcherQueue;
 
+    // When we transition from 0 online workspaces to >0 online workspaces, the
+    // first agent will be expanded. This bool tracks whether this has occurred
+    // yet (or if the user has expanded something themselves).
+    private bool _hasExpandedAgent;
+
     // This isn't an ObservableProperty because the property itself never
     // changes. We add an event listener for the collection changing in the
     // constructor.
@@ -194,9 +199,12 @@ public partial class TrayWindowViewModel : ObservableObject
             {
                 // When an agent is expanded:
                 if (args.PropertyName == nameof(AgentViewModel.IsExpanded) && agent.IsExpanded)
+                {
+                    _hasExpandedAgent = true;
                     // Collapse every other agent.
                     foreach (var otherAgent in Agents.Where(a => a.Id != agent.Id && a.IsExpanded))
                         otherAgent.IsExpanded = false;
+                }
             };
 
         // Sort by status green, red, gray, then by hostname.
@@ -208,6 +216,15 @@ public partial class TrayWindowViewModel : ObservableObject
         });
 
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
+
+        var firstOnlineAgent = agents.FirstOrDefault(a => a.ConnectionStatus != AgentConnectionStatus.Gray);
+        if (firstOnlineAgent is null)
+            _hasExpandedAgent = false;
+        if (!_hasExpandedAgent && firstOnlineAgent is not null)
+        {
+            firstOnlineAgent.SetExpanded(true);
+            _hasExpandedAgent = true;
+        }
     }
 
     private void UpdateFromCredentialModel(CredentialModel credentialModel)
