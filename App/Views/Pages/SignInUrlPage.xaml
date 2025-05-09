@@ -48,7 +48,8 @@
                 PlaceholderText="https://coder.example.com"
                 Loaded="{x:Bind ViewModel.CoderUrl_Loaded, Mode=OneWay}"
                 LostFocus="{x:Bind ViewModel.CoderUrl_FocusLost, Mode=OneWay}"
-                Text="{x:Bind ViewModel.CoderUrl, Mode=TwoWay}" />
+                Text="{x:Bind ViewModel.CoderUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                KeyDown="TextBox_KeyDown"/>
 
             <TextBlock
                 Grid.Column="1"
