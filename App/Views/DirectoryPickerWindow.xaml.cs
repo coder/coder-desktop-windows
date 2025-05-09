@@ -9,7 +9,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using WinRT.Interop;
 using WinUIEx;
-using Coder.Desktop.App.Utils;
 
 namespace Coder.Desktop.App.Views;
 

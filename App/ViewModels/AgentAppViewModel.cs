@@ -18,13 +18,13 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, string appUri, Uri? iconUrl);
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl);
 }
 
 public class AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger, ICredentialManager credentialManager)
     : IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, string appUri, Uri? iconUrl)
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl)
     {
         return new AgentAppViewModel(childLogger, credentialManager)
         {
@@ -45,11 +45,13 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     public required Uuid Id { get; init; }
 
-    [ObservableProperty] public required partial string Name { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Details))]
+    public required partial string Name { get; set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Details))]
-    public required partial string AppUri { get; set; }
+    public required partial Uri AppUri { get; set; }
 
     [ObservableProperty] public partial Uri? IconUrl { get; set; }
 
@@ -138,14 +140,22 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     {
         try
         {
-            var uriString = AppUri;
-            var cred = _credentialManager.GetCachedCredentials();
-            if (cred.State is CredentialState.Valid && cred.ApiToken is not null)
-                uriString = uriString.Replace(SessionTokenUriVar, cred.ApiToken);
-            if (uriString.Contains(SessionTokenUriVar))
-                throw new Exception($"URI contains {SessionTokenUriVar} variable but could not be replaced");
+            var uri = AppUri;
 
-            var uri = new Uri(uriString);
+            // http and https URLs should already be filtered out by
+            // AgentViewModel, but as a second line of defence don't do session
+            // token var replacement on those URLs.
+            if (uri.Scheme is not "http" and not "https")
+            {
+                var cred = _credentialManager.GetCachedCredentials();
+                if (cred.State is CredentialState.Valid && cred.ApiToken is not null)
+                    uri = new Uri(uri.ToString().Replace(SessionTokenUriVar, cred.ApiToken));
+            }
+
+            if (uri.ToString().Contains(SessionTokenUriVar))
+                throw new Exception(
+                    $"URI contains {SessionTokenUriVar} variable but could not be replaced (http and https URLs cannot contain {SessionTokenUriVar})");
+
             _ = Launcher.LaunchUriAsync(uri);
         }
         catch (Exception e)

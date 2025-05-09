@@ -20,9 +20,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
+using Microsoft.Windows.AppNotifications;
 using Serilog;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
-using Microsoft.Windows.AppNotifications;
 
 namespace Coder.Desktop.App;
 
@@ -196,6 +196,7 @@ public partial class App : Application
                     _logger.LogWarning("URI activation with null data");
                     return;
                 }
+
                 HandleURIActivation(protoArgs.Uri);
                 break;
 

@@ -7,7 +7,6 @@ using Coder.Desktop.App.Views.Pages;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
-using Coder.Desktop.App.Utils;
 
 namespace Coder.Desktop.App.Views;
 

@@ -19,7 +19,12 @@ using Microsoft.UI.Xaml.Controls;
 
 namespace Coder.Desktop.App.ViewModels;
 
-public partial class TrayWindowViewModel : ObservableObject
+public interface IAgentExpanderHost
+{
+    public void HandleAgentExpanded(Uuid id, bool expanded);
+}
+
+public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 {
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
@@ -82,7 +87,7 @@ public partial class TrayWindowViewModel : ObservableObject
 
     public IEnumerable<AgentViewModel> VisibleAgents => ShowAllAgents ? Agents : Agents.Take(MaxAgents);
 
-    [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
+    [ObservableProperty] public partial string DashboardUrl { get; set; } = DefaultDashboardUrl;
 
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
         ICredentialManager credentialManager, IAgentViewModelFactory agentViewModelFactory)
@@ -101,6 +106,24 @@ public partial class TrayWindowViewModel : ObservableObject
             OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowAgentsSection)));
             OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowAgentOverflowButton)));
         };
+    }
+
+    // Implements IAgentExpanderHost
+    public void HandleAgentExpanded(Uuid id, bool expanded)
+    {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => HandleAgentExpanded(id, expanded));
+            return;
+        }
+
+        if (!expanded) return;
+        _hasExpandedAgent = true;
+        // Collapse every other agent.
+        foreach (var otherAgent in Agents.Where(a => a.Id != id))
+            otherAgent.SetExpanded(false);
     }
 
     public void Initialize(DispatcherQueue dispatcherQueue)
@@ -170,6 +193,7 @@ public partial class TrayWindowViewModel : ObservableObject
             var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
 
             agents.Add(_agentViewModelFactory.Create(
+                this,
                 agent.ParseId(),
                 fqdnPrefix,
                 fqdnSuffix,
@@ -183,6 +207,7 @@ public partial class TrayWindowViewModel : ObservableObject
         foreach (var workspace in rpcModel.Workspaces.Where(w =>
                      w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
             agents.Add(_agentViewModelFactory.Create(
+                this,
                 // Workspace ID is fine as a stand-in here, it shouldn't
                 // conflict with any agent IDs.
                 workspace.ParseId(),
@@ -193,19 +218,6 @@ public partial class TrayWindowViewModel : ObservableObject
                 AgentConnectionStatus.Gray,
                 credentialModel.CoderUrl,
                 workspace.Name));
-
-        foreach (var agent in agents)
-            agent.PropertyChanged += (_, args) =>
-            {
-                // When an agent is expanded:
-                if (args.PropertyName == nameof(AgentViewModel.IsExpanded) && agent.IsExpanded)
-                {
-                    _hasExpandedAgent = true;
-                    // Collapse every other agent.
-                    foreach (var otherAgent in Agents.Where(a => a.Id != agent.Id && a.IsExpanded))
-                        otherAgent.IsExpanded = false;
-                }
-            };
 
         // Sort by status green, red, gray, then by hostname.
         ModelUpdate.ApplyLists(Agents, agents, (a, b) =>
@@ -306,13 +318,13 @@ public partial class TrayWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void ToggleShowAllAgents()
+    private void ToggleShowAllAgents()
     {
         ShowAllAgents = !ShowAllAgents;
     }
 
     [RelayCommand]
-    public void ShowFileSyncListWindow()
+    private void ShowFileSyncListWindow()
     {
         // This is safe against concurrent access since it all happens in the
         // UI thread.
@@ -328,7 +340,7 @@ public partial class TrayWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void SignOut()
+    private void SignOut()
     {
         if (VpnLifecycle is not VpnLifecycle.Stopped)
             return;

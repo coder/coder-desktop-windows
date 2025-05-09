@@ -22,7 +22,7 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentViewModelFactory
 {
-    public AgentViewModel Create(Uuid id, string hostname, string hostnameSuffix,
+    public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string hostname, string hostnameSuffix,
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName);
 }
 
@@ -32,12 +32,12 @@ public class AgentViewModelFactory(
     ICredentialManager credentialManager,
     IAgentAppViewModelFactory agentAppViewModelFactory) : IAgentViewModelFactory
 {
-    public AgentViewModel Create(Uuid id, string hostname, string hostnameSuffix,
+    public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string hostname, string hostnameSuffix,
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName)
     {
-        return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory)
+        return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory,
+            expanderHost, id)
         {
-            Id = id,
             Hostname = hostname,
             HostnameSuffix = hostnameSuffix,
             ConnectionStatus = connectionStatus,
@@ -74,12 +74,14 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     private readonly DispatcherQueue _dispatcherQueue =
         DispatcherQueue.GetForCurrentThread();
 
+    private readonly IAgentExpanderHost _expanderHost;
+
     // This isn't an ObservableProperty because the property itself never
     // changes. We add an event listener for the collection changing in the
     // constructor.
     public readonly ObservableCollection<AgentAppViewModel> Apps = [];
 
-    public required Uuid Id { get; init; }
+    public readonly Uuid Id;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FullHostname))]
@@ -160,12 +162,28 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     }
 
     public AgentViewModel(ILogger<AgentViewModel> logger, ICoderApiClientFactory coderApiClientFactory,
-        ICredentialManager credentialManager, IAgentAppViewModelFactory agentAppViewModelFactory)
+        ICredentialManager credentialManager, IAgentAppViewModelFactory agentAppViewModelFactory,
+        IAgentExpanderHost expanderHost, Uuid id)
     {
         _logger = logger;
         _coderApiClientFactory = coderApiClientFactory;
         _credentialManager = credentialManager;
         _agentAppViewModelFactory = agentAppViewModelFactory;
+        _expanderHost = expanderHost;
+
+        Id = id;
+
+        PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(IsExpanded))
+            {
+                _expanderHost.HandleAgentExpanded(Id, IsExpanded);
+
+                // Every time the drawer is expanded, re-fetch all apps.
+                if (IsExpanded && !FetchingApps)
+                    FetchApps();
+            }
+        };
 
         // Since the property value itself never changes, we add event
         // listeners for the underlying collection changing instead.
@@ -202,18 +220,15 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     [RelayCommand]
     private void ToggleExpanded()
     {
-        // TODO: this should bubble to every other agent in the list so only
-        //       one can be active at a time.
         SetExpanded(!IsExpanded);
     }
 
     public void SetExpanded(bool expanded)
     {
+        if (IsExpanded == expanded) return;
+        // This will bubble up to the TrayWindowViewModel because of the
+        // PropertyChanged handler.
         IsExpanded = expanded;
-
-        // Every time the drawer is expanded, re-fetch all apps.
-        if (expanded && !FetchingApps)
-            FetchApps();
     }
 
     partial void OnConnectionStatusChanged(AgentConnectionStatus oldValue, AgentConnectionStatus newValue)
@@ -226,7 +241,26 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
         if (FetchingApps) return;
         FetchingApps = true;
 
-        var client = _coderApiClientFactory.Create(_credentialManager);
+        // If the workspace is off, then there's no agent and there's no apps.
+        if (ConnectionStatus == AgentConnectionStatus.Gray)
+        {
+            FetchingApps = false;
+            Apps.Clear();
+            return;
+        }
+
+        // API client creation could fail, which would leave FetchingApps true.
+        ICoderApiClient client;
+        try
+        {
+            client = _coderApiClientFactory.Create(_credentialManager);
+        }
+        catch
+        {
+            FetchingApps = false;
+            throw;
+        }
+
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         client.GetWorkspaceAgent(Id.ToString(), cts.Token).ContinueWith(t =>
         {
@@ -265,18 +299,24 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
                 continue;
             }
 
-            if (string.IsNullOrEmpty(app.Url))
+            if (!Uri.TryCreate(app.Url, UriKind.Absolute, out var appUri))
             {
-                _logger.LogWarning("App URI '{Url}' for '{DisplayName}' is empty, app will not appear in list", app.Url,
+                _logger.LogWarning("Could not parse app URI '{Url}' for '{DisplayName}', app will not appear in list",
+                    app.Url,
                     app.DisplayName);
                 continue;
             }
+
+            // HTTP or HTTPS external apps are usually things like
+            // wikis/documentation, which clutters up the app.
+            if (appUri.Scheme is "http" or "https")
+                continue;
 
             // Icon parse failures are not fatal, we will just use the fallback
             // icon.
             _ = Uri.TryCreate(DashboardBaseUrl, app.Icon, out var iconUrl);
 
-            apps.Add(_agentAppViewModelFactory.Create(uuid, app.DisplayName, app.Url, iconUrl));
+            apps.Add(_agentAppViewModelFactory.Create(uuid, app.DisplayName, appUri, iconUrl));
         }
 
         foreach (var displayApp in workspaceAgent.DisplayApps)
@@ -296,7 +336,22 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
                 scheme = "vscode-insiders";
             }
 
-            var appUri = $"{scheme}://vscode-remote/ssh-remote+{FullHostname}/{workspaceAgent.ExpandedDirectory}";
+            Uri appUri;
+            try
+            {
+                appUri = new UriBuilder
+                {
+                    Scheme = scheme,
+                    Host = "vscode-remote",
+                    Path = $"/ssh-remote+{FullHostname}/{workspaceAgent.ExpandedDirectory}",
+                }.Uri;
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning("Could not craft app URI for display app {displayApp}, app will not appear in list",
+                    displayApp);
+                continue;
+            }
 
             // Icon parse failures are not fatal, we will just use the fallback
             // icon.
