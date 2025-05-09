@@ -71,7 +71,11 @@ public static class ModelUpdate
             target.RemoveAt(i);
             i--;
 
-            OuterLoopEnd: ;
+            // Rider fights `dotnet format` about whether there should be a
+            // space before the semicolon or not.
+#pragma warning disable format
+        OuterLoopEnd: ;
+#pragma warning enable format
         }
 
         // Add any items that were missing into their correct sorted place.
@@ -91,7 +95,11 @@ public static class ModelUpdate
             // equal to or after every other item.
             target.Add(newItem);
 
-            OuterLoopEnd: ;
+            // Rider fights `dotnet format` about whether there should be a
+            // space before the semicolon or not.
+#pragma warning disable format
+        OuterLoopEnd: ;
+#pragma warning enable format
         }
     }
 }
