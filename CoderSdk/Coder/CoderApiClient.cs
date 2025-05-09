@@ -5,11 +5,40 @@ namespace Coder.Desktop.CoderSdk.Coder;
 public interface ICoderApiClientFactory
 {
     public ICoderApiClient Create(string baseUrl);
+    public ICoderApiClient Create(ICoderApiClientCredentialProvider provider);
+}
+
+public class CoderApiClientCredential
+{
+    public required Uri CoderUrl { get; set; }
+    public required string ApiToken { get; set; }
+}
+
+public interface ICoderApiClientCredentialProvider
+{
+    public CoderApiClientCredential? GetCoderApiClientCredential();
 }
 
 public class CoderApiClientFactory : ICoderApiClientFactory
 {
     public ICoderApiClient Create(string baseUrl)
+    {
+        return new CoderApiClient(baseUrl);
+    }
+
+    public ICoderApiClient Create(ICoderApiClientCredentialProvider provider)
+    {
+        var cred = provider.GetCoderApiClientCredential();
+        if (cred == null)
+            throw new InvalidOperationException(
+                "Cannot create Coder API client with invalid credential provider: credential is null");
+
+        var client = Create(cred.CoderUrl);
+        client.SetSessionToken(cred.ApiToken);
+        return client;
+    }
+
+    public ICoderApiClient Create(Uri baseUrl)
     {
         return new CoderApiClient(baseUrl);
     }
@@ -24,6 +53,8 @@ public partial interface ICoderApiClient
 [JsonSerializable(typeof(Response))]
 [JsonSerializable(typeof(User))]
 [JsonSerializable(typeof(ValidationError))]
+[JsonSerializable(typeof(WorkspaceAgent))]
+[JsonSerializable(typeof(WorkspaceApp))]
 public partial class CoderApiJsonContext : JsonSerializerContext;
 
 /// <summary>

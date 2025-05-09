@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml;
 using WinRT.Interop;
 
-namespace Coder.Desktop.App;
+namespace Coder.Desktop.App.Utils;
 
 /// <summary>
 ///     A static utility class to house methods related to the visual scale of the display monitor.

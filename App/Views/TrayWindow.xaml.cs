@@ -6,6 +6,7 @@ using Windows.UI.Core;
 using Coder.Desktop.App.Controls;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;
@@ -24,6 +25,7 @@ public sealed partial class TrayWindow : Window
     private const int WIDTH = 300;
 
     private NativeApi.POINT? _lastActivatePosition;
+    private int _maxHeightSinceLastActivation;
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
@@ -138,30 +140,22 @@ public sealed partial class TrayWindow : Window
 
     private void RootFrame_SizeChanged(object sender, SizedFrameEventArgs e)
     {
-        ResizeWindow(e.NewSize.Height);
-        MoveWindow();
+        MoveAndResize(e.NewSize.Height);
     }
 
-    private void ResizeWindow()
+    private void MoveAndResize(double height)
     {
-        ResizeWindow(RootFrame.GetContentSize().Height);
-    }
-
-    private void ResizeWindow(double height)
-    {
-        if (height <= 0) height = 100; // will be resolved next frame typically
-
-        var scale = DisplayScale.WindowScale(this);
-        var newWidth = (int)(WIDTH * scale);
-        var newHeight = (int)(height * scale);
-        AppWindow.Resize(new SizeInt32(newWidth, newHeight));
+        var size = CalculateWindowSize(height);
+        var pos = CalculateWindowPosition(size);
+        var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
+        AppWindow.MoveAndResize(rect);
     }
 
     private void MoveResizeAndActivate()
     {
         SaveCursorPos();
-        ResizeWindow();
-        MoveWindow();
+        _maxHeightSinceLastActivation = 0;
+        MoveAndResize(RootFrame.GetContentSize().Height);
         AppWindow.Show();
         NativeApi.SetForegroundWindow(WindowNative.GetWindowHandle(this));
     }
@@ -178,15 +172,33 @@ public sealed partial class TrayWindow : Window
             _lastActivatePosition = null;
     }
 
-    private void MoveWindow()
+    private SizeInt32 CalculateWindowSize(double height)
     {
-        AppWindow.Move(GetWindowPosition());
+        if (height <= 0) height = 100; // will be resolved next frame typically
+
+        var scale = DisplayScale.WindowScale(this);
+        var newWidth = (int)(WIDTH * scale);
+        var newHeight = (int)(height * scale);
+        // Store the maximum height we've seen for positioning purposes.
+        if (newHeight > _maxHeightSinceLastActivation)
+            _maxHeightSinceLastActivation = newHeight;
+
+        return new SizeInt32(newWidth, newHeight);
     }
 
-    private PointInt32 GetWindowPosition()
+    private PointInt32 CalculateWindowPosition(SizeInt32 size)
     {
-        var height = AppWindow.Size.Height;
-        var width = AppWindow.Size.Width;
+        var width = size.Width;
+        var height = size.Height;
+        // For positioning purposes, pretend the window is the maximum size it
+        // has been since it was last activated. This has the affect of
+        // allowing the window to move up to accomodate more content, but
+        // prevents it from moving back down when the window shrinks again.
+        //
+        // Prevents a lot of jittery behavior with app drawers.
+        if (height < _maxHeightSinceLastActivation)
+            height = _maxHeightSinceLastActivation;
+
         var cursorPosition = _lastActivatePosition;
         if (cursorPosition is null)
         {
