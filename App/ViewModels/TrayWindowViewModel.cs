@@ -100,7 +100,8 @@ public partial class TrayWindowViewModel : ObservableObject
 
     public Brush SignOutButtonForeground
     {
-        get {
+        get
+        {
             return VpnLifecycle switch
             {
                 VpnLifecycle.Stopped or VpnLifecycle.Unknown => _enabledForegroud ?? new SolidColorBrush(Colors.White),
