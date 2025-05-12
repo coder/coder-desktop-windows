@@ -501,7 +501,6 @@
       "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
-          "Coder.Desktop.CoderSdk": "[1.0.0, )",
           "Google.Protobuf": "[3.29.3, )"
         }
       },

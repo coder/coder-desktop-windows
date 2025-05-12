@@ -169,6 +169,9 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         List<AgentViewModel> agents = [];
         foreach (var agent in rpcModel.Agents)
         {
+            if (!Uuid.TryFrom(agent.Id.Span, out var uuid))
+                continue;
+
             // Find the FQDN with the least amount of dots and split it into
             // prefix and suffix.
             var fqdn = agent.Fqdn
@@ -195,7 +198,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
             agents.Add(_agentViewModelFactory.Create(
                 this,
-                agent.ParseId(),
+                uuid,
                 fqdnPrefix,
                 fqdnSuffix,
                 connectionStatus,
@@ -207,11 +210,15 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         // dummy agent row.
         foreach (var workspace in rpcModel.Workspaces.Where(w =>
                      w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
+        {
+            if (!Uuid.TryFrom(workspace.Id.Span, out var uuid))
+                continue;
+
             agents.Add(_agentViewModelFactory.Create(
                 this,
                 // Workspace ID is fine as a stand-in here, it shouldn't
                 // conflict with any agent IDs.
-                workspace.ParseId(),
+                uuid,
                 // We assume that it's a single-agent workspace.
                 workspace.Name,
                 // TODO: this needs to get the suffix from the server
@@ -219,6 +226,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
                 AgentConnectionStatus.Gray,
                 credentialModel.CoderUrl,
                 workspace.Name));
+        }
 
         // Sort by status green, red, gray, then by hostname.
         ModelUpdate.ApplyLists(Agents, agents, (a, b) =>
