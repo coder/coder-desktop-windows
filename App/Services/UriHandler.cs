@@ -20,7 +20,8 @@ public class UriHandler(
     ILogger<UriHandler> logger,
     IRpcController rpcController,
     IUserNotifier userNotifier,
-    IRdpConnector rdpConnector) : IUriHandler
+    IRdpConnector rdpConnector,
+    ICredentialManager credentialManager) : IUriHandler
 {
     private const string OpenWorkspacePrefix = "/v0/open/ws/";
 
@@ -64,11 +65,13 @@ public class UriHandler(
     public async Task HandleOpenWorkspaceApp(Uri uri, CancellationToken ct = default)
     {
         const string errTitle = "Open Workspace Application Error";
+        CheckAuthority(uri, errTitle);
+
         var subpath = uri.AbsolutePath[OpenWorkspacePrefix.Length..];
         var components = subpath.Split("/");
         if (components.Length != 4 || components[1] != "agent")
         {
-            logger.LogWarning("unsupported open workspace app format in URI {path}", uri.AbsolutePath);
+            logger.LogWarning("unsupported open workspace app format in URI '{path}'", uri.AbsolutePath);
             throw new UriException(errTitle, $"Failed to open '{uri.AbsolutePath}' because the format is unsupported.");
         }
 
@@ -118,6 +121,36 @@ public class UriHandler(
         }
 
         await OpenRDP(agent.Fqdn.First(), uri.Query, ct);
+    }
+
+    private void CheckAuthority(Uri uri, string errTitle)
+    {
+        if (string.IsNullOrEmpty(uri.Authority))
+        {
+            logger.LogWarning("cannot open workspace app without a URI authority on path '{path}'", uri.AbsolutePath);
+            throw new UriException(errTitle,
+                $"Failed to open '{uri.AbsolutePath}' because no Coder server was given in the URI");
+        }
+
+        var credentialModel = credentialManager.GetCachedCredentials();
+        if (credentialModel.State != CredentialState.Valid)
+        {
+            logger.LogWarning("cannot open workspace app because credentials are '{state}'", credentialModel.State);
+            throw new UriException(errTitle,
+                $"Failed to open '{uri.AbsolutePath}' because you are not signed in.");
+        }
+
+        // here we assume that the URL is valid since the credentials are marked valid. If not it's an internal error
+        // and the App will handle catching the exception and logging it.
+        var coderUri = new Uri(credentialModel.CoderUrl!);
+        if (uri.Authority != coderUri.Authority)
+        {
+            logger.LogWarning(
+                "cannot open workspace app because it was for '{uri_authority}', be we are signed into '{signed_in_authority}'",
+                uri.Authority, coderUri.Authority);
+            throw new UriException(errTitle,
+                $"Failed to open workspace app because it was for '{uri.Authority}', be we are signed into '{coderUri.Authority}'");
+        }
     }
 
     public async Task OpenRDP(string domainName, string queryString, CancellationToken ct = default)
