@@ -1,10 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -13,11 +17,15 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Exception = System.Exception;
 
 namespace Coder.Desktop.App.ViewModels;
 
-public partial class TrayWindowViewModel : ObservableObject
+public interface IAgentExpanderHost
+{
+    public void HandleAgentExpanded(Uuid id, bool expanded);
+}
+
+public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 {
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
@@ -25,10 +33,21 @@ public partial class TrayWindowViewModel : ObservableObject
     private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
+    private readonly IAgentViewModelFactory _agentViewModelFactory;
 
     private FileSyncListWindow? _fileSyncListWindow;
 
     private DispatcherQueue? _dispatcherQueue;
+
+    // When we transition from 0 online workspaces to >0 online workspaces, the
+    // first agent will be expanded. This bool tracks whether this has occurred
+    // yet (or if the user has expanded something themselves).
+    private bool _hasExpandedAgent;
+
+    // This isn't an ObservableProperty because the property itself never
+    // changes. We add an event listener for the collection changing in the
+    // constructor.
+    public readonly ObservableCollection<AgentViewModel> Agents = [];
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEnableSection))]
@@ -48,13 +67,6 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowAgentOverflowButton))]
     [NotifyPropertyChangedFor(nameof(ShowFailedSection))]
     public partial string? VpnFailedMessage { get; set; } = null;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(VisibleAgents))]
-    [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
-    [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
-    [NotifyPropertyChangedFor(nameof(ShowAgentOverflowButton))]
-    public partial List<AgentViewModel> Agents { get; set; } = [];
 
     public bool ShowEnableSection => VpnFailedMessage is null && VpnLifecycle is not VpnLifecycle.Started;
 
@@ -76,14 +88,43 @@ public partial class TrayWindowViewModel : ObservableObject
 
     public IEnumerable<AgentViewModel> VisibleAgents => ShowAllAgents ? Agents : Agents.Take(MaxAgents);
 
-    [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
+    [ObservableProperty] public partial string DashboardUrl { get; set; } = DefaultDashboardUrl;
 
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
-        ICredentialManager credentialManager)
+        ICredentialManager credentialManager, IAgentViewModelFactory agentViewModelFactory)
     {
         _services = services;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _agentViewModelFactory = agentViewModelFactory;
+
+        // Since the property value itself never changes, we add event
+        // listeners for the underlying collection changing instead.
+        Agents.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(VisibleAgents)));
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowNoAgentsSection)));
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowAgentsSection)));
+            OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowAgentOverflowButton)));
+        };
+    }
+
+    // Implements IAgentExpanderHost
+    public void HandleAgentExpanded(Uuid id, bool expanded)
+    {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => HandleAgentExpanded(id, expanded));
+            return;
+        }
+
+        if (!expanded) return;
+        _hasExpandedAgent = true;
+        // Collapse every other agent.
+        foreach (var otherAgent in Agents.Where(a => a.Id != id))
+            otherAgent.SetExpanded(false);
     }
 
     public void Initialize(DispatcherQueue dispatcherQueue)
@@ -93,8 +134,8 @@ public partial class TrayWindowViewModel : ObservableObject
         _rpcController.StateChanged += (_, rpcModel) => UpdateFromRpcModel(rpcModel);
         UpdateFromRpcModel(_rpcController.GetState());
 
-        _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialsModel(credentialModel);
-        UpdateFromCredentialsModel(_credentialManager.GetCachedCredentials());
+        _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialModel(credentialModel);
+        UpdateFromCredentialModel(_credentialManager.GetCachedCredentials());
     }
 
     private void UpdateFromRpcModel(RpcModel rpcModel)
@@ -107,37 +148,30 @@ public partial class TrayWindowViewModel : ObservableObject
             return;
         }
 
-        // As a failsafe, if RPC is disconnected we disable the switch. The
-        // Window should not show the current Page if the RPC is disconnected.
-        if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected)
+        // As a failsafe, if RPC is disconnected (or we're not signed in) we
+        // disable the switch. The Window should not show the current Page if
+        // the RPC is disconnected.
+        var credentialModel = _credentialManager.GetCachedCredentials();
+        if (rpcModel.RpcLifecycle is RpcLifecycle.Disconnected || credentialModel.State is not CredentialState.Valid ||
+            credentialModel.CoderUrl == null)
         {
             VpnLifecycle = VpnLifecycle.Unknown;
             VpnSwitchActive = false;
-            Agents = [];
+            Agents.Clear();
             return;
         }
 
         VpnLifecycle = rpcModel.VpnLifecycle;
         VpnSwitchActive = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
 
-        // Get the current dashboard URL.
-        var credentialModel = _credentialManager.GetCachedCredentials();
-        Uri? coderUri = null;
-        if (credentialModel.State == CredentialState.Valid && !string.IsNullOrWhiteSpace(credentialModel.CoderUrl))
-            try
-            {
-                coderUri = new Uri(credentialModel.CoderUrl, UriKind.Absolute);
-            }
-            catch
-            {
-                // Ignore
-            }
-
         // Add every known agent.
         HashSet<ByteString> workspacesWithAgents = [];
         List<AgentViewModel> agents = [];
         foreach (var agent in rpcModel.Agents)
         {
+            if (!Uuid.TryFrom(agent.Id.Span, out var uuid))
+                continue;
+
             // Find the FQDN with the least amount of dots and split it into
             // prefix and suffix.
             var fqdn = agent.Fqdn
@@ -156,75 +190,95 @@ public partial class TrayWindowViewModel : ObservableObject
             }
 
             var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
+            var connectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
+                ? AgentConnectionStatus.Green
+                : AgentConnectionStatus.Yellow;
             workspacesWithAgents.Add(agent.WorkspaceId);
             var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
 
-            agents.Add(new AgentViewModel
-            {
-                Hostname = fqdnPrefix,
-                HostnameSuffix = fqdnSuffix,
-                ConnectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
-                    ? AgentConnectionStatus.Green
-                    : AgentConnectionStatus.Yellow,
-                DashboardUrl = WorkspaceUri(coderUri, workspace?.Name),
-            });
+            agents.Add(_agentViewModelFactory.Create(
+                this,
+                uuid,
+                fqdnPrefix,
+                fqdnSuffix,
+                connectionStatus,
+                credentialModel.CoderUrl,
+                workspace?.Name));
         }
 
         // For every stopped workspace that doesn't have any agents, add a
         // dummy agent row.
         foreach (var workspace in rpcModel.Workspaces.Where(w =>
                      w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
-            agents.Add(new AgentViewModel
-            {
-                // We just assume that it's a single-agent workspace.
-                Hostname = workspace.Name,
+        {
+            if (!Uuid.TryFrom(workspace.Id.Span, out var uuid))
+                continue;
+
+            agents.Add(_agentViewModelFactory.Create(
+                this,
+                // Workspace ID is fine as a stand-in here, it shouldn't
+                // conflict with any agent IDs.
+                uuid,
+                // We assume that it's a single-agent workspace.
+                workspace.Name,
                 // TODO: this needs to get the suffix from the server
-                HostnameSuffix = ".coder",
-                ConnectionStatus = AgentConnectionStatus.Gray,
-                DashboardUrl = WorkspaceUri(coderUri, workspace.Name),
-            });
+                ".coder",
+                AgentConnectionStatus.Gray,
+                credentialModel.CoderUrl,
+                workspace.Name));
+        }
 
         // Sort by status green, red, gray, then by hostname.
-        agents.Sort((a, b) =>
+        ModelUpdate.ApplyLists(Agents, agents, (a, b) =>
         {
             if (a.ConnectionStatus != b.ConnectionStatus)
                 return a.ConnectionStatus.CompareTo(b.ConnectionStatus);
             return string.Compare(a.FullHostname, b.FullHostname, StringComparison.Ordinal);
         });
-        Agents = agents;
 
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
-    }
 
-    private string WorkspaceUri(Uri? baseUri, string? workspaceName)
-    {
-        if (baseUri == null) return DefaultDashboardUrl;
-        if (string.IsNullOrWhiteSpace(workspaceName)) return baseUri.ToString();
-        try
+        var firstOnlineAgent = agents.FirstOrDefault(a => a.ConnectionStatus != AgentConnectionStatus.Gray);
+        if (firstOnlineAgent is null)
+            _hasExpandedAgent = false;
+        if (!_hasExpandedAgent && firstOnlineAgent is not null)
         {
-            return new Uri(baseUri, $"/@me/{workspaceName}").ToString();
-        }
-        catch
-        {
-            return DefaultDashboardUrl;
+            firstOnlineAgent.SetExpanded(true);
+            _hasExpandedAgent = true;
         }
     }
 
-    private void UpdateFromCredentialsModel(CredentialModel credentialModel)
+    private void UpdateFromCredentialModel(CredentialModel credentialModel)
     {
         // Ensure we're on the UI thread.
         if (_dispatcherQueue == null) return;
         if (!_dispatcherQueue.HasThreadAccess)
         {
-            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialsModel(credentialModel));
+            _dispatcherQueue.TryEnqueue(() => UpdateFromCredentialModel(credentialModel));
             return;
         }
+
+        // CredentialModel updates trigger RpcStateModel updates first. This
+        // resolves an issue on startup where the window would be locked for 5
+        // seconds, even if all startup preconditions have been met:
+        //
+        // 1. RPC state updates, but credentials are invalid so the window
+        //    enters the invalid loading state to prevent interaction.
+        // 2. Credential model finally becomes valid after reaching out to the
+        //    server to check credentials.
+        // 3. UpdateFromCredentialModel previously did not re-trigger RpcModel
+        //    update.
+        // 4. Five seconds after step 1, a new RPC state update would come in
+        //    and finally unlock the window.
+        //
+        // Calling UpdateFromRpcModel at step 3 resolves this issue.
+        UpdateFromRpcModel(_rpcController.GetState());
 
         // HACK: the HyperlinkButton crashes the whole app if the initial URI
         // or this URI is invalid. CredentialModel.CoderUrl should never be
         // null while the Page is active as the Page is only displayed when
         // CredentialModel.Status == Valid.
-        DashboardUrl = credentialModel.CoderUrl ?? DefaultDashboardUrl;
+        DashboardUrl = credentialModel.CoderUrl?.ToString() ?? DefaultDashboardUrl;
     }
 
     public void VpnSwitch_Toggled(object sender, RoutedEventArgs e)
@@ -273,13 +327,13 @@ public partial class TrayWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void ToggleShowAllAgents()
+    private void ToggleShowAllAgents()
     {
         ShowAllAgents = !ShowAllAgents;
     }
 
     [RelayCommand]
-    public void ShowFileSyncListWindow()
+    private void ShowFileSyncListWindow()
     {
         // This is safe against concurrent access since it all happens in the
         // UI thread.
@@ -295,7 +349,7 @@ public partial class TrayWindowViewModel : ObservableObject
     }
 
     [RelayCommand]
-    public void SignOut()
+    private void SignOut()
     {
         if (VpnLifecycle is not VpnLifecycle.Stopped)
             return;

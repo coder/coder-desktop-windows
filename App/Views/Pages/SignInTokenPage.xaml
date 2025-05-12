@@ -87,14 +87,14 @@
             <Button
                 Content="Back" HorizontalAlignment="Right"
                 Command="{x:Bind ViewModel.TokenPage_BackCommand, Mode=OneWay}"
-                CommandParameter="{x:Bind SignInWindow, Mode=OneWay}" />
+                CommandParameter="{x:Bind SignInWindow}" />
 
             <Button
                 Content="Sign In"
                 HorizontalAlignment="Left"
                 Style="{StaticResource AccentButtonStyle}"
                 Command="{x:Bind ViewModel.TokenPage_SignInCommand, Mode=OneWay}"
-                CommandParameter="{x:Bind SignInWindow, Mode=OneWay}" />
+                CommandParameter="{x:Bind SignInWindow}" />
         </StackPanel>
     </StackPanel>
 </Page>

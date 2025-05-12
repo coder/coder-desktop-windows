@@ -11,6 +11,7 @@ using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views;
 using Coder.Desktop.App.Views.Pages;
 using Coder.Desktop.CoderSdk.Agent;
+using Coder.Desktop.CoderSdk.Coder;
 using Coder.Desktop.Vpn;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,9 +20,9 @@ using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
+using Microsoft.Windows.AppNotifications;
 using Serilog;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
-using Microsoft.Windows.AppNotifications;
 
 namespace Coder.Desktop.App;
 
@@ -64,8 +65,11 @@ public partial class App : Application
             loggerConfig.ReadFrom.Configuration(builder.Configuration);
         });
 
+        services.AddSingleton<ICoderApiClientFactory, CoderApiClientFactory>();
         services.AddSingleton<IAgentApiClientFactory, AgentApiClientFactory>();
 
+        services.AddSingleton<ICredentialBackend>(_ =>
+            new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
 
@@ -95,6 +99,8 @@ public partial class App : Application
         services.AddTransient<TrayWindowLoginRequiredPage>();
         services.AddTransient<TrayWindowLoginRequiredViewModel>();
         services.AddTransient<TrayWindowLoginRequiredPage>();
+        services.AddSingleton<IAgentAppViewModelFactory, AgentAppViewModelFactory>();
+        services.AddSingleton<IAgentViewModelFactory, AgentViewModelFactory>();
         services.AddTransient<TrayWindowViewModel>();
         services.AddTransient<TrayWindowMainPage>();
         services.AddTransient<TrayWindow>();

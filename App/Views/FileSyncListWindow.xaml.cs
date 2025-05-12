@@ -1,8 +1,8 @@
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views.Pages;
 using Microsoft.UI.Xaml.Media;
 using WinUIEx;
-using Coder.Desktop.App.Utils;
 
 namespace Coder.Desktop.App.Views;
 
@@ -23,5 +23,4 @@ public sealed partial class FileSyncListWindow : WindowEx
 
         this.CenterOnScreen();
     }
-
 }

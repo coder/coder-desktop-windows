@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<UserControl
+    x:Class="Coder.Desktop.App.Controls.ExpandContent"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:toolkit="using:CommunityToolkit.WinUI"
+    mc:Ignorable="d">
+
+    <Grid x:Name="CollapsiblePanel" Opacity="0" Visibility="Collapsed" toolkit:UIElementExtensions.ClipToBounds="True">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="SlideTransform" Y="-10" />
+        </Grid.RenderTransform>
+
+        <VisualStateManager.VisualStateGroups>
+            <VisualStateGroup>
+                <VisualState x:Name="ExpandedState">
+                    <Storyboard>
+                        <DoubleAnimation
+                            Storyboard.TargetName="CollapsiblePanel"
+                            Storyboard.TargetProperty="Opacity"
+                            To="1"
+                            Duration="0:0:0.2" />
+                        <DoubleAnimation
+                            Storyboard.TargetName="SlideTransform"
+                            Storyboard.TargetProperty="Y"
+                            To="0"
+                            Duration="0:0:0.2" />
+                    </Storyboard>
+                </VisualState>
+
+                <VisualState x:Name="CollapsedState">
+                    <Storyboard Completed="{x:Bind CollapseAnimation_Completed}">
+                        <DoubleAnimation
+                            Storyboard.TargetName="CollapsiblePanel"
+                            Storyboard.TargetProperty="Opacity"
+                            To="0"
+                            Duration="0:0:0.2" />
+                        <DoubleAnimation
+                            Storyboard.TargetName="SlideTransform"
+                            Storyboard.TargetProperty="Y"
+                            To="-10"
+                            Duration="0:0:0.2" />
+                    </Storyboard>
+                </VisualState>
+            </VisualStateGroup>
+        </VisualStateManager.VisualStateGroups>
+    </Grid>
+</UserControl>

@@ -63,11 +63,9 @@ public static class Program
                 notificationManager.NotificationInvoked += app.HandleNotification;
                 notificationManager.Register();
                 if (activationArgs.Kind != ExtendedActivationKind.Launch)
-                {
                     // this means we were activated without having already launched, so handle
                     // the activation as well.
                     app.OnActivated(null, activationArgs);
-                }
             });
         }
         catch (Exception e)

@@ -27,4 +27,3 @@ public class UserNotifier : IUserNotifier
         return Task.CompletedTask;
     }
 }
-

@@ -29,7 +29,7 @@ public class FriendlyByteConverterTest
         var converter = new FriendlyByteConverter();
         foreach (var (input, expected) in cases)
         {
-            var actual = converter.Convert(input, typeof(string), null, null);
+            var actual = converter.Convert(input, typeof(string), null!, null!);
             Assert.That(actual, Is.EqualTo(expected), $"case ({input.GetType()}){input}");
         }
     }
