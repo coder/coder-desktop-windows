@@ -330,24 +330,26 @@
         </HyperlinkButton>
 
         <controls:HorizontalRule />
+        
+        <Grid ToolTipService.ToolTip="{x:Bind ViewModel.SignOutButtonTooltip, Mode=OneWay}">
+            <HyperlinkButton
+                Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
+                IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource StoppedBoolConverter}, Mode=OneWay}"
+                Margin="-12,0"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left">
 
-        <HyperlinkButton
-            Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
-            IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource StoppedBoolConverter}, Mode=OneWay}"
-            Margin="-12,0"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Left">
+                <TextBlock Text="Sign out" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+            </HyperlinkButton>
 
-            <TextBlock Text="Sign out" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
-        </HyperlinkButton>
+            <HyperlinkButton
+                Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
+                Margin="-12,-8,-12,-5"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left">          
 
-        <HyperlinkButton
-            Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
-            Margin="-12,-8,-12,-5"
-            HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Left">          
-
-            <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
-        </HyperlinkButton>
+                <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+            </HyperlinkButton>
+        </Grid>
     </StackPanel>
 </Page>
