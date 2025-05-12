@@ -331,7 +331,9 @@
 
         <controls:HorizontalRule />
         
-        <Grid ToolTipService.ToolTip="{x:Bind ViewModel.SignOutButtonTooltip, Mode=OneWay}">
+        <Grid>
+            <Border Background="Transparent"
+            ToolTipService.ToolTip="{x:Bind ViewModel.SignOutButtonTooltip, Mode=OneWay}" />
             <HyperlinkButton
                 Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
                 IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource StoppedBoolConverter}, Mode=OneWay}"
@@ -339,17 +341,16 @@
                 HorizontalAlignment="Stretch"
                 HorizontalContentAlignment="Left">
 
-                <TextBlock Text="Sign out" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
-            </HyperlinkButton>
-
-            <HyperlinkButton
-                Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
-                Margin="-12,-8,-12,-5"
-                HorizontalAlignment="Stretch"
-                HorizontalContentAlignment="Left">          
-
-                <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+                <TextBlock Text="Sign out" Foreground="{x:Bind ViewModel.SignOutButtonForeground, Mode=OneWay}" />
             </HyperlinkButton>
         </Grid>
+        <HyperlinkButton
+            Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
+            Margin="-12,-8,-12,-5"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left">
+
+            <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
     </StackPanel>
 </Page>
