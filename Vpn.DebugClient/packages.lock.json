@@ -42,6 +42,9 @@
         "resolved": "9.0.1",
         "contentHash": "uXf5o8eV/gtzDQY4lGROLFMWQvcViKcF8o4Q6KpIOjloAQXrnscQSu6gTxYJMHuNJnh7szIF9AzkaEq+zDLoEg=="
       },
+      "Coder.Desktop.CoderSdk": {
+        "type": "Project"
+      },
       "Coder.Desktop.Vpn": {
         "type": "Project",
         "dependencies": {
@@ -54,6 +57,7 @@
       "Coder.Desktop.Vpn.Proto": {
         "type": "Project",
         "dependencies": {
+          "Coder.Desktop.CoderSdk": "[1.0.0, )",
           "Google.Protobuf": "[3.29.3, )"
         }
       }

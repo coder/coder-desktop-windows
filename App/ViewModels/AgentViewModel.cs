@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Windows.ApplicationModel.DataTransfer;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.Utils;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.CoderSdk.Coder;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -292,13 +293,6 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
         {
             if (!app.External || !string.IsNullOrEmpty(app.Command)) continue;
 
-            if (!Uuid.TryParse(app.Id, out var uuid))
-            {
-                _logger.LogWarning("Could not parse app UUID '{Id}' for '{DisplayName}', app will not appear in list",
-                    app.Id, app.DisplayName);
-                continue;
-            }
-
             if (!Uri.TryCreate(app.Url, UriKind.Absolute, out var appUri))
             {
                 _logger.LogWarning("Could not parse app URI '{Url}' for '{DisplayName}', app will not appear in list",
@@ -316,7 +310,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             // icon.
             _ = Uri.TryCreate(DashboardBaseUrl, app.Icon, out var iconUrl);
 
-            apps.Add(_agentAppViewModelFactory.Create(uuid, app.DisplayName, appUri, iconUrl));
+            apps.Add(_agentAppViewModelFactory.Create(app.Id, app.DisplayName, appUri, iconUrl));
         }
 
         foreach (var displayApp in workspaceAgent.DisplayApps)
@@ -348,7 +342,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             }
             catch (Exception e)
             {
-                _logger.LogWarning("Could not craft app URI for display app {displayApp}, app will not appear in list",
+                _logger.LogWarning(e, "Could not craft app URI for display app {displayApp}, app will not appear in list",
                     displayApp);
                 continue;
             }

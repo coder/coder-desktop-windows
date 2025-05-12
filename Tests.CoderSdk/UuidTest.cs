@@ -1,6 +1,6 @@
-using Coder.Desktop.Vpn.Proto;
+using Coder.Desktop.CoderSdk;
 
-namespace Coder.Desktop.Tests.Vpn.Proto;
+namespace Coder.Desktop.Tests.CoderSdk;
 
 [TestFixture]
 public class UuidTest
@@ -111,10 +111,12 @@ public class UuidTest
 
 #pragma warning disable CS1718 // Comparison made to same variable
 #pragma warning disable NUnit2010 // Use Is.EqualTo constraint instead of direct comparison
+        // ReSharper disable EqualExpressionComparison
         Assert.That(uuid1 == uuid1, Is.True);
         Assert.That(uuid1 != uuid1, Is.False);
         Assert.That(Uuid.Zero == Uuid.Zero, Is.True);
         Assert.That(Uuid.Zero != Uuid.Zero, Is.False);
+        // ReSharper restore EqualExpressionComparison
 #pragma warning restore NUnit2010
 #pragma warning restore CS1718
 

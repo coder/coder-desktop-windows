@@ -75,7 +75,7 @@ public static class ModelUpdate
             // space before the semicolon or not.
 #pragma warning disable format
         OuterLoopEnd: ;
-#pragma warning enable format
+#pragma warning restore format
         }
 
         // Add any items that were missing into their correct sorted place.
@@ -99,7 +99,7 @@ public static class ModelUpdate
             // space before the semicolon or not.
 #pragma warning disable format
         OuterLoopEnd: ;
-#pragma warning enable format
+#pragma warning restore format
         }
     }
 }

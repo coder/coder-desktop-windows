@@ -4,6 +4,7 @@ using Windows.System;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.Utils;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Proto;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;

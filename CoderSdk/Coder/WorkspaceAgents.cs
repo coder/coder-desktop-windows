@@ -21,7 +21,7 @@ public class WorkspaceAgent
 
 public class WorkspaceApp
 {
-    public string Id { get; set; } = string.Empty;
+    public Uuid Id { get; set; } = Uuid.Zero;
     public string Url { get; set; } = string.Empty;
     public bool External { get; set; } = false;
     public string DisplayName { get; set; } = string.Empty;
