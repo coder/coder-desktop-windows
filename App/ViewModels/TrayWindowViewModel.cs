@@ -301,4 +301,10 @@ public partial class TrayWindowViewModel : ObservableObject
             return;
         _credentialManager.ClearCredentials();
     }
+
+    [RelayCommand]
+    public void Exit()
+    {
+        _ = ((App)Application.Current).ExitApplication();
+    }
 }
