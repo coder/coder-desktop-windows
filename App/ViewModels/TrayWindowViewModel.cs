@@ -10,9 +10,12 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Google.Protobuf;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Windows.UI;
 using Exception = System.Exception;
 
 namespace Coder.Desktop.App.ViewModels;
@@ -35,6 +38,8 @@ public partial class TrayWindowViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowWorkspacesHeader))]
     [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
     [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
+    [NotifyPropertyChangedFor(nameof(SignOutButtonForeground))]
+    [NotifyPropertyChangedFor(nameof(SignOutButtonTooltip))]
     public partial VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
 
     // This is a separate property because we need the switch to be 2-way.
@@ -78,12 +83,50 @@ public partial class TrayWindowViewModel : ObservableObject
 
     [ObservableProperty] public partial string DashboardUrl { get; set; } = "https://coder.com";
 
+    public string SignOutButtonTooltip
+    {
+        get
+        {
+            return VpnLifecycle switch
+            {
+                VpnLifecycle.Stopped or VpnLifecycle.Unknown => "Sign out",
+                _ => "Sign out (VPN must be stopped first)",
+            };
+        }
+    }
+
+    private Brush? _enabledForegroud;
+    private Brush? _disabledForeground;
+
+    public Brush SignOutButtonForeground
+    {
+        get
+        {
+            return VpnLifecycle switch
+            {
+                VpnLifecycle.Stopped or VpnLifecycle.Unknown => _enabledForegroud ?? new SolidColorBrush(Colors.White),
+                _ => _disabledForeground ?? new SolidColorBrush(Color.FromArgb(153, 255, 255, 255)),
+            };
+        }
+    }
+    public static Brush? FindBrushByName(string brushName)
+    {
+        if (Application.Current.Resources.TryGetValue(brushName, out var resource) && resource is Brush brush)
+        {
+            return brush;
+        }
+
+        return null;
+    }
+
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
         ICredentialManager credentialManager)
     {
         _services = services;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
+        _disabledForeground = FindBrushByName("SystemControlForegroundBaseMediumBrush");
+        _enabledForegroud = FindBrushByName("DefaultTextForegroundThemeBrush");
     }
 
     public void Initialize(DispatcherQueue dispatcherQueue)
