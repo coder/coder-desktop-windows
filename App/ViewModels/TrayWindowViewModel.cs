@@ -115,7 +115,7 @@ public partial class TrayWindowViewModel : ObservableObject
             return brush;
         }
 
-        return null; // Return null if the brush is not found
+        return null;
     }
 
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
