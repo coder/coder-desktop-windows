@@ -64,7 +64,7 @@ public class UriHandlerTest
         credentialModel1 = new CredentialModel
         {
             State = CredentialState.Valid,
-            CoderUrl = "https://coder.test",
+            CoderUrl = new Uri("https://coder.test"),
         };
     }
 

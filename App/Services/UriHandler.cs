@@ -140,9 +140,9 @@ public class UriHandler(
                 $"Failed to open '{uri.AbsolutePath}' because you are not signed in.");
         }
 
-        // here we assume that the URL is valid since the credentials are marked valid. If not it's an internal error
+        // here we assume that the URL is non-null since the credentials are marked valid. If not it's an internal error
         // and the App will handle catching the exception and logging it.
-        var coderUri = new Uri(credentialModel.CoderUrl!);
+        var coderUri = credentialModel.CoderUrl!;
         if (uri.Authority != coderUri.Authority)
         {
             logger.LogWarning(
