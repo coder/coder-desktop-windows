@@ -441,6 +441,7 @@ public sealed class MutagenController : ISyncSessionController
     /// </summary>
     private async Task<MutagenClient> EnsureDaemon(CancellationToken ct)
     {
+        _logger.LogDebug("EnsureDaemon called");
         ObjectDisposedException.ThrowIf(_disposing, typeof(MutagenController));
         if (_mutagenClient != null && _daemonProcess != null)
             return _mutagenClient;
@@ -479,12 +480,14 @@ public sealed class MutagenController : ISyncSessionController
     /// </summary>
     private async Task<MutagenClient> StartDaemon(CancellationToken ct)
     {
+        _logger.LogDebug("StartDaemon called");
         // Stop the running daemon
         if (_daemonProcess != null) await StopDaemon(ct);
 
         // Attempt to stop any orphaned daemon
         try
         {
+            _logger.LogDebug("creating MutagenClient to stop orphan");
             var client = new MutagenClient(_mutagenDataDirectory);
             await client.Daemon.TerminateAsync(new DaemonTerminateRequest(), cancellationToken: ct);
         }
@@ -495,6 +498,10 @@ public sealed class MutagenController : ISyncSessionController
         catch (InvalidOperationException)
         {
             // Mainline; no daemon running.
+        }
+        finally
+        {
+            _logger.LogDebug("finished with orphan mutagen client");
         }
 
         // If we get some failure while creating the log file or starting the process, we'll retry
@@ -528,6 +535,7 @@ public sealed class MutagenController : ISyncSessionController
             ct.ThrowIfCancellationRequested();
             try
             {
+                _logger.LogDebug("creating mainline mutagen client");
                 var client = new MutagenClient(_mutagenDataDirectory);
                 _ = await client.Daemon.VersionAsync(new VersionRequest(), cancellationToken: ct);
                 _mutagenClient = client;
