@@ -16,26 +16,6 @@ public class MutagenClient : IDisposable
 
     public MutagenClient(string dataDir)
     {
-        // Check for the lock file first, since it should exist if it's running.
-        var daemonLockFile = Path.Combine(dataDir, "daemon", "daemon.lock");
-        if (!File.Exists(daemonLockFile))
-            throw new FileNotFoundException(
-                "Mutagen daemon lock file not found, did the mutagen daemon start successfully?", daemonLockFile);
-
-        // We should not be able to open the lock file.
-        try
-        {
-            using var _ = File.Open(daemonLockFile, FileMode.Open, FileAccess.Write, FileShare.None);
-            // We throw a FileNotFoundException if we could open the file because
-            // it means the same thing and allows us to return the path nicely.
-            throw new InvalidOperationException(
-                $"Mutagen daemon lock file '{daemonLockFile}' is unlocked, did the mutagen daemon start successfully?");
-        }
-        catch (IOException)
-        {
-            // this is what we expect
-        }
-
         // Read the IPC named pipe address from the sock file.
         var daemonSockFile = Path.Combine(dataDir, "daemon", "daemon.sock");
         if (!File.Exists(daemonSockFile))
