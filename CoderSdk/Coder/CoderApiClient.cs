@@ -49,6 +49,7 @@ public partial interface ICoderApiClient
     public void SetSessionToken(string token);
 }
 
+[JsonSerializable(typeof(AgentConnectionInfo))]
 [JsonSerializable(typeof(BuildInfo))]
 [JsonSerializable(typeof(Response))]
 [JsonSerializable(typeof(User))]

@@ -3,6 +3,14 @@ namespace Coder.Desktop.CoderSdk.Coder;
 public partial interface ICoderApiClient
 {
     public Task<WorkspaceAgent> GetWorkspaceAgent(string id, CancellationToken ct = default);
+    public Task<AgentConnectionInfo> GetAgentConnectionInfoGeneric(CancellationToken ct = default);
+}
+
+public class AgentConnectionInfo
+{
+    public string HostnameSuffix { get; set; } = string.Empty;
+    // note that we're leaving out several fields including the DERP Map because
+    // we don't use that information, and it's a complex object to define.
 }
 
 public class WorkspaceAgent
@@ -34,5 +42,10 @@ public partial class CoderApiClient
     public Task<WorkspaceAgent> GetWorkspaceAgent(string id, CancellationToken ct = default)
     {
         return SendRequestNoBodyAsync<WorkspaceAgent>(HttpMethod.Get, "/api/v2/workspaceagents/" + id, ct);
+    }
+
+    public Task<AgentConnectionInfo> GetAgentConnectionInfoGeneric(CancellationToken ct = default)
+    {
+        return SendRequestNoBodyAsync<AgentConnectionInfo>(HttpMethod.Get, "/api/v2/workspaceagents/connection", ct);
     }
 }
