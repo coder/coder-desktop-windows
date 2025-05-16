@@ -169,9 +169,9 @@
                                         TextTrimming="CharacterEllipsis"
                                         TextWrapping="NoWrap">
 
-                                        <Run Text="{x:Bind Hostname, Mode=OneWay}"
+                                        <Run Text="{x:Bind ViewableHostname, Mode=OneWay}"
                                              Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
-                                        <Run Text="{x:Bind HostnameSuffix, Mode=OneWay}"
+                                        <Run Text="{x:Bind ViewableHostnameSuffix, Mode=OneWay}"
                                              Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
                                     </TextBlock>
 

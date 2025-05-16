@@ -29,6 +29,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 {
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
+    private const string DefaultHostnameSuffix = ".coder";
 
     private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
@@ -89,6 +90,8 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     public IEnumerable<AgentViewModel> VisibleAgents => ShowAllAgents ? Agents : Agents.Take(MaxAgents);
 
     [ObservableProperty] public partial string DashboardUrl { get; set; } = DefaultDashboardUrl;
+
+    private string _hostnameSuffix = DefaultHostnameSuffix;
 
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
         ICredentialManager credentialManager, IAgentViewModelFactory agentViewModelFactory)
@@ -181,14 +184,6 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             if (string.IsNullOrWhiteSpace(fqdn))
                 continue;
 
-            var fqdnPrefix = fqdn;
-            var fqdnSuffix = "";
-            if (fqdn.Contains('.'))
-            {
-                fqdnPrefix = fqdn[..fqdn.LastIndexOf('.')];
-                fqdnSuffix = fqdn[fqdn.LastIndexOf('.')..];
-            }
-
             var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
             var connectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
                 ? AgentConnectionStatus.Green
@@ -199,8 +194,8 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             agents.Add(_agentViewModelFactory.Create(
                 this,
                 uuid,
-                fqdnPrefix,
-                fqdnSuffix,
+                fqdn,
+                _hostnameSuffix,
                 connectionStatus,
                 credentialModel.CoderUrl,
                 workspace?.Name));
@@ -214,15 +209,12 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             if (!Uuid.TryFrom(workspace.Id.Span, out var uuid))
                 continue;
 
-            agents.Add(_agentViewModelFactory.Create(
+            agents.Add(_agentViewModelFactory.CreateDummy(
                 this,
                 // Workspace ID is fine as a stand-in here, it shouldn't
                 // conflict with any agent IDs.
                 uuid,
-                // We assume that it's a single-agent workspace.
-                workspace.Name,
-                // TODO: this needs to get the suffix from the server
-                ".coder",
+                _hostnameSuffix,
                 AgentConnectionStatus.Gray,
                 credentialModel.CoderUrl,
                 workspace.Name));
@@ -233,7 +225,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         {
             if (a.ConnectionStatus != b.ConnectionStatus)
                 return a.ConnectionStatus.CompareTo(b.ConnectionStatus);
-            return string.Compare(a.FullHostname, b.FullHostname, StringComparison.Ordinal);
+            return string.Compare(a.FullyQualifiedDomainName, b.FullyQualifiedDomainName, StringComparison.Ordinal);
         });
 
         if (Agents.Count < MaxAgents) ShowAllAgents = false;

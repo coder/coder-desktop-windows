@@ -23,8 +23,13 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentViewModelFactory
 {
-    public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string hostname, string hostnameSuffix,
+    public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string fullyQualifiedDomainName,
+        string hostnameSuffix,
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName);
+
+    public AgentViewModel CreateDummy(IAgentExpanderHost expanderHost, Uuid id,
+        string hostnameSuffix,
+        AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string workspaceName);
 }
 
 public class AgentViewModelFactory(
@@ -33,14 +38,32 @@ public class AgentViewModelFactory(
     ICredentialManager credentialManager,
     IAgentAppViewModelFactory agentAppViewModelFactory) : IAgentViewModelFactory
 {
-    public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string hostname, string hostnameSuffix,
+    public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string fullyQualifiedDomainName,
+        string hostnameSuffix,
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName)
     {
         return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory,
             expanderHost, id)
         {
-            Hostname = hostname,
-            HostnameSuffix = hostnameSuffix,
+            ConfiguredFqdn = fullyQualifiedDomainName,
+            ConfiguredHostname = string.Empty,
+            ConfiguredHostnameSuffix = hostnameSuffix,
+            ConnectionStatus = connectionStatus,
+            DashboardBaseUrl = dashboardBaseUrl,
+            WorkspaceName = workspaceName,
+        };
+    }
+
+    public AgentViewModel CreateDummy(IAgentExpanderHost expanderHost, Uuid id,
+        string hostnameSuffix,
+        AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string workspaceName)
+    {
+        return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory,
+            expanderHost, id)
+        {
+            ConfiguredFqdn = string.Empty,
+            ConfiguredHostname = workspaceName,
+            ConfiguredHostnameSuffix = hostnameSuffix,
             ConnectionStatus = connectionStatus,
             DashboardBaseUrl = dashboardBaseUrl,
             WorkspaceName = workspaceName,
@@ -84,15 +107,55 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
 
     public readonly Uuid Id;
 
+    // This is set only for "dummy" agents that represent unstarted workspaces. If set, then ConfiguredFqdn
+    // should be empty, otherwise it will override this.
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FullHostname))]
-    public required partial string Hostname { get; set; }
+    [NotifyPropertyChangedFor(nameof(ViewableHostname))]
+    [NotifyPropertyChangedFor(nameof(ViewableHostnameSuffix))]
+    [NotifyPropertyChangedFor(nameof(FullyQualifiedDomainName))]
+    public required partial string ConfiguredHostname { get; set; }
+
+    // This should be set if we have an FQDN from the VPN service, and overrides ConfiguredHostname if set.
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ViewableHostname))]
+    [NotifyPropertyChangedFor(nameof(ViewableHostnameSuffix))]
+    [NotifyPropertyChangedFor(nameof(FullyQualifiedDomainName))]
+    public required partial string ConfiguredFqdn { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FullHostname))]
-    public required partial string HostnameSuffix { get; set; } // including leading dot
+    [NotifyPropertyChangedFor(nameof(ViewableHostname))]
+    [NotifyPropertyChangedFor(nameof(ViewableHostnameSuffix))]
+    [NotifyPropertyChangedFor(nameof(FullyQualifiedDomainName))]
+    public required partial string ConfiguredHostnameSuffix { get; set; } // including leading dot
 
-    public string FullHostname => Hostname + HostnameSuffix;
+
+    public string FullyQualifiedDomainName
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(ConfiguredFqdn)) return ConfiguredFqdn;
+            return ConfiguredHostname + ConfiguredHostnameSuffix;
+        }
+    }
+
+    /// <summary>
+    /// ViewableHostname is the hostname portion of the fully qualified domain name (FQDN) specifically for
+    /// views that render it differently than the suffix. If the ConfiguredHostnameSuffix doesn't actually
+    /// match the FQDN, then this will be the entire FQDN, and ViewableHostnameSuffix will be empty.
+    /// </summary>
+    public string ViewableHostname => !FullyQualifiedDomainName.EndsWith(ConfiguredHostnameSuffix)
+        ? FullyQualifiedDomainName
+        : FullyQualifiedDomainName[0..^ConfiguredHostnameSuffix.Length];
+
+    /// <summary>
+    /// ViewableHostnameSuffix is the domain suffix portion (including leading dot) of the fully qualified
+    /// domain name (FQDN) specifically for views that render it differently from the rest of the FQDN. If
+    /// the ConfiguredHostnameSuffix doesn't actually match the FQDN, then this will be empty and the
+    /// ViewableHostname will contain the entire FQDN.
+    /// </summary>
+    public string ViewableHostnameSuffix => FullyQualifiedDomainName.EndsWith(ConfiguredHostnameSuffix)
+        ? ConfiguredHostnameSuffix
+        : string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowExpandAppsMessage))]
@@ -202,10 +265,12 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
 
         // To avoid spurious UI updates which cause flashing, don't actually
         // write to values unless they've changed.
-        if (Hostname != model.Hostname)
-            Hostname = model.Hostname;
-        if (HostnameSuffix != model.HostnameSuffix)
-            HostnameSuffix = model.HostnameSuffix;
+        if (ConfiguredFqdn != model.ConfiguredFqdn)
+            ConfiguredFqdn = model.ConfiguredFqdn;
+        if (ConfiguredHostname != model.ConfiguredHostname)
+            ConfiguredHostname = model.ConfiguredHostname;
+        if (ConfiguredHostnameSuffix != model.ConfiguredHostnameSuffix)
+            ConfiguredHostnameSuffix = model.ConfiguredHostnameSuffix;
         if (ConnectionStatus != model.ConnectionStatus)
             ConnectionStatus = model.ConnectionStatus;
         if (DashboardBaseUrl != model.DashboardBaseUrl)
@@ -337,12 +402,13 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
                 {
                     Scheme = scheme,
                     Host = "vscode-remote",
-                    Path = $"/ssh-remote+{FullHostname}/{workspaceAgent.ExpandedDirectory}",
+                    Path = $"/ssh-remote+{FullyQualifiedDomainName}/{workspaceAgent.ExpandedDirectory}",
                 }.Uri;
             }
             catch (Exception e)
             {
-                _logger.LogWarning(e, "Could not craft app URI for display app {displayApp}, app will not appear in list",
+                _logger.LogWarning(e,
+                    "Could not craft app URI for display app {displayApp}, app will not appear in list",
                     displayApp);
                 continue;
             }
@@ -365,7 +431,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
         {
             RequestedOperation = DataPackageOperation.Copy,
         };
-        dataPackage.SetText(FullHostname);
+        dataPackage.SetText(FullyQualifiedDomainName);
         Clipboard.SetContent(dataPackage);
 
         if (parameter is not FrameworkElement frameworkElement) return;

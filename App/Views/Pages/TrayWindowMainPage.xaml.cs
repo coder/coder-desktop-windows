@@ -18,9 +18,9 @@ public sealed partial class TrayWindowMainPage : Page
     }
 
     // HACK: using XAML to populate the text Runs results in an additional
-    // whitespace Run being inserted between the Hostname and the
-    // HostnameSuffix. You might think, "OK let's populate the entire TextBlock
-    // content from code then!", but this results in the ItemsRepeater
+    // whitespace Run being inserted between the ViewableHostname and the
+    // ViewableHostnameSuffix. You might think, "OK let's populate the entire
+    // TextBlock content from code then!", but this results in the ItemsRepeater
     // corrupting it and firing events off to the wrong AgentModel.
     //
     // This is the best solution I came up with that worked.
@@ -28,12 +28,12 @@ public sealed partial class TrayWindowMainPage : Page
     {
         if (sender is not TextBlock textBlock) return;
 
-        var nonEmptyRuns = new List<Run>();
+        var nonWhitespaceRuns = new List<Run>();
         foreach (var inline in textBlock.Inlines)
-            if (inline is Run run && !string.IsNullOrWhiteSpace(run.Text))
-                nonEmptyRuns.Add(run);
+            if (inline is Run run && run.Text != " ")
+                nonWhitespaceRuns.Add(run);
 
         textBlock.Inlines.Clear();
-        foreach (var run in nonEmptyRuns) textBlock.Inlines.Add(run);
+        foreach (var run in nonWhitespaceRuns) textBlock.Inlines.Add(run);
     }
 }
