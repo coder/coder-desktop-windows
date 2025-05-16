@@ -72,6 +72,7 @@ public partial class App : Application
             new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
         services.AddSingleton<IRpcController, RpcController>();
+        services.AddSingleton<IHostnameSuffixGetter, HostnameSuffixGetter>();
 
         services.AddOptions<MutagenControllerConfig>()
             .Bind(builder.Configuration.GetSection(MutagenControllerConfigSection));
