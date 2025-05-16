@@ -78,8 +78,7 @@ public class HostnameSuffixGetter : IHostnameSuffixGetter
             _dirty = false;
         }
 
-        var client = _clientFactory.Create(credentials.CoderUrl!.ToString());
-        client.SetSessionToken(credentials.ApiToken!);
+        var client = _clientFactory.Create(credentials);
         using var timeoutSrc = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var connInfo = await client.GetAgentConnectionInfoGeneric(timeoutSrc.Token);
 

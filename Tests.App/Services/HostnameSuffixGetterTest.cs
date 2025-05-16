@@ -26,7 +26,8 @@ public class HostnameSuffixGetterTest
         _mCoderApiClientFactory = new Mock<ICoderApiClientFactory>(MockBehavior.Strict);
         _mCredentialManager = new Mock<ICredentialManager>(MockBehavior.Strict);
         _mCoderApiClient = new Mock<ICoderApiClient>(MockBehavior.Strict);
-        _mCoderApiClientFactory.Setup(m => m.Create(coderUrl)).Returns(_mCoderApiClient.Object);
+        _mCoderApiClientFactory.Setup(m => m.Create(It.IsAny<ICoderApiClientCredentialProvider>()))
+            .Returns(_mCoderApiClient.Object);
     }
 
     private Mock<ICoderApiClientFactory> _mCoderApiClientFactory;

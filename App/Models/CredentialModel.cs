@@ -1,4 +1,5 @@
 using System;
+using Coder.Desktop.CoderSdk.Coder;
 
 namespace Coder.Desktop.App.Models;
 
@@ -14,7 +15,7 @@ public enum CredentialState
     Valid,
 }
 
-public class CredentialModel
+public class CredentialModel : ICoderApiClientCredentialProvider
 {
     public CredentialState State { get; init; } = CredentialState.Unknown;
 
@@ -31,6 +32,16 @@ public class CredentialModel
             CoderUrl = CoderUrl,
             ApiToken = ApiToken,
             Username = Username,
+        };
+    }
+
+    public CoderApiClientCredential? GetCoderApiClientCredential()
+    {
+        if (State != CredentialState.Valid) return null;
+        return new CoderApiClientCredential
+        {
+            ApiToken = ApiToken!,
+            CoderUrl = CoderUrl!,
         };
     }
 }
