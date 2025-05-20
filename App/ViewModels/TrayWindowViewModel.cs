@@ -35,6 +35,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
     private readonly IAgentViewModelFactory _agentViewModelFactory;
+    private readonly IHostnameSuffixGetter _hostnameSuffixGetter;
 
     private FileSyncListWindow? _fileSyncListWindow;
 
@@ -91,15 +92,14 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
     [ObservableProperty] public partial string DashboardUrl { get; set; } = DefaultDashboardUrl;
 
-    private string _hostnameSuffix = DefaultHostnameSuffix;
-
     public TrayWindowViewModel(IServiceProvider services, IRpcController rpcController,
-        ICredentialManager credentialManager, IAgentViewModelFactory agentViewModelFactory)
+        ICredentialManager credentialManager, IAgentViewModelFactory agentViewModelFactory, IHostnameSuffixGetter hostnameSuffixGetter)
     {
         _services = services;
         _rpcController = rpcController;
         _credentialManager = credentialManager;
         _agentViewModelFactory = agentViewModelFactory;
+        _hostnameSuffixGetter = hostnameSuffixGetter;
 
         // Since the property value itself never changes, we add event
         // listeners for the underlying collection changing instead.
@@ -139,6 +139,9 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
         _credentialManager.CredentialsChanged += (_, credentialModel) => UpdateFromCredentialModel(credentialModel);
         UpdateFromCredentialModel(_credentialManager.GetCachedCredentials());
+
+        _hostnameSuffixGetter.SuffixChanged += (_, suffix) => HandleHostnameSuffixChanged(suffix);
+        HandleHostnameSuffixChanged(_hostnameSuffixGetter.GetCachedSuffix());
     }
 
     private void UpdateFromRpcModel(RpcModel rpcModel)
@@ -195,7 +198,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
                 this,
                 uuid,
                 fqdn,
-                _hostnameSuffix,
+                _hostnameSuffixGetter.GetCachedSuffix(),
                 connectionStatus,
                 credentialModel.CoderUrl,
                 workspace?.Name));
@@ -214,7 +217,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
                 // Workspace ID is fine as a stand-in here, it shouldn't
                 // conflict with any agent IDs.
                 uuid,
-                _hostnameSuffix,
+                _hostnameSuffixGetter.GetCachedSuffix(),
                 AgentConnectionStatus.Gray,
                 credentialModel.CoderUrl,
                 workspace.Name));
@@ -271,6 +274,22 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         // null while the Page is active as the Page is only displayed when
         // CredentialModel.Status == Valid.
         DashboardUrl = credentialModel.CoderUrl?.ToString() ?? DefaultDashboardUrl;
+    }
+
+    private void HandleHostnameSuffixChanged(string suffix)
+    {
+        // Ensure we're on the UI thread.
+        if (_dispatcherQueue == null) return;
+        if (!_dispatcherQueue.HasThreadAccess)
+        {
+            _dispatcherQueue.TryEnqueue(() => HandleHostnameSuffixChanged(suffix));
+            return;
+        }
+
+        foreach (var agent in Agents)
+        {
+            agent.ConfiguredHostnameSuffix = suffix;
+        }
     }
 
     public void VpnSwitch_Toggled(object sender, RoutedEventArgs e)
