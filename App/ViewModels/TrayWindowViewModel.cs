@@ -207,7 +207,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         // For every stopped workspace that doesn't have any agents, add a
         // dummy agent row.
         foreach (var workspace in rpcModel.Workspaces.Where(w =>
-                     w.Status == Workspace.Types.Status.Stopped && !workspacesWithAgents.Contains(w.Id)))
+                     ShouldShowDummy(w) && !workspacesWithAgents.Contains(w.Id)))
         {
             if (!Uuid.TryFrom(workspace.Id.Span, out var uuid))
                 continue;
@@ -371,5 +371,22 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     public void Exit()
     {
         _ = ((App)Application.Current).ExitApplication();
+    }
+
+    private static bool ShouldShowDummy(Workspace workspace)
+    {
+        switch (workspace.Status)
+        {
+            case Workspace.Types.Status.Unknown:
+            case Workspace.Types.Status.Pending:
+            case Workspace.Types.Status.Starting:
+            case Workspace.Types.Status.Stopping:
+            case Workspace.Types.Status.Stopped:
+                return true;
+            // TODO: should we include and show a different color than Gray for workspaces that are
+            // failed, canceled or deleting?
+            default:
+                return false;
+        }
     }
 }
