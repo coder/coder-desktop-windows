@@ -18,6 +18,8 @@ permissions:
 jobs:
   release:
     runs-on: ${{ github.repository_owner == 'coder' && 'windows-latest-16-cores' || 'windows-latest' }}
+    outputs:
+      version: ${{ steps.version.outputs.VERSION }}
     timeout-minutes: 15
 
     steps:
@@ -117,3 +119,78 @@ jobs:
           ${{ steps.release.outputs.ARM64_OUTPUT_PATH }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  winget:
+    runs-on: depot-windows-latest
+    needs: release
+    steps:
+      - name: Sync fork
+        run: gh repo sync cdrci/winget-pkgs -b master
+        env:
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
+      - name: Install wingetcreate
+        run: |
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+      - name: Submit updated manifest to winget-pkgs
+        run: |
+          $version = "${{ needs.release.outputs.version }}"
+
+          $release_assets = gh release view --repo coder/coder-desktop-windows "v${version}" --json assets | `
+            ConvertFrom-Json
+          # Get the installer URLs from the release assets.
+          $amd64_installer_url = $release_assets.assets | `
+            Where-Object name -Match ".*-x64.exe$" | `
+            Select -ExpandProperty url
+          $arm64_installer_url = $release_assets.assets | `
+            Where-Object name -Match ".*-arm64.exe$" | `
+            Select -ExpandProperty url
+
+          echo "amd64 Installer URL: ${amd64_installer_url}"
+          echo "arm64 Installer URL: ${arm64_installer_url}"
+          echo "Package version: ${version}"
+
+          .\wingetcreate.exe update Coder.CoderDesktop `
+            --submit `
+            --version "${version}" `
+            --urls "${amd64_installer_url}" "${arm64_installer_url}" `
+            --token "$env:WINGET_GH_TOKEN"
+
+        env:
+          # For gh CLI:
+          GH_TOKEN: ${{ github.token }}
+          # For wingetcreate. We need a real token since we're pushing a commit
+          # to GitHub and then making a PR in a different repo.
+          WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
+
+      
+      - name: Comment on PR
+        run: |
+          # wait 30 seconds
+          Start-Sleep -Seconds 30.0
+          # Find the PR that wingetcreate just made.
+          $version = "${{ needs.release.outputs.version }}"
+          $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.CoderDesktop version ${version}" --limit 1 --json number | `
+            ConvertFrom-Json
+          $pr_number = $pr_list[0].number
+
+          gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
+
+        env:
+          # For gh CLI. We need a real token since we're commenting on a PR in a
+          # different repo.
+          GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
