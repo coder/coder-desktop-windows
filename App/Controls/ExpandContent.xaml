@@ -10,7 +10,6 @@
     mc:Ignorable="d">
 
     <Grid x:Name="CollapsiblePanel" Opacity="0" Visibility="Collapsed" MaxHeight="0" toolkit:UIElementExtensions.ClipToBounds="True">
-
         <Grid.RenderTransform>
             <TranslateTransform x:Name="SlideTransform" Y="-16"/>
         </Grid.RenderTransform>
