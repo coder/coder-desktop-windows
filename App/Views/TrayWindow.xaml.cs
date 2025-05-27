@@ -1,8 +1,3 @@
-using System;
-using System.Runtime.InteropServices;
-using Windows.Graphics;
-using Windows.System;
-using Windows.UI.Core;
 using Coder.Desktop.App.Controls;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
@@ -15,6 +10,12 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using System;
+using System.Runtime.InteropServices;
+using Windows.Graphics;
+using Windows.System;
+using Windows.UI.Core;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
@@ -23,6 +24,14 @@ namespace Coder.Desktop.App.Views;
 public sealed partial class TrayWindow : Window
 {
     private const int WIDTH = 300;
+
+    private readonly AppWindow _aw;
+
+    public double ProxyHeight { get; private set; }
+
+    // This is used to know the "start point of the animation"
+    private int _lastWindowHeight;
+    private bool _resizeInProgress;
 
     private NativeApi.POINT? _lastActivatePosition;
     private int _maxHeightSinceLastActivation;
@@ -82,7 +91,33 @@ public sealed partial class TrayWindow : Window
         var value = 2;
         // Best effort. This does not work on Windows 10.
         _ = NativeApi.DwmSetWindowAttribute(windowHandle, 33, ref value, Marshal.SizeOf<int>());
+
+        _aw = AppWindow.GetFromWindowId(
+                 Win32Interop.GetWindowIdFromWindow(
+                 WinRT.Interop.WindowNative.GetWindowHandle(this)));
+        SizeProxy.Height = 0;
+        SizeProxy.SizeChanged += (_, e) =>
+        {
+            if (!_resizeInProgress) return;
+
+            var newHeight = (int)Math.Round(
+                                e.NewSize.Height * DisplayScale.WindowScale(this));
+
+            var delta = newHeight - _lastWindowHeight;
+            if (delta == 0) return;
+
+            var pos = AppWindow.Position;
+            var size = AppWindow.Size;
+
+            // Shift upward when height increases
+            pos.Y -= delta;                
+            size.Height = newHeight;
+
+            AppWindow.MoveAndResize(new RectInt32(pos.X, pos.Y, size.Width, size.Height));
+            _lastWindowHeight = newHeight;
+        };
     }
+
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
         SyncSessionControllerStateModel syncSessionModel)
@@ -140,7 +175,27 @@ public sealed partial class TrayWindow : Window
 
     private void RootFrame_SizeChanged(object sender, SizedFrameEventArgs e)
     {
-        MoveAndResize(e.NewSize.Height);
+        AnimateWindowHeight(e.NewSize.Height);
+    }
+
+    private void AnimateWindowHeight(double targetHeight)
+    {
+        // Remember where we start
+        _lastWindowHeight = AppWindow.Size.Height;
+        _resizeInProgress = true;
+
+        var anim = new DoubleAnimation
+        {
+            To = targetHeight,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+
+        Storyboard.SetTarget(anim, SizeProxy);
+        Storyboard.SetTargetProperty(anim, "Height");
+
+        new Storyboard { Children = { anim } }.Begin();
     }
 
     private void MoveAndResize(double height)
@@ -190,14 +245,6 @@ public sealed partial class TrayWindow : Window
     {
         var width = size.Width;
         var height = size.Height;
-        // For positioning purposes, pretend the window is the maximum size it
-        // has been since it was last activated. This has the affect of
-        // allowing the window to move up to accomodate more content, but
-        // prevents it from moving back down when the window shrinks again.
-        //
-        // Prevents a lot of jittery behavior with app drawers.
-        if (height < _maxHeightSinceLastActivation)
-            height = _maxHeightSinceLastActivation;
 
         var cursorPosition = _lastActivatePosition;
         if (cursorPosition is null)

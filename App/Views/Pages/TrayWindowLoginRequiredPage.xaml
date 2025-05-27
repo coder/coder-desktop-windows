@@ -34,5 +34,14 @@
 
             <TextBlock Text="Sign in" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
         </HyperlinkButton>
+
+        <HyperlinkButton
+            Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
+            Margin="-12,-8,-12,-5"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left"> 
+
+            <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
     </StackPanel>
 </Page>

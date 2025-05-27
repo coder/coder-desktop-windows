@@ -2,6 +2,7 @@ using System;
 using Coder.Desktop.App.Views;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Xaml;
 
 namespace Coder.Desktop.App.ViewModels;
 
@@ -30,5 +31,11 @@ public partial class TrayWindowLoginRequiredViewModel
         _signInWindow = _services.GetRequiredService<SignInWindow>();
         _signInWindow.Closed += (_, _) => _signInWindow = null;
         _signInWindow.Activate();
+    }
+
+    [RelayCommand]
+    public void Exit()
+    {
+        _ = ((App)Application.Current).ExitApplication();
     }
 }

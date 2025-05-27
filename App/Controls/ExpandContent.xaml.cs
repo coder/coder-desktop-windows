@@ -2,8 +2,12 @@ using DependencyPropertyGenerator;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Coder.Desktop.App.Controls;
+
 
 [ContentProperty(Name = nameof(Children))]
 [DependencyProperty<bool>("IsOpen", DefaultValue = false)]
@@ -11,29 +15,88 @@ public sealed partial class ExpandContent : UserControl
 {
     public UIElementCollection Children => CollapsiblePanel.Children;
 
+    private bool? _pendingIsOpen;
+
+    private static readonly SemaphoreSlim _sem = new(1, 1);
+
+
     public ExpandContent()
     {
         InitializeComponent();
-    }
-
-    public void CollapseAnimation_Completed(object? sender, object args)
-    {
-        // Hide the panel completely when the collapse animation is done. This
-        // cannot be done with keyframes for some reason.
-        //
-        // Without this, the space will still be reserved for the panel.
-        CollapsiblePanel.Visibility = Visibility.Collapsed;
+        Loaded += (_, __) =>
+        {
+            if (_pendingIsOpen is bool v)
+            {
+                _ = AnimateAsync(v);
+                _pendingIsOpen = null;
+            }
+        };
     }
 
     partial void OnIsOpenChanged(bool oldValue, bool newValue)
     {
-        var newState = newValue ? "ExpandedState" : "CollapsedState";
+        if (!this.IsLoaded)
+        {
+            _pendingIsOpen = newValue;
+            return;
+        }
+        _ = AnimateAsync(newValue);
+    }
 
-        // The animation can't set visibility when starting or ending the
-        // animation.
-        if (newValue)
-            CollapsiblePanel.Visibility = Visibility.Visible;
+    private async Task AnimateAsync(bool open)
+    {
+        await _sem.WaitAsync();
 
-        VisualStateManager.GoToState(this, newState, true);
+        try
+        {
+            if (open)
+            {
+                if (_currentlyOpen is not null && _currentlyOpen != this)
+                    await _currentlyOpen.StartCollapseAsync();
+
+                _currentlyOpen = this;
+                CollapsiblePanel.Visibility = Visibility.Visible;
+
+                VisualStateManager.GoToState(this, "ExpandedState", true);
+                await ExpandAsync();     // wait for your own expand
+            }
+            else
+            {
+                if (_currentlyOpen == this) _currentlyOpen = null;
+                await StartCollapseAsync();
+            }
+        }
+        finally
+        {
+            _sem.Release();
+        }
+    }
+
+    private static ExpandContent? _currentlyOpen;
+    private TaskCompletionSource? _collapseTcs;
+
+    private async Task ExpandAsync()
+    {
+        CollapsiblePanel.Visibility = Visibility.Visible;
+        VisualStateManager.GoToState(this, "ExpandedState", true);
+
+        var tcs = new TaskCompletionSource();
+        void done(object? s, object e) { ExpandSb.Completed -= done; tcs.SetResult(); }
+        ExpandSb.Completed += done;
+        await tcs.Task;
+    }
+
+    private Task StartCollapseAsync()
+    {
+        _collapseTcs = new TaskCompletionSource();
+        VisualStateManager.GoToState(this, "CollapsedState", true);
+        return _collapseTcs.Task;
+    }
+
+    private void CollapseStoryboard_Completed(object sender, object e)
+    {
+        CollapsiblePanel.Visibility = Visibility.Collapsed;
+        _collapseTcs?.TrySetResult();
+        _collapseTcs = null;
     }
 }

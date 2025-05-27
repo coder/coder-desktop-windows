@@ -237,12 +237,20 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
 
         Id = id;
 
-        PropertyChanged += (_, args) =>
+        PropertyChanging += (x, args) =>
         {
             if (args.PropertyName == nameof(IsExpanded))
             {
-                _expanderHost.HandleAgentExpanded(Id, IsExpanded);
+                var value = !IsExpanded;
+                if (value)
+                    _expanderHost.HandleAgentExpanded(Id, value);
+            }
+        };
 
+        PropertyChanged += (x, args) =>
+        {
+            if (args.PropertyName == nameof(IsExpanded))
+            {
                 // Every time the drawer is expanded, re-fetch all apps.
                 if (IsExpanded && !FetchingApps)
                     FetchApps();

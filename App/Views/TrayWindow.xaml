@@ -20,5 +20,11 @@
 
         <!-- This is where the current Page is displayed -->
         <controls:SizedFrame x:Name="RootFrame" />
+
+        <!-- proxy for animating resize -->
+        <Border x:Name="SizeProxy"
+            Width="0"                
+            Opacity="0"
+            IsHitTestVisible="False" />
     </Grid>
 </Window>
