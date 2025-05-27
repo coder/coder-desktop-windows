@@ -109,7 +109,7 @@ public sealed partial class TrayWindow : Window
             var size = AppWindow.Size;
 
             // Shift upward when height increases
-            pos.Y -= delta;                
+            pos.Y -= delta;
             size.Height = newHeight;
 
             AppWindow.MoveAndResize(new RectInt32(pos.X, pos.Y, size.Width, size.Height));
