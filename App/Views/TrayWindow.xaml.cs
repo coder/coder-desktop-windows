@@ -34,7 +34,6 @@ public sealed partial class TrayWindow : Window
     private bool _resizeInProgress;
 
     private NativeApi.POINT? _lastActivatePosition;
-    private int _maxHeightSinceLastActivation;
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
@@ -209,7 +208,6 @@ public sealed partial class TrayWindow : Window
     private void MoveResizeAndActivate()
     {
         SaveCursorPos();
-        _maxHeightSinceLastActivation = 0;
         MoveAndResize(RootFrame.GetContentSize().Height);
         AppWindow.Show();
         NativeApi.SetForegroundWindow(WindowNative.GetWindowHandle(this));
@@ -234,9 +232,6 @@ public sealed partial class TrayWindow : Window
         var scale = DisplayScale.WindowScale(this);
         var newWidth = (int)(WIDTH * scale);
         var newHeight = (int)(height * scale);
-        // Store the maximum height we've seen for positioning purposes.
-        if (newHeight > _maxHeightSinceLastActivation)
-            _maxHeightSinceLastActivation = newHeight;
 
         return new SizeInt32(newWidth, newHeight);
     }

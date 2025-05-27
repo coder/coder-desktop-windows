@@ -362,8 +362,6 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     [RelayCommand]
     private async Task SignOut()
     {
-        //if (VpnLifecycle is not VpnLifecycle.Stopped)
-        //    return;
         await _rpcController.StopVpn();
         await _credentialManager.ClearCredentials();
     }
