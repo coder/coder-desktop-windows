@@ -9,13 +9,11 @@
     xmlns:toolkit="using:CommunityToolkit.WinUI"
     mc:Ignorable="d">
 
-        <Grid>
-        <Grid x:Name="CollapsiblePanel" Opacity="0" Visibility="Collapsed" MaxHeight="0" toolkit:UIElementExtensions.ClipToBounds="True">
+    <Grid x:Name="CollapsiblePanel" Opacity="0" Visibility="Collapsed" MaxHeight="0" toolkit:UIElementExtensions.ClipToBounds="True">
 
-            <Grid.RenderTransform>
-                <TranslateTransform x:Name="SlideTransform" Y="-16"/>
-            </Grid.RenderTransform>
-        </Grid>
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="SlideTransform" Y="-16"/>
+        </Grid.RenderTransform>
 
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>
