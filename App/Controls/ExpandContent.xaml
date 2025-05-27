@@ -22,14 +22,14 @@
                     <Storyboard x:Name="ExpandSb">
                         <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
                                          Storyboard.TargetProperty="MaxHeight"
-                                         To="10000" Duration="0:0:0.12"
+                                         To="10000" Duration="0:0:0.16" BeginTime="0:0:0.16"
                                          EnableDependentAnimation="True"/>
                         <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
-                                         Storyboard.TargetProperty="Opacity"
-                                         To="1" Duration="0:0:0.12"/>
+                                         Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.16"
+                                         To="1" Duration="0:0:0.16"/>
                         <DoubleAnimation Storyboard.TargetName="Slide"
-                                         Storyboard.TargetProperty="Y"
-                                         To="0" Duration="0:0:0.12"/>
+                                         Storyboard.TargetProperty="Y" BeginTime="0:0:0.16"
+                                         To="0" Duration="0:0:0.16"/>
                     </Storyboard>
                 </VisualState>
                 <VisualState x:Name="CollapsedState">
@@ -37,14 +37,14 @@
                                 Completed="{x:Bind CollapseStoryboard_Completed}">
                         <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
                                          Storyboard.TargetProperty="MaxHeight"
-                                         To="0" Duration="0:0:0.12"
+                                         To="0" Duration="0:0:0.16"
                                          EnableDependentAnimation="True"/>
                         <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
                                          Storyboard.TargetProperty="Opacity"
-                                         To="0" Duration="0:0:0.12"/>
+                                         To="0" Duration="0:0:0.16"/>
                         <DoubleAnimation Storyboard.TargetName="Slide"
                                          Storyboard.TargetProperty="Y"
-                                         To="-16" Duration="0:0:0.12"/>
+                                         To="-16" Duration="0:0:0.16"/>
                     </Storyboard>
                 </VisualState>
 

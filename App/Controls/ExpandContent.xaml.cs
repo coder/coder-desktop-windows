@@ -17,8 +17,6 @@ public sealed partial class ExpandContent : UserControl
 
     private bool? _pendingIsOpen;
 
-    private static readonly SemaphoreSlim _sem = new(1, 1);
-
 
     public ExpandContent()
     {
@@ -45,30 +43,21 @@ public sealed partial class ExpandContent : UserControl
 
     private async Task AnimateAsync(bool open)
     {
-        await _sem.WaitAsync();
-
-        try
+        if (open)
         {
-            if (open)
-            {
-                if (_currentlyOpen is not null && _currentlyOpen != this)
-                    await _currentlyOpen.StartCollapseAsync();
+            if (_currentlyOpen is not null && _currentlyOpen != this)
+                await _currentlyOpen.StartCollapseAsync();
 
-                _currentlyOpen = this;
-                CollapsiblePanel.Visibility = Visibility.Visible;
+            _currentlyOpen = this;
+            CollapsiblePanel.Visibility = Visibility.Visible;
 
-                VisualStateManager.GoToState(this, "ExpandedState", true);
-                await ExpandAsync();     // wait for your own expand
-            }
-            else
-            {
-                if (_currentlyOpen == this) _currentlyOpen = null;
-                await StartCollapseAsync();
-            }
+            VisualStateManager.GoToState(this, "ExpandedState", true);
+            await ExpandAsync();
         }
-        finally
+        else
         {
-            _sem.Release();
+            if (_currentlyOpen == this) _currentlyOpen = null;
+            await StartCollapseAsync();
         }
     }
 
