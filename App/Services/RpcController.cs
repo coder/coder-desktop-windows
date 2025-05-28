@@ -234,6 +234,8 @@ public class RpcController : IRpcController
             MutateState(state => { state.VpnLifecycle = VpnLifecycle.Unknown; });
             throw new VpnLifecycleException($"Failed to stop VPN. Service reported failure: {reply.Stop.ErrorMessage}");
         }
+
+        MutateState(state => { state.VpnLifecycle = VpnLifecycle.Stopped; });
     }
 
     public async ValueTask DisposeAsync()

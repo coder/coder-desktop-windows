@@ -1,8 +1,3 @@
-using System;
-using System.Runtime.InteropServices;
-using Windows.Graphics;
-using Windows.System;
-using Windows.UI.Core;
 using Coder.Desktop.App.Controls;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
@@ -15,6 +10,13 @@ using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Animation;
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Windows.Graphics;
+using Windows.System;
+using Windows.UI.Core;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
@@ -24,8 +26,15 @@ public sealed partial class TrayWindow : Window
 {
     private const int WIDTH = 300;
 
+    private readonly AppWindow _aw;
+
+    public double ProxyHeight { get; private set; }
+
+    // This is used to know the "start point of the animation"
+    private int _lastWindowHeight;
+    private Storyboard? _currentSb;
+
     private NativeApi.POINT? _lastActivatePosition;
-    private int _maxHeightSinceLastActivation;
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
@@ -82,7 +91,33 @@ public sealed partial class TrayWindow : Window
         var value = 2;
         // Best effort. This does not work on Windows 10.
         _ = NativeApi.DwmSetWindowAttribute(windowHandle, 33, ref value, Marshal.SizeOf<int>());
+
+        _aw = AppWindow.GetFromWindowId(
+                 Win32Interop.GetWindowIdFromWindow(
+                 WindowNative.GetWindowHandle(this)));
+        SizeProxy.SizeChanged += (_, e) =>
+        {
+            if (_currentSb is null) return;            // nothing running
+
+            int newHeight = (int)Math.Round(
+                                e.NewSize.Height * DisplayScale.WindowScale(this));
+
+            int delta = newHeight - _lastWindowHeight;
+            if (delta == 0) return;
+
+            var pos = _aw.Position;
+            var size = _aw.Size;
+
+            pos.Y -= delta;                    // grow upward
+            size.Height = newHeight;
+
+            _aw.MoveAndResize(
+                new RectInt32(pos.X, pos.Y, size.Width, size.Height));
+
+            _lastWindowHeight = newHeight;
+        };
     }
+
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
         SyncSessionControllerStateModel syncSessionModel)
@@ -140,22 +175,62 @@ public sealed partial class TrayWindow : Window
 
     private void RootFrame_SizeChanged(object sender, SizedFrameEventArgs e)
     {
-        MoveAndResize(e.NewSize.Height);
+        AnimateWindowHeight(e.NewSize.Height);
     }
 
-    private void MoveAndResize(double height)
+    // We need to animate the height change in code-behind, because XAML
+    // storyboard animation timeline is immutable - it cannot be changed
+    // mid-run to accomodate a new height.
+    private void AnimateWindowHeight(double targetHeight)
     {
-        var size = CalculateWindowSize(height);
-        var pos = CalculateWindowPosition(size);
-        var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
-        AppWindow.MoveAndResize(rect);
+        // If another animation is already running we need to fast forward it.
+        if (_currentSb is { } oldSb)
+        {
+            oldSb.Completed -= OnStoryboardCompleted;
+            // We need to use SkipToFill, because Stop actually sets Height to 0, which
+            // makes the window go haywire.
+            oldSb.SkipToFill();
+        }
+
+        _lastWindowHeight = AppWindow.Size.Height;
+
+        var anim = new DoubleAnimation
+        {
+            To = targetHeight,
+            Duration = TimeSpan.FromMilliseconds(200),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            EnableDependentAnimation = true
+        };
+
+        Storyboard.SetTarget(anim, SizeProxy);
+        Storyboard.SetTargetProperty(anim, "Height");
+
+        var sb = new Storyboard { Children = { anim } };
+        sb.Completed += OnStoryboardCompleted;
+        sb.Begin();
+
+        _currentSb = sb;
+    }
+
+    private void OnStoryboardCompleted(object? sender, object e)
+    {
+        // We need to remove the event handler after the storyboard completes,
+        // to avoid memory leaks and multiple calls.
+        if (sender is Storyboard sb)
+            sb.Completed -= OnStoryboardCompleted;
+
+        // SizeChanged handler will stop forwarding resize ticks
+        // until we start the next storyboard.
+        _currentSb = null;
     }
 
     private void MoveResizeAndActivate()
     {
         SaveCursorPos();
-        _maxHeightSinceLastActivation = 0;
-        MoveAndResize(RootFrame.GetContentSize().Height);
+        var size = CalculateWindowSize(RootFrame.GetContentSize().Height);
+        var pos = CalculateWindowPosition(size);
+        var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
+        AppWindow.MoveAndResize(rect);
         AppWindow.Show();
         NativeApi.SetForegroundWindow(WindowNative.GetWindowHandle(this));
     }
@@ -179,9 +254,6 @@ public sealed partial class TrayWindow : Window
         var scale = DisplayScale.WindowScale(this);
         var newWidth = (int)(WIDTH * scale);
         var newHeight = (int)(height * scale);
-        // Store the maximum height we've seen for positioning purposes.
-        if (newHeight > _maxHeightSinceLastActivation)
-            _maxHeightSinceLastActivation = newHeight;
 
         return new SizeInt32(newWidth, newHeight);
     }
@@ -190,14 +262,6 @@ public sealed partial class TrayWindow : Window
     {
         var width = size.Width;
         var height = size.Height;
-        // For positioning purposes, pretend the window is the maximum size it
-        // has been since it was last activated. This has the affect of
-        // allowing the window to move up to accomodate more content, but
-        // prevents it from moving back down when the window shrinks again.
-        //
-        // Prevents a lot of jittery behavior with app drawers.
-        if (height < _maxHeightSinceLastActivation)
-            height = _maxHeightSinceLastActivation;
 
         var cursorPosition = _lastActivatePosition;
         if (cursorPosition is null)

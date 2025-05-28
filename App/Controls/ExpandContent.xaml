@@ -9,42 +9,43 @@
     xmlns:toolkit="using:CommunityToolkit.WinUI"
     mc:Ignorable="d">
 
-    <Grid x:Name="CollapsiblePanel" Opacity="0" Visibility="Collapsed" toolkit:UIElementExtensions.ClipToBounds="True">
+    <Grid x:Name="CollapsiblePanel" Opacity="0" Visibility="Collapsed" MaxHeight="0" toolkit:UIElementExtensions.ClipToBounds="True">
         <Grid.RenderTransform>
-            <TranslateTransform x:Name="SlideTransform" Y="-10" />
+            <TranslateTransform x:Name="SlideTransform" Y="-16"/>
         </Grid.RenderTransform>
 
         <VisualStateManager.VisualStateGroups>
             <VisualStateGroup>
                 <VisualState x:Name="ExpandedState">
-                    <Storyboard>
-                        <DoubleAnimation
-                            Storyboard.TargetName="CollapsiblePanel"
-                            Storyboard.TargetProperty="Opacity"
-                            To="1"
-                            Duration="0:0:0.2" />
-                        <DoubleAnimation
-                            Storyboard.TargetName="SlideTransform"
-                            Storyboard.TargetProperty="Y"
-                            To="0"
-                            Duration="0:0:0.2" />
+                    <Storyboard x:Name="ExpandSb">
+                        <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
+                                         Storyboard.TargetProperty="MaxHeight"
+                                         To="10000" Duration="0:0:0.16" BeginTime="0:0:0.16"
+                                         EnableDependentAnimation="True"/>
+                        <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
+                                         Storyboard.TargetProperty="Opacity" BeginTime="0:0:0.16"
+                                         To="1" Duration="0:0:0.16"/>
+                        <DoubleAnimation Storyboard.TargetName="SlideTransform"
+                                         Storyboard.TargetProperty="Y" BeginTime="0:0:0.16"
+                                         To="0" Duration="0:0:0.16"/>
+                    </Storyboard>
+                </VisualState>
+                <VisualState x:Name="CollapsedState">
+                    <Storyboard x:Name="CollapseSb"
+                                Completed="{x:Bind CollapseStoryboard_Completed}">
+                        <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
+                                         Storyboard.TargetProperty="MaxHeight"
+                                         To="0" Duration="0:0:0.16"
+                                         EnableDependentAnimation="True"/>
+                        <DoubleAnimation Storyboard.TargetName="CollapsiblePanel"
+                                         Storyboard.TargetProperty="Opacity"
+                                         To="0" Duration="0:0:0.16"/>
+                        <DoubleAnimation Storyboard.TargetName="SlideTransform"
+                                         Storyboard.TargetProperty="Y"
+                                         To="-16" Duration="0:0:0.16"/>
                     </Storyboard>
                 </VisualState>
 
-                <VisualState x:Name="CollapsedState">
-                    <Storyboard Completed="{x:Bind CollapseAnimation_Completed}">
-                        <DoubleAnimation
-                            Storyboard.TargetName="CollapsiblePanel"
-                            Storyboard.TargetProperty="Opacity"
-                            To="0"
-                            Duration="0:0:0.2" />
-                        <DoubleAnimation
-                            Storyboard.TargetName="SlideTransform"
-                            Storyboard.TargetProperty="Y"
-                            To="-10"
-                            Duration="0:0:0.2" />
-                    </Storyboard>
-                </VisualState>
             </VisualStateGroup>
         </VisualStateManager.VisualStateGroups>
     </Grid>

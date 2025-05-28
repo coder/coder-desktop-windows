@@ -126,7 +126,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         if (!expanded) return;
         _hasExpandedAgent = true;
         // Collapse every other agent.
-        foreach (var otherAgent in Agents.Where(a => a.Id != id))
+        foreach (var otherAgent in Agents.Where(a => a.Id != id && a.IsExpanded == true))
             otherAgent.SetExpanded(false);
     }
 
@@ -360,11 +360,10 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     }
 
     [RelayCommand]
-    private void SignOut()
+    private async Task SignOut()
     {
-        if (VpnLifecycle is not VpnLifecycle.Stopped)
-            return;
-        _credentialManager.ClearCredentials();
+        await _rpcController.StopVpn();
+        await _credentialManager.ClearCredentials();
     }
 
     [RelayCommand]
