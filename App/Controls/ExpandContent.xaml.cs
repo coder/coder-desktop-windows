@@ -3,7 +3,6 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Markup;
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace Coder.Desktop.App.Controls;
@@ -23,17 +22,26 @@ public sealed partial class ExpandContent : UserControl
         InitializeComponent();
         Loaded += (_, __) =>
         {
-            if (_pendingIsOpen is bool v)
+            // When we load the control for the first time (after panel swapping)
+            // we need to set the initial state based on IsOpen.
+            VisualStateManager.GoToState(
+                this,
+                IsOpen ? "ExpandedState" : "CollapsedState",
+                useTransitions: false);   // ← NO animation yet
+
+            // If IsOpen was already true we must also show the panel
+            if (IsOpen)
             {
-                _ = AnimateAsync(v);
-                _pendingIsOpen = null;
+                CollapsiblePanel.Visibility = Visibility.Visible;
+                // This makes the panel expand to its full height
+                CollapsiblePanel.ClearValue(FrameworkElement.MaxHeightProperty);
             }
         };
     }
 
     partial void OnIsOpenChanged(bool oldValue, bool newValue)
     {
-        if (!this.IsLoaded)
+        if (!IsLoaded)
         {
             _pendingIsOpen = newValue;
             return;

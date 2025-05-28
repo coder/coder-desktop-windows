@@ -12,6 +12,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
 using Windows.System;
@@ -31,7 +32,7 @@ public sealed partial class TrayWindow : Window
 
     // This is used to know the "start point of the animation"
     private int _lastWindowHeight;
-    private bool _resizeInProgress;
+    private Storyboard? _currentSb;
 
     private NativeApi.POINT? _lastActivatePosition;
 
@@ -93,26 +94,26 @@ public sealed partial class TrayWindow : Window
 
         _aw = AppWindow.GetFromWindowId(
                  Win32Interop.GetWindowIdFromWindow(
-                 WinRT.Interop.WindowNative.GetWindowHandle(this)));
-        SizeProxy.Height = 0;
+                 WindowNative.GetWindowHandle(this)));
         SizeProxy.SizeChanged += (_, e) =>
         {
-            if (!_resizeInProgress) return;
+            if (_currentSb is null) return;            // nothing running
 
-            var newHeight = (int)Math.Round(
+            int newHeight = (int)Math.Round(
                                 e.NewSize.Height * DisplayScale.WindowScale(this));
 
-            var delta = newHeight - _lastWindowHeight;
+            int delta = newHeight - _lastWindowHeight;
             if (delta == 0) return;
 
-            var pos = AppWindow.Position;
-            var size = AppWindow.Size;
+            var pos = _aw.Position;
+            var size = _aw.Size;
 
-            // Shift upward when height increases
-            pos.Y -= delta;
+            pos.Y -= delta;                    // grow upward
             size.Height = newHeight;
 
-            AppWindow.MoveAndResize(new RectInt32(pos.X, pos.Y, size.Width, size.Height));
+            _aw.MoveAndResize(
+                new RectInt32(pos.X, pos.Y, size.Width, size.Height));
+
             _lastWindowHeight = newHeight;
         };
     }
@@ -179,9 +180,16 @@ public sealed partial class TrayWindow : Window
 
     private void AnimateWindowHeight(double targetHeight)
     {
-        // Remember where we start
+        // If another animation is already running we need to fast forward it.
+        if (_currentSb is { } oldSb)
+        {
+            oldSb.Completed -= OnStoryboardCompleted;
+            // We need to use SkipToFill, because Stop actually sets Height to 0, which
+            // makes the window go haywire.
+            oldSb.SkipToFill();
+        }
+
         _lastWindowHeight = AppWindow.Size.Height;
-        _resizeInProgress = true;
 
         var anim = new DoubleAnimation
         {
@@ -194,21 +202,28 @@ public sealed partial class TrayWindow : Window
         Storyboard.SetTarget(anim, SizeProxy);
         Storyboard.SetTargetProperty(anim, "Height");
 
-        new Storyboard { Children = { anim } }.Begin();
+        var sb = new Storyboard { Children = { anim } };
+        sb.Completed += OnStoryboardCompleted;
+        sb.Begin();
+
+        _currentSb = sb;
     }
 
-    private void MoveAndResize(double height)
+    private void OnStoryboardCompleted(object? sender, object e)
     {
-        var size = CalculateWindowSize(height);
-        var pos = CalculateWindowPosition(size);
-        var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
-        AppWindow.MoveAndResize(rect);
+        if (sender is Storyboard sb)
+            sb.Completed -= OnStoryboardCompleted;
+
+        _currentSb = null;
     }
 
     private void MoveResizeAndActivate()
     {
         SaveCursorPos();
-        MoveAndResize(RootFrame.GetContentSize().Height);
+        var size = CalculateWindowSize(RootFrame.GetContentSize().Height);
+        var pos = CalculateWindowPosition(size);
+        var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
+        AppWindow.MoveAndResize(rect);
         AppWindow.Show();
         NativeApi.SetForegroundWindow(WindowNative.GetWindowHandle(this));
     }

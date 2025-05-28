@@ -23,8 +23,9 @@
 
         <!-- proxy for animating resize -->
         <Border x:Name="SizeProxy"
-            Width="0"                
-            Opacity="0"
-            IsHitTestVisible="False" />
+            Width="0"
+            Height="0"
+            IsHitTestVisible="False"
+            Opacity="0" />
     </Grid>
 </Window>
