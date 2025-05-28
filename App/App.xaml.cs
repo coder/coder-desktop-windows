@@ -165,20 +165,21 @@ public partial class App : Application
         }, CancellationToken.None);
 
         // Initialize file sync.
-        var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
-        _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
-        {
-            if (t.IsCanceled || t.Exception != null)
-            {
-                _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
-#if DEBUG
-                Debugger.Break();
-#endif
-            }
 
-            syncSessionCts.Dispose();
-        }, CancellationToken.None);
+        _ = Task.Delay(20000).ContinueWith((_) =>
+        {
+            var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
+            syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(
+                t =>
+                {
+                    if (t.IsCanceled || t.Exception != null)
+                    {
+                        _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
+                    }
+                    syncSessionCts.Dispose();
+                }, CancellationToken.None);
+        });
 
         // Prevent the TrayWindow from closing, just hide it.
         var trayWindow = _services.GetRequiredService<TrayWindow>();

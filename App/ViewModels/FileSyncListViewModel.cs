@@ -189,7 +189,7 @@ public partial class FileSyncListViewModel : ObservableObject
         UpdateSyncSessionState(syncSessionState);
     }
 
-    private void MaybeSetUnavailableMessage(RpcModel rpcModel, CredentialModel credentialModel)
+    private void MaybeSetUnavailableMessage(RpcModel rpcModel, CredentialModel credentialModel, SyncSessionControllerStateModel? syncSessionState = null)
     {
         var oldMessage = UnavailableMessage;
         if (rpcModel.RpcLifecycle != RpcLifecycle.Connected)
@@ -204,6 +204,9 @@ public partial class FileSyncListViewModel : ObservableObject
         else if (rpcModel.VpnLifecycle != VpnLifecycle.Started)
         {
             UnavailableMessage = "Please start Coder Connect from the tray window to access file sync.";
+        } else if(syncSessionState != null && syncSessionState.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
+        {
+            UnavailableMessage = "Sync session controller is not initialized. Please wait...";
         }
         else
         {
@@ -219,6 +222,13 @@ public partial class FileSyncListViewModel : ObservableObject
 
     private void UpdateSyncSessionState(SyncSessionControllerStateModel syncSessionState)
     {
+        // This should never happen.
+        if (syncSessionState == null)
+            return;
+        if (syncSessionState.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
+        {
+            MaybeSetUnavailableMessage(_rpcController.GetState(), _credentialManager.GetCachedCredentials(), syncSessionState);
+        }
         Error = syncSessionState.DaemonError;
         Sessions = syncSessionState.SyncSessions.Select(s => new SyncSessionViewModel(this, s)).ToList();
     }
