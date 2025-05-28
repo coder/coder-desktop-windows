@@ -14,8 +14,8 @@ public sealed partial class ExpandContent : UserControl
 {
     public UIElementCollection Children => CollapsiblePanel.Children;
 
-    private bool? _pendingIsOpen;
-
+    private readonly string _expandedState = "ExpandedState";
+    private readonly string _collapsedState = "CollapsedState";
 
     public ExpandContent()
     {
@@ -26,8 +26,8 @@ public sealed partial class ExpandContent : UserControl
             // we need to set the initial state based on IsOpen.
             VisualStateManager.GoToState(
                 this,
-                IsOpen ? "ExpandedState" : "CollapsedState",
-                useTransitions: false);   // ← NO animation yet
+                IsOpen ? _expandedState : _collapsedState,
+                useTransitions: false);   // NO animation yet
 
             // If IsOpen was already true we must also show the panel
             if (IsOpen)
@@ -41,59 +41,21 @@ public sealed partial class ExpandContent : UserControl
 
     partial void OnIsOpenChanged(bool oldValue, bool newValue)
     {
-        if (!IsLoaded)
+        var newState = newValue ? _expandedState : _collapsedState;
+        if (newValue)
         {
-            _pendingIsOpen = newValue;
-            return;
-        }
-        _ = AnimateAsync(newValue);
-    }
-
-    private async Task AnimateAsync(bool open)
-    {
-        if (open)
-        {
-            if (_currentlyOpen is not null && _currentlyOpen != this)
-                await _currentlyOpen.StartCollapseAsync();
-
-            _currentlyOpen = this;
             CollapsiblePanel.Visibility = Visibility.Visible;
-
-            VisualStateManager.GoToState(this, "ExpandedState", true);
-            await ExpandAsync();
+            // We use BeginTime to ensure other panels are collapsed first.
+            // If the user clicks the expand button quickly, we want to avoid
+            // the panel expanding to its full height before the collapse animation completes.
+            CollapseSb.SkipToFill();
         }
-        else
-        {
-            if (_currentlyOpen == this) _currentlyOpen = null;
-            await StartCollapseAsync();
-        }
-    }
 
-    private static ExpandContent? _currentlyOpen;
-    private TaskCompletionSource? _collapseTcs;
-
-    private async Task ExpandAsync()
-    {
-        CollapsiblePanel.Visibility = Visibility.Visible;
-        VisualStateManager.GoToState(this, "ExpandedState", true);
-
-        var tcs = new TaskCompletionSource();
-        void done(object? s, object e) { ExpandSb.Completed -= done; tcs.SetResult(); }
-        ExpandSb.Completed += done;
-        await tcs.Task;
-    }
-
-    private Task StartCollapseAsync()
-    {
-        _collapseTcs = new TaskCompletionSource();
-        VisualStateManager.GoToState(this, "CollapsedState", true);
-        return _collapseTcs.Task;
+        VisualStateManager.GoToState(this, newState, true);
     }
 
     private void CollapseStoryboard_Completed(object sender, object e)
     {
         CollapsiblePanel.Visibility = Visibility.Collapsed;
-        _collapseTcs?.TrySetResult();
-        _collapseTcs = null;
     }
 }

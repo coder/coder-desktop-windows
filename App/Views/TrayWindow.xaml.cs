@@ -178,6 +178,9 @@ public sealed partial class TrayWindow : Window
         AnimateWindowHeight(e.NewSize.Height);
     }
 
+    // We need to animate the height change in code-behind, because XAML
+    // storyboard animation timeline is immutable - it cannot be changed
+    // mid-run to accomodate a new height.
     private void AnimateWindowHeight(double targetHeight)
     {
         // If another animation is already running we need to fast forward it.
@@ -211,9 +214,13 @@ public sealed partial class TrayWindow : Window
 
     private void OnStoryboardCompleted(object? sender, object e)
     {
+        // We need to remove the event handler after the storyboard completes,
+        // to avoid memory leaks and multiple calls.
         if (sender is Storyboard sb)
             sb.Completed -= OnStoryboardCompleted;
 
+        // SizeChanged handler will stop forwarding resize ticks
+        // until we start the next storyboard.
         _currentSb = null;
     }
 
