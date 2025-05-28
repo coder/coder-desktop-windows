@@ -204,7 +204,8 @@ public partial class FileSyncListViewModel : ObservableObject
         else if (rpcModel.VpnLifecycle != VpnLifecycle.Started)
         {
             UnavailableMessage = "Please start Coder Connect from the tray window to access file sync.";
-        } else if(syncSessionState != null && syncSessionState.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
+        }
+        else if (syncSessionState != null && syncSessionState.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
         {
             UnavailableMessage = "Sync session controller is not initialized. Please wait...";
         }
