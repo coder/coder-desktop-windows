@@ -48,7 +48,11 @@ public partial class FileSyncListViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(ShowSessions))]
     public partial string? Error { get; set; } = null;
 
-    [ObservableProperty] public partial bool OperationInProgress { get; set; } = false;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOpenLocalPath))]
+    [NotifyPropertyChangedFor(nameof(NewSessionRemoteHostEnabled))]
+    [NotifyPropertyChangedFor(nameof(NewSessionRemotePathDialogEnabled))]
+    public partial bool OperationInProgress { get; set; } = false;
 
     [ObservableProperty] public partial IReadOnlyList<SyncSessionViewModel> Sessions { get; set; } = [];
 
@@ -60,6 +64,7 @@ public partial class FileSyncListViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(NewSessionCreateEnabled))]
+    [NotifyPropertyChangedFor(nameof(CanOpenLocalPath))]
     public partial bool NewSessionLocalPathDialogOpen { get; set; } = false;
 
     [ObservableProperty]
@@ -80,10 +85,12 @@ public partial class FileSyncListViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(NewSessionRemotePathDialogEnabled))]
     public partial bool NewSessionRemotePathDialogOpen { get; set; } = false;
 
-    public bool NewSessionRemoteHostEnabled => AvailableHosts.Count > 0;
+    public bool CanOpenLocalPath => !NewSessionLocalPathDialogOpen && !OperationInProgress;
+
+    public bool NewSessionRemoteHostEnabled => AvailableHosts.Count > 0 && !OperationInProgress;
 
     public bool NewSessionRemotePathDialogEnabled =>
-        !string.IsNullOrWhiteSpace(NewSessionRemoteHost) && !NewSessionRemotePathDialogOpen;
+        !string.IsNullOrWhiteSpace(NewSessionRemoteHost) && !NewSessionRemotePathDialogOpen && !OperationInProgress;
 
     [ObservableProperty] public partial string NewSessionStatus { get; set; } = "";
 

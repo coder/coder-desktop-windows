@@ -318,11 +318,12 @@
                                     Grid.Column="0"
                                     Margin="0,0,5,0"
                                     VerticalAlignment="Stretch"
+                                    IsEnabled="{x:Bind ViewModel.OperationInProgress,Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
                                     Text="{x:Bind ViewModel.NewSessionLocalPath, Mode=TwoWay}" />
 
                                 <Button
                                     Grid.Column="1"
-                                    IsEnabled="{x:Bind ViewModel.NewSessionLocalPathDialogOpen, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
+                                    IsEnabled="{x:Bind ViewModel.CanOpenLocalPath, Mode=OneWay}"
                                     Command="{x:Bind ViewModel.OpenLocalPathSelectDialogCommand}"
                                     VerticalAlignment="Stretch">
 
@@ -350,6 +351,7 @@
                                     Grid.Column="0"
                                     Margin="0,0,5,0"
                                     VerticalAlignment="Stretch"
+                                    IsEnabled="{x:Bind ViewModel.NewSessionRemotePathDialogEnabled, Mode=OneWay}"
                                     Text="{x:Bind ViewModel.NewSessionRemotePath, Mode=TwoWay}" />
 
                                 <Button
