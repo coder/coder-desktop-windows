@@ -39,6 +39,8 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
     private FileSyncListWindow? _fileSyncListWindow;
 
+    private SettingsWindow? _settingsWindow;
+
     private DispatcherQueue? _dispatcherQueue;
 
     // When we transition from 0 online workspaces to >0 online workspaces, the
@@ -357,6 +359,22 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
         _fileSyncListWindow = _services.GetRequiredService<FileSyncListWindow>();
         _fileSyncListWindow.Closed += (_, _) => _fileSyncListWindow = null;
         _fileSyncListWindow.Activate();
+    }
+
+    [RelayCommand]
+    private void ShowSettingsWindow()
+    {
+        // This is safe against concurrent access since it all happens in the
+        // UI thread.
+        if (_settingsWindow != null)
+        {
+            _settingsWindow.Activate();
+            return;
+        }
+
+        _settingsWindow = _services.GetRequiredService<SettingsWindow>();
+        _settingsWindow.Closed += (_, _) => _settingsWindow = null;
+        _settingsWindow.Activate();
     }
 
     [RelayCommand]

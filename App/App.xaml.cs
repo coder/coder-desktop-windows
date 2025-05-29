@@ -90,6 +90,12 @@ public partial class App : Application
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
 
+        services.AddSingleton<ISettingsManager>(_ => new SettingsManager("CoderDesktop"));
+        // SettingsWindow views and view models
+        services.AddTransient<SettingsViewModel>();
+        // SettingsMainPage is created by SettingsWindow.
+        services.AddTransient<SettingsWindow>();
+
         // DirectoryPickerWindow views and view models are created by FileSyncListViewModel.
 
         // TrayWindow views and view models
