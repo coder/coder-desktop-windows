@@ -189,6 +189,7 @@ $windowsAppSdkPath = Join-Path $scriptRoot "files\windows-app-sdk-$($arch).exe"
     --icon-file "App\coder.ico" `
     --msi-path $msiOutputPath `
     --windows-app-sdk-path $windowsAppSdkPath `
+    --theme-xml-path "scripts\files\RtfThemeLarge.xml" `
     --logo-png "scripts\files\logo.png"
 if ($LASTEXITCODE -ne 0) { throw "Failed to build bootstrapper" }
 
