@@ -25,7 +25,7 @@
         Orientation="Vertical"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Top"
-        Padding="20,20,20,30"
+        Padding="20,20,20,20"
         Spacing="10">
 
         <Grid>
@@ -332,8 +332,17 @@
         <controls:HorizontalRule />
 
         <HyperlinkButton
+            Command="{x:Bind ViewModel.ShowSettingsWindowCommand, Mode=OneWay}"
+            Margin="-12,-4,-12,-4"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left">
+
+            <TextBlock Text="Settings" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
+
+        <HyperlinkButton
             Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
-            Margin="-12,0"
+            Margin="-12,-4,-12,-4"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left">
 
@@ -342,7 +351,7 @@
 
         <HyperlinkButton
             Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
-            Margin="-12,-8,-12,-5"
+            Margin="-12,-4,-12,-4"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left">          
 
