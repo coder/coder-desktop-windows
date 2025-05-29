@@ -313,7 +313,7 @@ public class RpcController : IRpcController
         Debug.WriteLine($"Error: {e}");
         try
         {
-            Reconnect(CancellationToken.None).Wait();
+            using var _ = Reconnect(CancellationToken.None);
         }
         catch
         {

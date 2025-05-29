@@ -1,5 +1,7 @@
 using Coder.Desktop.App.ViewModels;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using System;
 
 namespace Coder.Desktop.App.Views.Pages;
 
