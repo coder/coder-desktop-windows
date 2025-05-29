@@ -166,7 +166,7 @@ public partial class App : Application
 
         // Initialize file sync.
 
-        _ = Task.Delay(20000).ContinueWith((_) =>
+        _ = Task.Delay(5000).ContinueWith((_) =>
         {
             var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
