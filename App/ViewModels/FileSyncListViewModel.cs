@@ -143,9 +143,9 @@ public partial class FileSyncListViewModel : ObservableObject
 
         var rpcModel = _rpcController.GetState();
         var credentialModel = _credentialManager.GetCachedCredentials();
-        MaybeSetUnavailableMessage(rpcModel, credentialModel);
         var syncSessionState = _syncSessionController.GetState();
         UpdateSyncSessionState(syncSessionState);
+        MaybeSetUnavailableMessage(rpcModel, credentialModel, syncSessionState);
     }
 
     private void RpcControllerStateChanged(object? sender, RpcModel rpcModel)
@@ -159,7 +159,8 @@ public partial class FileSyncListViewModel : ObservableObject
         }
 
         var credentialModel = _credentialManager.GetCachedCredentials();
-        MaybeSetUnavailableMessage(rpcModel, credentialModel);
+        var syncSessionState = _syncSessionController.GetState();
+        MaybeSetUnavailableMessage(rpcModel, credentialModel, syncSessionState);
     }
 
     private void CredentialManagerCredentialsChanged(object? sender, CredentialModel credentialModel)
@@ -173,7 +174,8 @@ public partial class FileSyncListViewModel : ObservableObject
         }
 
         var rpcModel = _rpcController.GetState();
-        MaybeSetUnavailableMessage(rpcModel, credentialModel);
+        var syncSessionState = _syncSessionController.GetState();
+        MaybeSetUnavailableMessage(rpcModel, credentialModel, syncSessionState);
     }
 
     private void SyncSessionStateChanged(object? sender, SyncSessionControllerStateModel syncSessionState)
@@ -189,7 +191,7 @@ public partial class FileSyncListViewModel : ObservableObject
         UpdateSyncSessionState(syncSessionState);
     }
 
-    private void MaybeSetUnavailableMessage(RpcModel rpcModel, CredentialModel credentialModel)
+    private void MaybeSetUnavailableMessage(RpcModel rpcModel, CredentialModel credentialModel, SyncSessionControllerStateModel syncSessionState)
     {
         var oldMessage = UnavailableMessage;
         if (rpcModel.RpcLifecycle != RpcLifecycle.Connected)
@@ -205,6 +207,10 @@ public partial class FileSyncListViewModel : ObservableObject
         {
             UnavailableMessage = "Please start Coder Connect from the tray window to access file sync.";
         }
+        else if (syncSessionState.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
+        {
+            UnavailableMessage = "Sync session controller is not initialized. Please wait...";
+        }
         else
         {
             UnavailableMessage = null;
@@ -219,6 +225,13 @@ public partial class FileSyncListViewModel : ObservableObject
 
     private void UpdateSyncSessionState(SyncSessionControllerStateModel syncSessionState)
     {
+        // This should never happen.
+        if (syncSessionState == null)
+            return;
+        if (syncSessionState.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
+        {
+            MaybeSetUnavailableMessage(_rpcController.GetState(), _credentialManager.GetCachedCredentials(), syncSessionState);
+        }
         Error = syncSessionState.DaemonError;
         Sessions = syncSessionState.SyncSessions.Select(s => new SyncSessionViewModel(this, s)).ToList();
     }

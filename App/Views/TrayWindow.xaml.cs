@@ -122,8 +122,7 @@ public sealed partial class TrayWindow : Window
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
         SyncSessionControllerStateModel syncSessionModel)
     {
-        if (credentialModel.State == CredentialState.Unknown ||
-            syncSessionModel.Lifecycle == SyncSessionControllerLifecycle.Uninitialized)
+        if (credentialModel.State == CredentialState.Unknown)
         {
             SetRootFrame(_loadingPage);
             return;
