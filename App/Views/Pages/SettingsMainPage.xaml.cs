@@ -9,7 +9,7 @@ public sealed partial class SettingsMainPage : Page
 
     public SettingsMainPage(SettingsViewModel viewModel)
     {
-        ViewModel = viewModel; // already initialized
+        ViewModel = viewModel;
         InitializeComponent();
     }
 }

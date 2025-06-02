@@ -82,7 +82,7 @@ public sealed class SettingsManager : ISettingsManager
         Directory.CreateDirectory(folder);
         _settingsFilePath = Path.Combine(folder, _fileName);
 
-        if(!File.Exists(_settingsFilePath))
+        if (!File.Exists(_settingsFilePath))
         {
             // Create the settings file if it doesn't exist
             string emptyJson = JsonSerializer.Serialize(new { });

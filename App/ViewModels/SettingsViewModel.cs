@@ -35,44 +35,46 @@ public partial class SettingsViewModel : ObservableObject
         // We disable the option in the UI if the policy is set.
         StartOnLoginDisabled = _startupManager.IsDisabledByPolicy();
 
-        this.PropertyChanged += (_, args) =>
-        {
-            if (args.PropertyName == nameof(ConnectOnLaunch))
-            {
-                try
-                {
-                    _settingsManager.ConnectOnLaunch = ConnectOnLaunch;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Error saving {SettingsManager.ConnectOnLaunchKey} setting: {ex.Message}");
-                }
-            }
-            else if (args.PropertyName == nameof(StartOnLogin))
-            {
-                try
-                {
-                    _settingsManager.StartOnLogin = StartOnLogin;
-                    if (StartOnLogin)
-                    {
-                        _startupManager.Enable();
-                    }
-                    else
-                    {
-                        _startupManager.Disable();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError($"Error saving {SettingsManager.StartOnLoginKey} setting: {ex.Message}");
-                }
-            }
-        };
-
         // Ensure the StartOnLogin property matches the current startup state.
         if (StartOnLogin != _startupManager.IsEnabled())
         {
             StartOnLogin = _startupManager.IsEnabled();
+        }
+    }
+
+    partial void OnConnectOnLaunchChanged(bool oldValue, bool newValue)
+    {
+        if (oldValue == newValue)
+            return;
+        try
+        {
+            _settingsManager.ConnectOnLaunch = ConnectOnLaunch;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error saving {SettingsManager.ConnectOnLaunchKey} setting: {ex.Message}");
+        }
+    }
+
+    partial void OnStartOnLoginChanged(bool oldValue, bool newValue)
+    {
+        if (oldValue == newValue)
+            return;
+        try
+        {
+            _settingsManager.StartOnLogin = StartOnLogin;
+            if (StartOnLogin)
+            {
+                _startupManager.Enable();
+            }
+            else
+            {
+                _startupManager.Disable();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error saving {SettingsManager.StartOnLoginKey} setting: {ex.Message}");
         }
     }
 }
