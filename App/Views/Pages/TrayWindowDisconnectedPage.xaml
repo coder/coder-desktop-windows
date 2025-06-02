@@ -34,7 +34,7 @@
                    TextWrapping="Wrap"
                    Foreground="Red"
                    Visibility="{x:Bind ViewModel.ReconnectFailed, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
-                   Text ="Reconnect failed"/>
+                   Text="Reconnect failed"/>
 
 
         <TextBlock
