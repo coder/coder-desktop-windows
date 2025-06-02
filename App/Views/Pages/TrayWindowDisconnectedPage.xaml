@@ -30,9 +30,12 @@
 
         <controls:HorizontalRule />
 
-        <TextBlock TextWrapping="Wrap" Foreground="Red" Visibility="{x:Bind ViewModel.ReconnectFailed, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}">
-            <Bold>Reconnect failed</Bold>
-        </TextBlock>
+        <TextBlock FontWeight="semibold"
+                   TextWrapping="Wrap"
+                   Foreground="Red"
+                   Visibility="{x:Bind ViewModel.ReconnectFailed, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                   Text ="Reconnect failed"/>
+
 
         <TextBlock
             TextWrapping="Wrap"

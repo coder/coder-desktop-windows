@@ -165,6 +165,7 @@ public partial class App : Application
         }, CancellationToken.None);
 
         // Initialize file sync.
+        // We're adding a 5s delay here to avoid race conditions when loading the mutagen binary.
 
         _ = Task.Delay(5000).ContinueWith((_) =>
         {

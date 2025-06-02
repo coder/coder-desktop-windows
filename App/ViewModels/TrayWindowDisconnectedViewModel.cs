@@ -1,12 +1,8 @@
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
-using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using System;
-using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Coder.Desktop.App.ViewModels;
