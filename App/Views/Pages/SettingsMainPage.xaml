@@ -39,14 +39,16 @@
 
                 <controls:SettingsCard Description="This setting controls whether the Coder Desktop app starts on Windows startup."
                                        Header="Start on login"
-                                       HeaderIcon="{ui:FontIcon Glyph=&#xE819;}">
+                                       HeaderIcon="{ui:FontIcon Glyph=&#xE819;}"
+                                       IsEnabled="{x:Bind ViewModel.StartOnLoginDisabled, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}">
                     <ToggleSwitch IsOn="{x:Bind ViewModel.StartOnLogin, Mode=TwoWay}" />
                 </controls:SettingsCard>
 
                 <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Coder Connect" />
-                <controls:SettingsCard Description="This setting controls whether Coder Connect automatically starts with Coder Desktop  "
+                <controls:SettingsCard Description="This setting controls whether Coder Connect automatically starts with Coder Desktop. "
                                        Header="Connect on launch"
-                                       HeaderIcon="{ui:FontIcon Glyph=&#xE8AF;}">
+                                       HeaderIcon="{ui:FontIcon Glyph=&#xE8AF;}"
+                                       >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
                 </controls:SettingsCard>
             </StackPanel>

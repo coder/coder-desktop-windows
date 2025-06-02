@@ -18,7 +18,6 @@ public sealed partial class SettingsWindow : WindowEx
 
         SystemBackdrop = new DesktopAcrylicBackdrop();
 
-        ViewModel.Initialize(this, DispatcherQueue);
         RootFrame.Content = new SettingsMainPage(ViewModel);
 
         this.CenterOnScreen();

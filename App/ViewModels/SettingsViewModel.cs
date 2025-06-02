@@ -1,23 +1,21 @@
 using Coder.Desktop.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using System;
 
 namespace Coder.Desktop.App.ViewModels;
 
 public partial class SettingsViewModel : ObservableObject
 {
-    private Window? _window;
-    private DispatcherQueue? _dispatcherQueue;
-
     private readonly ILogger<SettingsViewModel> _logger;
 
     [ObservableProperty]
     public partial bool ConnectOnLaunch { get; set; } = false;
+
+    [ObservableProperty]
+    public partial bool StartOnLoginDisabled { get; set; } = false;
 
     [ObservableProperty]
     public partial bool StartOnLogin { get; set; } = false;
@@ -31,6 +29,10 @@ public partial class SettingsViewModel : ObservableObject
         ConnectOnLaunch = _settingsManager.Read(SettingsManager.ConnectOnLaunchKey, false);
         StartOnLogin = _settingsManager.Read(SettingsManager.StartOnLoginKey, false);
 
+        // Various policies can disable the "Start on login" option.
+        // We disable the option in the UI if the policy is set.
+        StartOnLoginDisabled = StartupManager.IsDisabledByPolicy();
+
         this.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ConnectOnLaunch))
@@ -41,7 +43,7 @@ public partial class SettingsViewModel : ObservableObject
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error saving {SettingsManager.ConnectOnLaunchKey} setting: {ex.Message}");
+                    _logger.LogError($"Error saving {SettingsManager.ConnectOnLaunchKey} setting: {ex.Message}");
                 }
             }
             else if (args.PropertyName == nameof(StartOnLogin))
@@ -49,20 +51,26 @@ public partial class SettingsViewModel : ObservableObject
                 try
                 {
                     _settingsManager.Save(SettingsManager.StartOnLoginKey, StartOnLogin);
+                    if (StartOnLogin)
+                    {
+                        StartupManager.Enable();
+                    }
+                    else
+                    {
+                        StartupManager.Disable();
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error saving {SettingsManager.StartOnLoginKey} setting: {ex.Message}");
+                    _logger.LogError($"Error saving {SettingsManager.StartOnLoginKey} setting: {ex.Message}");
                 }
             }
         };
-    }
 
-    public void Initialize(Window window, DispatcherQueue dispatcherQueue)
-    {
-        _window = window;
-        _dispatcherQueue = dispatcherQueue;
-        if (!_dispatcherQueue.HasThreadAccess)
-            throw new InvalidOperationException("Initialize must be called from the UI thread");
+        // Ensure the StartOnLogin property matches the current startup state.
+        if (StartOnLogin != StartupManager.IsEnabled())
+        {
+            StartOnLogin = StartupManager.IsEnabled();
+        }
     }
 }

@@ -138,6 +138,25 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _logger.LogInformation("new instance launched");
+
+        // Load the credentials in the background.
+        var credentialManagerCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var credentialManager = _services.GetRequiredService<ICredentialManager>();
+        credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
+        {
+            if (t.Exception != null)
+            {
+                _logger.LogError(t.Exception, "failed to load credentials");
+#if DEBUG
+                Debug.WriteLine(t.Exception);
+                Debugger.Break();
+#endif
+            }
+
+            credentialManagerCts.Dispose();
+        });
+
+
         // Start connecting to the manager in the background.
         var rpcController = _services.GetRequiredService<IRpcController>();
         if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
@@ -155,7 +174,7 @@ public partial class App : Application
 #endif
             } else
             {
-                if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
+                if (rpcController.GetState().VpnLifecycle == VpnLifecycle.Stopped)
                 {
                     if (_settingsManager.Read(SettingsManager.ConnectOnLaunchKey, false))
                     {
@@ -171,23 +190,6 @@ public partial class App : Application
                 }
             }
         });
-
-        // Load the credentials in the background.
-        var credentialManagerCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        var credentialManager = _services.GetRequiredService<ICredentialManager>();
-        _ = credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
-        {
-            if (t.Exception != null)
-            {
-                _logger.LogError(t.Exception, "failed to load credentials");
-#if DEBUG
-                Debug.WriteLine(t.Exception);
-                Debugger.Break();
-#endif
-            }
-
-            credentialManagerCts.Dispose();
-        }, CancellationToken.None);
 
         // Initialize file sync.
         var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
