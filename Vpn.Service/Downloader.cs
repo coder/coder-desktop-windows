@@ -603,8 +603,8 @@ public class DownloadTask
 #else
             try
             {
-                if (File.Exists(TempDestinationPath))
-                    File.Delete(TempDestinationPath);
+                if (File.Exists(_tempDestinationPath))
+                    File.Delete(_tempDestinationPath);
             }
             catch (Exception e)
             {
