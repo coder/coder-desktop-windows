@@ -98,18 +98,23 @@ public sealed class SettingsManager : ISettingsManager
         {
             try
             {
-                // Ensure cache is loaded before saving
+                // We lock the file for the entire operation to prevent concurrent writes   
                 using var fs = new FileStream(_settingsFilePath,
                     FileMode.OpenOrCreate,
                     FileAccess.ReadWrite,
                     FileShare.None);
-                
-                var currentCache = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fs) ?? new();
+
+                // Ensure cache is loaded before saving 
+                var currentCache = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fs) ?? [];
                 _cache = currentCache;
                 _cache[name] = JsonSerializer.SerializeToElement(value);
-                fs.Position = 0; // Reset stream position to the beginning before writing to override the file
-                var options = new JsonSerializerOptions { WriteIndented = true};
-                JsonSerializer.Serialize(fs, _cache, options);
+                fs.Position = 0; // Reset stream position to the beginning before writing
+
+                JsonSerializer.Serialize(fs, _cache, new JsonSerializerOptions { WriteIndented = true });
+
+                // This ensures the file is truncated to the new length
+                // if the new content is shorter than the old content
+                fs.SetLength(fs.Position);
             }
             catch
             {
