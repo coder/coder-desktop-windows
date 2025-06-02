@@ -32,8 +32,11 @@ public sealed class SettingsManager : ISettingsManager
     private readonly object _lock = new();
     private Dictionary<string, JsonElement> _cache;
 
+    public static readonly string ConnectOnLaunchKey = "ConnectOnLaunch";
+    public static readonly string StartOnLoginKey = "StartOnLogin";
+
     /// <param name="appName">
-    /// Sub‑folder under %LOCALAPPDATA% (e.g. "coder-desktop").
+    /// Sub‑folder under %LOCALAPPDATA% (e.g. "CoderDesktop").
     /// If <c>null</c> the folder name defaults to the executable name.
     /// For unit‑tests you can pass an absolute path that already exists.
     /// </param>

@@ -44,6 +44,8 @@ public partial class App : Application
     private readonly ILogger<App> _logger;
     private readonly IUriHandler _uriHandler;
 
+    private readonly ISettingsManager _settingsManager;
+
     public App()
     {
         var builder = Host.CreateApplicationBuilder();
@@ -115,6 +117,7 @@ public partial class App : Application
         _services = services.BuildServiceProvider();
         _logger = (ILogger<App>)_services.GetService(typeof(ILogger<App>))!;
         _uriHandler = (IUriHandler)_services.GetService(typeof(IUriHandler))!;
+        _settingsManager = (ISettingsManager)_services.GetService(typeof(ISettingsManager))!;
 
         InitializeComponent();
     }
@@ -150,6 +153,22 @@ public partial class App : Application
                 Debug.WriteLine(t.Exception);
                 Debugger.Break();
 #endif
+            } else
+            {
+                if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
+                {
+                    if (_settingsManager.Read(SettingsManager.ConnectOnLaunchKey, false))
+                    {
+                        _logger.LogInformation("RPC lifecycle is disconnected, but ConnectOnLaunch is enabled; attempting to connect");
+                        _ = rpcController.StartVpn(CancellationToken.None).ContinueWith(connectTask =>
+                        {
+                            if (connectTask.Exception != null)
+                            {
+                                _logger.LogError(connectTask.Exception, "failed to connect on launch");
+                            }
+                        });
+                    }
+                }
             }
         });
 
@@ -171,22 +190,17 @@ public partial class App : Application
         }, CancellationToken.None);
 
         // Initialize file sync.
-        // We're adding a 5s delay here to avoid race conditions when loading the mutagen binary.
-
-        _ = Task.Delay(5000).ContinueWith((_) =>
+        var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
+        _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
         {
-            var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
-            syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(
-                t =>
-                {
-                    if (t.IsCanceled || t.Exception != null)
-                    {
-                        _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
-                    }
-                    syncSessionCts.Dispose();
-                }, CancellationToken.None);
-        });
+            if (t.IsCanceled || t.Exception != null)
+            {
+                _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
+            }
+
+            syncSessionCts.Dispose();
+        }, CancellationToken.None);
 
         // Prevent the TrayWindow from closing, just hide it.
         var trayWindow = _services.GetRequiredService<TrayWindow>();
