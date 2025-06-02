@@ -43,6 +43,8 @@
             <ProgressRing
                 Grid.Column="1"
                 IsActive="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource ConnectingBoolConverter}, Mode=OneWay}"
+                IsIndeterminate="{x:Bind ViewModel.VpnStartProgressIsIndeterminate, Mode=OneWay}"
+                Value="{x:Bind ViewModel.VpnStartProgressValueOrDefault, Mode=OneWay}"
                 Width="24"
                 Height="24"
                 Margin="10,0"
@@ -72,6 +74,13 @@
             TextWrapping="Wrap"
             Margin="0,6,0,6"
             Visibility="{x:Bind ViewModel.ShowEnableSection, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
+
+        <TextBlock
+            Text="{x:Bind ViewModel.VpnStartProgressMessageOrDefault, Mode=OneWay}"
+            TextWrapping="Wrap"
+            Margin="0,6,0,6"
+            Visibility="{x:Bind ViewModel.ShowVpnStartProgressSection, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
             Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
 
         <TextBlock
@@ -344,7 +353,7 @@
             Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
             Margin="-12,-8,-12,-5"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Left">          
+            HorizontalContentAlignment="Left">
 
             <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
         </HyperlinkButton>

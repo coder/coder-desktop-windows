@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using System.Threading.Channels;
 using Coder.Desktop.Vpn.Service;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -278,7 +279,7 @@ public class DownloaderTest
             NullDownloadValidator.Instance, ct);
         await dlTask.Task;
         Assert.That(dlTask.TotalBytes, Is.EqualTo(4));
-        Assert.That(dlTask.BytesRead, Is.EqualTo(4));
+        Assert.That(dlTask.BytesWritten, Is.EqualTo(4));
         Assert.That(dlTask.Progress, Is.EqualTo(1));
         Assert.That(dlTask.IsCompleted, Is.True);
         Assert.That(await File.ReadAllTextAsync(destPath, ct), Is.EqualTo("test"));
@@ -301,15 +302,54 @@ public class DownloaderTest
         var dlTask0 = await startTask0;
         await dlTask0.Task;
         Assert.That(dlTask0.TotalBytes, Is.EqualTo(5));
-        Assert.That(dlTask0.BytesRead, Is.EqualTo(5));
+        Assert.That(dlTask0.BytesWritten, Is.EqualTo(5));
         Assert.That(dlTask0.Progress, Is.EqualTo(1));
         Assert.That(dlTask0.IsCompleted, Is.True);
         var dlTask1 = await startTask1;
         await dlTask1.Task;
         Assert.That(dlTask1.TotalBytes, Is.EqualTo(5));
-        Assert.That(dlTask1.BytesRead, Is.EqualTo(5));
+        Assert.That(dlTask1.BytesWritten, Is.EqualTo(5));
         Assert.That(dlTask1.Progress, Is.EqualTo(1));
         Assert.That(dlTask1.IsCompleted, Is.True);
+    }
+
+    [Test(Description = "Download with X-Original-Content-Length")]
+    [CancelAfter(30_000)]
+    public async Task DownloadWithXOriginalContentLength(CancellationToken ct)
+    {
+        using var httpServer = new TestHttpServer(async ctx =>
+        {
+            ctx.Response.StatusCode = 200;
+            ctx.Response.Headers.Add("X-Original-Content-Length", "6"); // wrong but should be used until complete
+            ctx.Response.ContentType = "text/plain";
+            ctx.Response.ContentLength64 = 4; // This should be ignored.
+            await ctx.Response.OutputStream.WriteAsync("test"u8.ToArray(), ct);
+        });
+        var url = new Uri(httpServer.BaseUrl + "/test");
+        var destPath = Path.Combine(_tempDir, "test");
+        var manager = new Downloader(NullLogger<Downloader>.Instance);
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        var dlTask = await manager.StartDownloadAsync(req, destPath, NullDownloadValidator.Instance, ct);
+
+        var progressChannel = Channel.CreateUnbounded<DownloadProgressEvent>();
+        dlTask.ProgressChanged += (_, args) =>
+            Assert.That(progressChannel.Writer.TryWrite(args), Is.True);
+
+        await dlTask.Task;
+        Assert.That(dlTask.TotalBytes, Is.EqualTo(4)); // should equal BytesWritten after completion
+        Assert.That(dlTask.BytesWritten, Is.EqualTo(4));
+        progressChannel.Writer.Complete();
+
+        var list = progressChannel.Reader.ReadAllAsync(ct).ToBlockingEnumerable(ct).ToList();
+        Assert.That(list.Count, Is.GreaterThanOrEqualTo(2)); // there may be an item in the middle
+        // The first item should be the initial progress with 0 bytes written.
+        Assert.That(list[0].BytesWritten, Is.EqualTo(0));
+        Assert.That(list[0].TotalBytes, Is.EqualTo(6)); // from X-Original-Content-Length
+        Assert.That(list[0].Progress, Is.EqualTo(0.0d));
+        // The last item should be final progress with the actual total bytes.
+        Assert.That(list[^1].BytesWritten, Is.EqualTo(4));
+        Assert.That(list[^1].TotalBytes, Is.EqualTo(4)); // from the actual bytes written
+        Assert.That(list[^1].Progress, Is.EqualTo(1.0d));
     }
 
     [Test(Description = "Download with custom headers")]
@@ -347,7 +387,7 @@ public class DownloaderTest
         var dlTask = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
             NullDownloadValidator.Instance, ct);
         await dlTask.Task;
-        Assert.That(dlTask.BytesRead, Is.Zero);
+        Assert.That(dlTask.BytesWritten, Is.Zero);
         Assert.That(await File.ReadAllTextAsync(destPath, ct), Is.EqualTo("test"));
         Assert.That(File.GetLastWriteTime(destPath), Is.LessThan(DateTime.Now - TimeSpan.FromDays(1)));
     }
@@ -368,7 +408,7 @@ public class DownloaderTest
         var dlTask = await manager.StartDownloadAsync(new HttpRequestMessage(HttpMethod.Get, url), destPath,
             NullDownloadValidator.Instance, ct);
         await dlTask.Task;
-        Assert.That(dlTask.BytesRead, Is.EqualTo(4));
+        Assert.That(dlTask.BytesWritten, Is.EqualTo(4));
         Assert.That(await File.ReadAllTextAsync(destPath, ct), Is.EqualTo("test"));
         Assert.That(File.GetLastWriteTime(destPath), Is.GreaterThan(DateTime.Now - TimeSpan.FromDays(1)));
     }

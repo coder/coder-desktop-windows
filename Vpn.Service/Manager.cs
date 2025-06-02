@@ -26,6 +26,10 @@ public interface IManager : IDisposable
 /// </summary>
 public class Manager : IManager
 {
+    // We scale the download progress to 0.00-0.90, and use 0.90-1.00 for the
+    // remainder of startup.
+    private const double DownloadProgressScale = 0.90;
+
     private readonly ManagerConfig _config;
     private readonly IDownloader _downloader;
     private readonly ILogger<Manager> _logger;
@@ -131,6 +135,8 @@ public class Manager : IManager
         {
             try
             {
+                await BroadcastStartProgress(0.0, "Starting Coder Connect...", ct);
+
                 var serverVersion =
                     await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
                 if (_status == TunnelStatus.Started && _lastStartRequest != null &&
@@ -151,10 +157,14 @@ public class Manager : IManager
                 _lastServerVersion = serverVersion;
 
                 // TODO: each section of this operation needs a timeout
+
                 // Stop the tunnel if it's running so we don't have to worry about
                 // permissions issues when replacing the binary.
                 await _tunnelSupervisor.StopAsync(ct);
+
                 await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion.SemVersion, ct);
+
+                await BroadcastStartProgress(DownloadProgressScale, "Starting Coder Connect...", ct);
                 await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
                     HandleTunnelRpcError,
                     ct);
@@ -237,6 +247,9 @@ public class Manager : IManager
                     _logger.LogWarning("Received unexpected message reply type {MessageType}", message.Message.MsgCase);
                     break;
                 case TunnelMessage.MsgOneofCase.Log:
+                    // Ignored. We already log stdout/stderr from the tunnel
+                    // binary.
+                    break;
                 case TunnelMessage.MsgOneofCase.NetworkSettings:
                     _logger.LogWarning("Received message type {MessageType} that is not expected on Windows",
                         message.Message.MsgCase);
@@ -311,10 +324,26 @@ public class Manager : IManager
     private async Task BroadcastStatus(TunnelStatus? newStatus = null, CancellationToken ct = default)
     {
         if (newStatus != null) _status = newStatus.Value;
-        await _managerRpc.BroadcastAsync(new ServiceMessage
+        await FallibleBroadcast(new ServiceMessage
         {
             Status = await CurrentStatus(ct),
         }, ct);
+    }
+
+    private async Task FallibleBroadcast(ServiceMessage message, CancellationToken ct = default)
+    {
+        // Broadcast the messages out with a low timeout. If clients don't
+        // receive broadcasts in time, it's not a big deal.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        //cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+        try
+        {
+            await _managerRpc.BroadcastAsync(message, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not broadcast low priority message to all RPC clients: {Message}", message);
+        }
     }
 
     private void HandleTunnelRpcError(Exception e)
@@ -427,10 +456,44 @@ public class Manager : IManager
 
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 
-        // TODO: monitor and report progress when we have a mechanism to do so
+        var progressLock = new RaiiSemaphoreSlim(1, 1);
+        var progressBroadcastCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        downloadTask.ProgressChanged += (sender, ev) =>
+        {
+            using var _ = progressLock.Lock();
+            if (progressBroadcastCts.IsCancellationRequested) return;
+            _logger.LogInformation("Download progress: {ev}", ev);
+
+            // Scale the progress value to be between 0.00 and 0.90.
+            var progress = ev.Progress * DownloadProgressScale ?? 0.0;
+            var message = $"Downloading Coder Connect binary...\n{ev}";
+            BroadcastStartProgress(progress, message, progressBroadcastCts.Token).Wait(progressBroadcastCts.Token);
+        };
 
         // Awaiting this will check the checksum (via the ETag) if the file
         // exists, and will also validate the signature and version.
         await downloadTask.Task;
+
+        // Prevent any lagging progress events from being sent.
+        // ReSharper disable once PossiblyMistakenUseOfCancellationToken
+        using (await progressLock.LockAsync(ct))
+            await progressBroadcastCts.CancelAsync();
+
+        // We don't send a broadcast here as we immediately send one in the
+        // parent routine.
+        _logger.LogInformation("Completed downloading VPN binary");
+    }
+
+    private async Task BroadcastStartProgress(double progress, string message, CancellationToken ct = default)
+    {
+        _logger.LogInformation("Start progress: {Progress:0%} - {Message}", progress, message);
+        await FallibleBroadcast(new ServiceMessage
+        {
+            StartProgress = new StartProgress
+            {
+                Progress = progress,
+                Message = message,
+            },
+        }, ct);
     }
 }

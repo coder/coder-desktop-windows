@@ -133,7 +133,7 @@ public class ManagerRpc : IManagerRpc
             try
             {
                 var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(5 * 1000);
+                cts.CancelAfter(TimeSpan.FromSeconds(2));
                 await client.Speaker.SendMessage(message, cts.Token);
             }
             catch (ObjectDisposedException)

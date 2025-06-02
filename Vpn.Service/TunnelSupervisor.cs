@@ -100,17 +100,15 @@ public class TunnelSupervisor : ITunnelSupervisor
             };
             // TODO: maybe we should change the log format in the inner binary
             // to something without a timestamp
-            var outLogger = Log.ForContext("SourceContext", "coder-vpn.exe[OUT]");
-            var errLogger = Log.ForContext("SourceContext", "coder-vpn.exe[ERR]");
             _subprocess.OutputDataReceived += (_, args) =>
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
-                    outLogger.Debug("{Data}", args.Data);
+                    _logger.LogDebug("stdout: {Data}", args.Data);
             };
             _subprocess.ErrorDataReceived += (_, args) =>
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
-                    errLogger.Debug("{Data}", args.Data);
+                    _logger.LogDebug("stderr: {Data}", args.Data);
             };
 
             // Pass the other end of the pipes to the subprocess and dispose

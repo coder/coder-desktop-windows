@@ -161,7 +161,12 @@ public class RpcController : IRpcController
             throw new RpcOperationException(
                 $"Cannot start VPN without valid credentials, current state: {credentials.State}");
 
-        MutateState(state => { state.VpnLifecycle = VpnLifecycle.Starting; });
+        MutateState(state =>
+        {
+            state.VpnLifecycle = VpnLifecycle.Starting;
+            // Explicitly clear the startup progress.
+            state.VpnStartupProgress = null;
+        });
 
         ServiceMessage reply;
         try
@@ -251,6 +256,9 @@ public class RpcController : IRpcController
         using (_stateLock.Lock())
         {
             mutator(_state);
+            // Unset the startup progress if the VpnLifecycle is not Starting
+            if (_state.VpnLifecycle != VpnLifecycle.Starting)
+                _state.VpnStartupProgress = null;
             newState = _state.Clone();
         }
 
@@ -283,15 +291,32 @@ public class RpcController : IRpcController
         });
     }
 
+    private void ApplyStartProgressUpdate(StartProgress message)
+    {
+        MutateState(state =>
+        {
+            // MutateState will undo these changes if it doesn't believe we're
+            // in the "Starting" state.
+            state.VpnStartupProgress = new VpnStartupProgress
+            {
+                Progress = message.Progress,
+                Message = message.Message,
+            };
+        });
+    }
+
     private void SpeakerOnReceive(ReplyableRpcMessage<ClientMessage, ServiceMessage> message)
     {
         switch (message.Message.MsgCase)
         {
+            case ServiceMessage.MsgOneofCase.Start:
+            case ServiceMessage.MsgOneofCase.Stop:
             case ServiceMessage.MsgOneofCase.Status:
                 ApplyStatusUpdate(message.Message.Status);
                 break;
-            case ServiceMessage.MsgOneofCase.Start:
-            case ServiceMessage.MsgOneofCase.Stop:
+            case ServiceMessage.MsgOneofCase.StartProgress:
+                ApplyStartProgressUpdate(message.Message.StartProgress);
+                break;
             case ServiceMessage.MsgOneofCase.None:
             default:
                 // TODO: log unexpected message
