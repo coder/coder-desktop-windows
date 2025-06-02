@@ -92,7 +92,8 @@ public partial class App : Application
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
 
-        services.AddSingleton<ISettingsManager>(_ => new SettingsManager("CoderDesktop"));
+        services.AddSingleton<ISettingsManager, SettingsManager>();
+        services.AddSingleton<IStartupManager, StartupManager>();
         // SettingsWindow views and view models
         services.AddTransient<SettingsViewModel>();
         // SettingsMainPage is created by SettingsWindow.
@@ -159,10 +160,6 @@ public partial class App : Application
 
         // Start connecting to the manager in the background.
         var rpcController = _services.GetRequiredService<IRpcController>();
-        if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
-            // Passing in a CT with no cancellation is desired here, because
-            // the named pipe open will block until the pipe comes up.
-            _logger.LogDebug("reconnecting with VPN service");
         _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
         {
             if (t.Exception != null)
@@ -172,22 +169,18 @@ public partial class App : Application
                 Debug.WriteLine(t.Exception);
                 Debugger.Break();
 #endif
-            } else
+                return;
+            }
+            if (_settingsManager.ConnectOnLaunch)
             {
-                if (rpcController.GetState().VpnLifecycle == VpnLifecycle.Stopped)
+                _logger.LogInformation("RPC lifecycle is disconnected, but ConnectOnLaunch is enabled; attempting to connect");
+                _ = rpcController.StartVpn(CancellationToken.None).ContinueWith(connectTask =>
                 {
-                    if (_settingsManager.Read(SettingsManager.ConnectOnLaunchKey, false))
+                    if (connectTask.Exception != null)
                     {
-                        _logger.LogInformation("RPC lifecycle is disconnected, but ConnectOnLaunch is enabled; attempting to connect");
-                        _ = rpcController.StartVpn(CancellationToken.None).ContinueWith(connectTask =>
-                        {
-                            if (connectTask.Exception != null)
-                            {
-                                _logger.LogError(connectTask.Exception, "failed to connect on launch");
-                            }
-                        });
+                        _logger.LogError(connectTask.Exception, "failed to connect on launch");
                     }
-                }
+                });
             }
         });
 

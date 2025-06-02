@@ -4,7 +4,30 @@ using System.Diagnostics;
 using System.Security;
 
 namespace Coder.Desktop.App.Services;
-public static class StartupManager
+
+public interface IStartupManager
+{
+    /// <summary>
+    /// Adds the current executable to the per‑user Run key. Returns <c>true</c> if successful.
+    /// Fails (returns <c>false</c>) when blocked by policy or lack of permissions.
+    /// </summary>
+    bool Enable();
+    /// <summary>
+    /// Removes the value from the Run key (no-op if missing).
+    /// </summary>
+    void Disable();
+    /// <summary>
+    /// Checks whether the value exists in the Run key.
+    /// </summary>
+    bool IsEnabled();
+    /// <summary>
+    /// Detects whether group policy disables per‑user startup programs.
+    /// Mirrors <see cref="Windows.ApplicationModel.StartupTaskState.DisabledByPolicy"/>.
+    /// </summary>
+    bool IsDisabledByPolicy();
+}
+
+public class StartupManager : IStartupManager
 {
     private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";
     private const string PoliciesExplorerUser = @"Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer";
@@ -14,11 +37,7 @@ public static class StartupManager
 
     private const string _defaultValueName = "CoderDesktopApp";
 
-    /// <summary>
-    /// Adds the current executable to the per‑user Run key. Returns <c>true</c> if successful.
-    /// Fails (returns <c>false</c>) when blocked by policy or lack of permissions.
-    /// </summary>
-    public static bool Enable()
+    public bool Enable()
     {
         if (IsDisabledByPolicy())
             return false;
@@ -35,25 +54,19 @@ public static class StartupManager
         catch (SecurityException) { return false; }
     }
 
-    /// <summary>Removes the value from the Run key (no-op if missing).</summary>
-    public static void Disable()
+    public void Disable()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey, writable: true);
         key?.DeleteValue(_defaultValueName, throwOnMissingValue: false);
     }
 
-    /// <summary>Checks whether the value exists in the Run key.</summary>
-    public static bool IsEnabled()
+    public bool IsEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKey);
         return key?.GetValue(_defaultValueName) != null;
     }
 
-    /// <summary>
-    /// Detects whether group policy disables per‑user startup programs.
-    /// Mirrors <see cref="Windows.ApplicationModel.StartupTaskState.DisabledByPolicy"/>.
-    /// </summary>
-    public static bool IsDisabledByPolicy()
+    public bool IsDisabledByPolicy()
     {
         // User policy – HKCU
         using (var keyUser = Registry.CurrentUser.OpenSubKey(PoliciesExplorerUser))
@@ -65,8 +78,6 @@ public static class StartupManager
         {
             if ((int?)keyMachine?.GetValue(DisableLocalMachineRun) == 1) return true;
         }
-
-        // Some non‑desktop SKUs report DisabledByPolicy implicitly
         return false;
     }
 }

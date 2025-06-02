@@ -4,70 +4,121 @@ using System.IO;
 using System.Text.Json;
 
 namespace Coder.Desktop.App.Services;
+
 /// <summary>
-/// Generic persistence contract for simple key/value settings.
+/// Settings contract exposing properties for app settings.
 /// </summary>
 public interface ISettingsManager
 {
     /// <summary>
-    /// Saves <paramref name="value"/> under <paramref name="name"/> and returns the value.
+    /// Returns the value of the StartOnLogin setting. Returns <c>false</c> if the key is not found.
     /// </summary>
-    T Save<T>(string name, T value);
+    bool StartOnLogin { get; set; }
 
     /// <summary>
-    /// Reads the setting or returns <paramref name="defaultValue"/> when the key is missing.
+    /// Returns the value of the ConnectOnLaunch setting. Returns <c>false</c> if the key is not found.
     /// </summary>
-    T Read<T>(string name, T defaultValue);
+    bool ConnectOnLaunch { get; set; }
 }
+
 /// <summary>
-/// JSON‑file implementation that works in unpackaged Win32/WinUI 3 apps.
+/// Implemention of <see cref="ISettingsManager"/> that persists settings to a JSON file
+/// located in the user's local application data folder.
 /// </summary>
 public sealed class SettingsManager : ISettingsManager
 {
     private readonly string _settingsFilePath;
     private readonly string _fileName = "app-settings.json";
+    private readonly string _appName = "CoderDesktop";
     private readonly object _lock = new();
     private Dictionary<string, JsonElement> _cache;
 
-    public static readonly string ConnectOnLaunchKey = "ConnectOnLaunch";
-    public static readonly string StartOnLoginKey = "StartOnLogin";
+    public const string ConnectOnLaunchKey = "ConnectOnLaunch";
+    public const string StartOnLoginKey = "StartOnLogin";
 
-    /// <param name="appName">
-    /// Sub‑folder under %LOCALAPPDATA% (e.g. "CoderDesktop").
-    /// If <c>null</c> the folder name defaults to the executable name.
-    /// For unit‑tests you can pass an absolute path that already exists.
-    /// </param>
-    public SettingsManager(string? appName = null)
+    public bool StartOnLogin
     {
-        // Allow unit‑tests to inject a fully‑qualified path.
-        if (appName is not null && Path.IsPathRooted(appName))
+        get
         {
-            _settingsFilePath = Path.Combine(appName, _fileName);
-            Directory.CreateDirectory(Path.GetDirectoryName(_settingsFilePath)!);
+            return Read(StartOnLoginKey, false);
         }
-        else
+        set
         {
-            string folder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                appName ?? AppDomain.CurrentDomain.FriendlyName.ToLowerInvariant());
-            Directory.CreateDirectory(folder);
-            _settingsFilePath = Path.Combine(folder, _fileName);
+            Save(StartOnLoginKey, value);
+        }
+    }
+
+    public bool ConnectOnLaunch
+    {
+        get
+        {
+            return Read(ConnectOnLaunchKey, false);
+        }
+        set
+        {
+            Save(ConnectOnLaunchKey, value);
+        }
+    }
+
+    /// <param name="settingsFilePath">
+    /// For unit‑tests you can pass an absolute path that already exists.
+    /// Otherwise the settings file will be created in the user's local application data folder.
+    /// </param>
+    public SettingsManager(string? settingsFilePath = null)
+    {
+        if (settingsFilePath is null)
+        {
+            settingsFilePath = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        }
+        else if (!Path.IsPathRooted(settingsFilePath))
+        {
+            throw new ArgumentException("settingsFilePath must be an absolute path if provided", nameof(settingsFilePath));
+        }
+
+        string folder = Path.Combine(
+                settingsFilePath,
+                _appName);
+
+        Directory.CreateDirectory(folder);
+        _settingsFilePath = Path.Combine(folder, _fileName);
+
+        if(!File.Exists(_settingsFilePath))
+        {
+            // Create the settings file if it doesn't exist
+            string emptyJson = JsonSerializer.Serialize(new { });
+            File.WriteAllText(_settingsFilePath, emptyJson);
         }
 
         _cache = Load();
     }
 
-    public T Save<T>(string name, T value)
+    private void Save(string name, bool value)
     {
         lock (_lock)
         {
-            _cache[name] = JsonSerializer.SerializeToElement(value);
-            Persist();
-            return value;
+            try
+            {
+                // Ensure cache is loaded before saving
+                using var fs = new FileStream(_settingsFilePath,
+                    FileMode.OpenOrCreate,
+                    FileAccess.ReadWrite,
+                    FileShare.None);
+                
+                var currentCache = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fs) ?? new();
+                _cache = currentCache;
+                _cache[name] = JsonSerializer.SerializeToElement(value);
+                fs.Position = 0; // Reset stream position to the beginning before writing to override the file
+                var options = new JsonSerializerOptions { WriteIndented = true};
+                JsonSerializer.Serialize(fs, _cache, options);
+            }
+            catch
+            {
+                throw new InvalidOperationException($"Failed to persist settings to {_settingsFilePath}. The file may be corrupted, malformed or locked.");
+            }
         }
     }
 
-    public T Read<T>(string name, T defaultValue)
+    private bool Read(string name, bool defaultValue)
     {
         lock (_lock)
         {
@@ -75,39 +126,28 @@ public sealed class SettingsManager : ISettingsManager
             {
                 try
                 {
-                    return element.Deserialize<T>() ?? defaultValue;
+                    return element.Deserialize<bool?>() ?? defaultValue;
                 }
                 catch
                 {
-                    // Malformed value – fall back.
+                    // malformed value – return default value
                     return defaultValue;
                 }
             }
-            return defaultValue; // key not found – return caller‑supplied default (false etc.)
+            return defaultValue; // key not found – return default value
         }
     }
 
     private Dictionary<string, JsonElement> Load()
     {
-        if (!File.Exists(_settingsFilePath))
-            return new();
-
         try
         {
             using var fs = File.OpenRead(_settingsFilePath);
             return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fs) ?? new();
         }
-        catch
+        catch (Exception ex)
         {
-            // Corrupted file – start fresh.
-            return new();
+            throw new InvalidOperationException($"Failed to load settings from {_settingsFilePath}. The file may be corrupted or malformed. Exception: {ex.Message}");
         }
-    }
-
-    private void Persist()
-    {
-        using var fs = File.Create(_settingsFilePath);
-        var options = new JsonSerializerOptions { WriteIndented = true };
-        JsonSerializer.Serialize(fs, _cache, options);
     }
 }
