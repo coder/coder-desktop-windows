@@ -423,7 +423,7 @@ public class Program
         if (opts.ThemeXmlPath != null)
         {
             bundle.Application.ThemeFile = opts.ThemeXmlPath;
-            bundle.Application.Payloads = 
+            bundle.Application.Payloads =
             [
                 new ExePackagePayload
                 {
