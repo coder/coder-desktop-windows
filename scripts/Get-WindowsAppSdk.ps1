@@ -10,7 +10,6 @@ function Download-File([string] $url, [string] $outputPath, [string] $etagFile) 
     # We use `curl.exe` here because `Invoke-WebRequest` is notoriously slow.
     & curl.exe `
         --progress-bar `
-        -v `
         --show-error `
         --fail `
         --location `
