@@ -113,7 +113,7 @@ if (Test-Path $buildPath) {
 New-Item -ItemType Directory -Path $buildPath -Force
 
 # Build in release mode
-& dotnet.exe restore
+& dotnet.exe restore /p:BuildWithNetFrameworkHostedCompiler=true
 if ($LASTEXITCODE -ne 0) { throw "Failed to dotnet restore" }
 $servicePublishDir = Join-Path $buildPath "service"
 & dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir /p:Version=$version
