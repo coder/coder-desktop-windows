@@ -206,7 +206,7 @@ public partial class App : Application
         {
             await syncSessionController.RefreshState(syncSessionCts.Token);
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             _logger.LogError($"Failed to refresh sync session state {ex.Message}", ex);
         }
