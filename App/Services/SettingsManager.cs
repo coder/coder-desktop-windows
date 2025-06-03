@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Coder.Desktop.App.Services;
 
@@ -28,10 +29,10 @@ public interface ISettingsManager
 public sealed class SettingsManager : ISettingsManager
 {
     private readonly string _settingsFilePath;
+    private Settings _settings;
     private readonly string _fileName = "app-settings.json";
     private readonly string _appName = "CoderDesktop";
     private readonly object _lock = new();
-    private Dictionary<string, JsonElement> _cache;
 
     public const string ConnectOnLaunchKey = "ConnectOnLaunch";
     public const string StartOnLoginKey = "StartOnLogin";
@@ -87,9 +88,12 @@ public sealed class SettingsManager : ISettingsManager
             // Create the settings file if it doesn't exist
             string emptyJson = JsonSerializer.Serialize(new { });
             File.WriteAllText(_settingsFilePath, emptyJson);
+            _settings = new();
         }
-
-        _cache = Load();
+        else
+        {
+            _settings = Load();
+        }
     }
 
     private void Save(string name, bool value)
@@ -105,12 +109,12 @@ public sealed class SettingsManager : ISettingsManager
                     FileShare.None);
 
                 // Ensure cache is loaded before saving 
-                var currentCache = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fs) ?? [];
-                _cache = currentCache;
-                _cache[name] = JsonSerializer.SerializeToElement(value);
+                var freshCache = JsonSerializer.Deserialize<Settings>(fs) ?? new();
+                _settings = freshCache;
+                _settings.Options[name] = JsonSerializer.SerializeToElement(value);
                 fs.Position = 0; // Reset stream position to the beginning before writing
 
-                JsonSerializer.Serialize(fs, _cache, new JsonSerializerOptions { WriteIndented = true });
+                JsonSerializer.Serialize(fs, _settings, new JsonSerializerOptions { WriteIndented = true });
 
                 // This ensures the file is truncated to the new length
                 // if the new content is shorter than the old content
@@ -127,7 +131,7 @@ public sealed class SettingsManager : ISettingsManager
     {
         lock (_lock)
         {
-            if (_cache.TryGetValue(name, out var element))
+            if (_settings.Options.TryGetValue(name, out var element))
             {
                 try
                 {
@@ -143,16 +147,38 @@ public sealed class SettingsManager : ISettingsManager
         }
     }
 
-    private Dictionary<string, JsonElement> Load()
+    private Settings Load()
     {
         try
         {
             using var fs = File.OpenRead(_settingsFilePath);
-            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(fs) ?? new();
+            return JsonSerializer.Deserialize<Settings>(fs) ?? new(null, new Dictionary<string, JsonElement>());
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Failed to load settings from {_settingsFilePath}. The file may be corrupted or malformed. Exception: {ex.Message}");
+        }
+    }
+
+    [JsonSerializable(typeof(Settings))]
+    private class Settings
+    {
+        /// <summary>
+        /// User settings version. Increment this when the settings schema changes.
+        /// In future iterations we will be able to handle migrations when the user has
+        /// an older version.
+        /// </summary>
+        public int Version { get; set; } = 1;
+        public Dictionary<string, JsonElement> Options { get; set; }
+        public Settings()
+        {
+            Options = new Dictionary<string, JsonElement>();
+        }
+
+        public Settings(int? version, Dictionary<string, JsonElement> options)
+        {
+            Version = version ?? Version;
+            Options = options;
         }
     }
 }

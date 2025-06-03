@@ -51,6 +51,7 @@
                                        >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
                 </controls:SettingsCard>
+
             </StackPanel>
         </Grid>
     </ScrollViewer>
