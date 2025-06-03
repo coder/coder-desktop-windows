@@ -21,7 +21,7 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
       - name: dotnet restore
-        run: dotnet restore --locked-mode
+        run: dotnet restore --locked-mode /p:BuildWithNetFrameworkHostedCompiler=true
       - name: dotnet format
         run: dotnet format --verify-no-changes --no-restore
 
@@ -75,7 +75,7 @@ jobs:
           cache: true
           cache-dependency-path: '**/packages.lock.json'
       - name: dotnet restore
-        run: dotnet restore --locked-mode
+        run: dotnet restore --locked-mode /p:BuildWithNetFrameworkHostedCompiler=true
       # This doesn't call `dotnet publish` on the entire solution, just the
       # projects we care about building. Doing a full publish includes test
       # libraries and stuff which is pointless.
