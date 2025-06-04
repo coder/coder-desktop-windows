@@ -76,7 +76,7 @@ public sealed class SettingsManager : ISettingsManager
             throw new ArgumentException("settingsFilePath must be an absolute path if provided", nameof(settingsFilePath));
         }
 
-        string folder = Path.Combine(
+        var folder = Path.Combine(
                 settingsFilePath,
                 _appName);
 
@@ -86,9 +86,8 @@ public sealed class SettingsManager : ISettingsManager
         if (!File.Exists(_settingsFilePath))
         {
             // Create the settings file if it doesn't exist
-            string emptyJson = JsonSerializer.Serialize(new { });
-            File.WriteAllText(_settingsFilePath, emptyJson);
             _settings = new();
+            File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(_settings, SettingsJsonContext.Default.Settings));
         }
         else
         {
@@ -109,12 +108,12 @@ public sealed class SettingsManager : ISettingsManager
                     FileShare.None);
 
                 // Ensure cache is loaded before saving 
-                var freshCache = JsonSerializer.Deserialize<Settings>(fs) ?? new();
+                var freshCache = JsonSerializer.Deserialize(fs, SettingsJsonContext.Default.Settings) ?? new();
                 _settings = freshCache;
                 _settings.Options[name] = JsonSerializer.SerializeToElement(value);
                 fs.Position = 0; // Reset stream position to the beginning before writing
 
-                JsonSerializer.Serialize(fs, _settings, new JsonSerializerOptions { WriteIndented = true });
+                JsonSerializer.Serialize(fs, _settings, SettingsJsonContext.Default.Settings);
 
                 // This ensures the file is truncated to the new length
                 // if the new content is shorter than the old content
@@ -152,33 +151,39 @@ public sealed class SettingsManager : ISettingsManager
         try
         {
             using var fs = File.OpenRead(_settingsFilePath);
-            return JsonSerializer.Deserialize<Settings>(fs) ?? new(null, new Dictionary<string, JsonElement>());
+            return JsonSerializer.Deserialize(fs, SettingsJsonContext.Default.Settings) ?? new();
         }
         catch (Exception ex)
         {
             throw new InvalidOperationException($"Failed to load settings from {_settingsFilePath}. The file may be corrupted or malformed. Exception: {ex.Message}");
         }
     }
+}
 
-    [JsonSerializable(typeof(Settings))]
-    private class Settings
+public class Settings
+{
+    /// <summary>
+    /// User settings version. Increment this when the settings schema changes.
+    /// In future iterations we will be able to handle migrations when the user has
+    /// an older version.
+    /// </summary>
+    public int Version { get; set; }
+    public Dictionary<string, JsonElement> Options { get; set; }
+
+    private const int VERSION = 1; // Default version for backward compatibility
+    public Settings()
     {
-        /// <summary>
-        /// User settings version. Increment this when the settings schema changes.
-        /// In future iterations we will be able to handle migrations when the user has
-        /// an older version.
-        /// </summary>
-        public int Version { get; set; } = 1;
-        public Dictionary<string, JsonElement> Options { get; set; }
-        public Settings()
-        {
-            Options = new Dictionary<string, JsonElement>();
-        }
+        Version = VERSION;
+        Options = [];
+    }
 
-        public Settings(int? version, Dictionary<string, JsonElement> options)
-        {
-            Version = version ?? Version;
-            Options = options;
-        }
+    public Settings(int? version, Dictionary<string, JsonElement> options)
+    {
+        Version = version ?? VERSION;
+        Options = options;
     }
 }
+
+[JsonSerializable(typeof(Settings))]
+[JsonSourceGenerationOptions(WriteIndented = true)]
+public partial class SettingsJsonContext : JsonSerializerContext;
