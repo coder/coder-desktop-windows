@@ -204,20 +204,21 @@ public partial class App : Application
         }, CancellationToken.None);
 
         // Initialize file sync.
-        var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-        var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
-        _ = syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(t =>
+        // We're adding a 5s delay here to avoid race conditions when loading the mutagen binary.
+        _ = Task.Delay(5000).ContinueWith((_) =>
         {
-            if (t.IsCanceled || t.Exception != null)
-            {
-                _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
-#if DEBUG
-                Debugger.Break();
-#endif
-            }
-
-            syncSessionCts.Dispose();
-        }, CancellationToken.None);
+            var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
+            syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(
+                t =>
+                {
+                    if (t.IsCanceled || t.Exception != null)
+                    {
+                        _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
+                    }
+                    syncSessionCts.Dispose();
+                }, CancellationToken.None);
+        });
     }
 
     public void OnActivated(object? sender, AppActivationArguments args)

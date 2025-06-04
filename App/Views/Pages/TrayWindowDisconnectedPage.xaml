@@ -30,6 +30,19 @@
 
         <controls:HorizontalRule />
 
+        <TextBlock FontWeight="semibold"
+                   TextWrapping="Wrap"
+                   Foreground="Red"
+                   Visibility="{x:Bind ViewModel.ReconnectFailed, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                   Text="Reconnect failed"/>
+
+        <TextBlock
+            TextWrapping="Wrap"
+            Margin="0,0,0,10"
+            Foreground="Red"
+            Visibility="{x:Bind ViewModel.ReconnectFailed, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Text="{x:Bind ViewModel.ErrorMessage, Mode=OneWay}" />
+
         <HyperlinkButton
             HorizontalContentAlignment="Left"
             HorizontalAlignment="Stretch"

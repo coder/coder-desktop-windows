@@ -119,6 +119,9 @@ public class BootstrapperOptions : SharedOptions
     [Option('w', "windows-app-sdk-path", Required = true, HelpText = "Path to the Windows App Sdk package to embed")]
     public string WindowsAppSdkPath { get; set; }
 
+    [Option('t', "theme-xml-path", Required = false, HelpText = "Path to the theme .xml file to use for the installer")]
+    public string ThemeXmlPath { get; set; }
+
     public new void Validate()
     {
         base.Validate();
@@ -130,6 +133,8 @@ public class BootstrapperOptions : SharedOptions
         if (!SystemFile.Exists(WindowsAppSdkPath))
             throw new ArgumentException($"Windows App Sdk package not found at '{WindowsAppSdkPath}'",
                 nameof(WindowsAppSdkPath));
+        if (ThemeXmlPath != null && !SystemFile.Exists(ThemeXmlPath))
+            throw new ArgumentException($"Theme XML file not found at '{ThemeXmlPath}'", nameof(ThemeXmlPath));
     }
 }
 
@@ -414,6 +419,20 @@ public class Program
 
         bundle.Application.LicensePath = opts.LicenseFile;
         bundle.Application.LogoFile = opts.LogoPng;
+
+        if (opts.ThemeXmlPath != null)
+        {
+            bundle.Application.ThemeFile = opts.ThemeXmlPath;
+            bundle.Application.Payloads =
+            [
+                new ExePackagePayload
+                {
+                    Name = "icon.ico",
+                    SourceFile = opts.IconFile,
+                    Compressed = true,
+                },
+            ];
+        }
 
         // Set the default install folder, which will eventually be passed into
         // the MSI.

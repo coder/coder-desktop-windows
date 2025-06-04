@@ -113,7 +113,7 @@ if (Test-Path $buildPath) {
 New-Item -ItemType Directory -Path $buildPath -Force
 
 # Build in release mode
-& dotnet.exe restore
+& dotnet.exe restore /p:BuildWithNetFrameworkHostedCompiler=true
 if ($LASTEXITCODE -ne 0) { throw "Failed to dotnet restore" }
 $servicePublishDir = Join-Path $buildPath "service"
 & dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir /p:Version=$version
@@ -189,6 +189,7 @@ $windowsAppSdkPath = Join-Path $scriptRoot "files\windows-app-sdk-$($arch).exe"
     --icon-file "App\coder.ico" `
     --msi-path $msiOutputPath `
     --windows-app-sdk-path $windowsAppSdkPath `
+    --theme-xml-path "scripts\files\RtfThemeLarge.xml" `
     --logo-png "scripts\files\logo.png"
 if ($LASTEXITCODE -ne 0) { throw "Failed to build bootstrapper" }
 
