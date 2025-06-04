@@ -10,6 +10,7 @@ namespace Coder.Desktop.App.Controls;
 
 [DependencyProperty<ICommand>("OpenCommand")]
 [DependencyProperty<ICommand>("ExitCommand")]
+[DependencyProperty<ICommand>("CheckForUpdatesCommand")]
 public sealed partial class TrayIcon : UserControl
 {
     private readonly UISettings _uiSettings = new();

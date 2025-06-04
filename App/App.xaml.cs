@@ -21,6 +21,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
 using Microsoft.Windows.AppNotifications;
+using NetSparkleUpdater.Interfaces;
 using Serilog;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
@@ -28,21 +29,30 @@ namespace Coder.Desktop.App;
 
 public partial class App : Application
 {
-    private readonly IServiceProvider _services;
-
-    private bool _handleWindowClosed = true;
     private const string MutagenControllerConfigSection = "MutagenController";
+    private const string UpdaterConfigSection = "Updater";
 
 #if !DEBUG
     private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\App";
-    private const string logFilename = "app.log";
+    private const string LogFilename = "app.log";
+    private const string DefaultLogLevel = "Information";
 #else
     private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\DebugApp";
-    private const string logFilename = "debug-app.log";
+    private const string LogFilename = "debug-app.log";
+    private const string DefaultLogLevel = "Debug";
 #endif
 
+    // HACK: This is exposed for dispatcher queue access. The notifier uses
+    //       this to ensure action callbacks run in the UI thread (as
+    //       activation events aren't in the main thread).
+    public TrayWindow? TrayWindow;
+
+    private readonly IServiceProvider _services;
     private readonly ILogger<App> _logger;
     private readonly IUriHandler _uriHandler;
+    private readonly IUserNotifier _userNotifier;
+
+    private bool _handleWindowClosed = true;
 
     public App()
     {
@@ -55,7 +65,17 @@ public partial class App : Application
         configBuilder.Add(
             new RegistryConfigurationSource(Registry.LocalMachine, ConfigSubKey));
         configBuilder.Add(
-            new RegistryConfigurationSource(Registry.CurrentUser, ConfigSubKey));
+            new RegistryConfigurationSource(
+                Registry.CurrentUser,
+                ConfigSubKey,
+                // Block "Updater:" configuration from HKCU, so that updater
+                // settings can only be set at the HKLM level.
+                //
+                // HACK: This isn't super robust, but the security risk is
+                //       minor anyway. Malicious apps running as the user could
+                //       likely override this setting by altering the memory of
+                //       this app.
+                UpdaterConfigSection + ":"));
 
         var services = builder.Services;
 
@@ -80,6 +100,12 @@ public partial class App : Application
         services.AddSingleton<IUserNotifier, UserNotifier>();
         services.AddSingleton<IRdpConnector, RdpConnector>();
         services.AddSingleton<IUriHandler, UriHandler>();
+
+        services.AddOptions<UpdaterConfig>()
+            .Bind(builder.Configuration.GetSection(UpdaterConfigSection));
+        services.AddSingleton<IUpdaterUpdateAvailableViewModelFactory, UpdaterUpdateAvailableViewModelFactory>();
+        services.AddSingleton<IUIFactory, CoderSparkleUIFactory>();
+        services.AddSingleton<IUpdateController, SparkleUpdateController>();
 
         // SignInWindow views and view models
         services.AddTransient<SignInViewModel>();
@@ -107,8 +133,9 @@ public partial class App : Application
         services.AddTransient<TrayWindow>();
 
         _services = services.BuildServiceProvider();
-        _logger = (ILogger<App>)_services.GetService(typeof(ILogger<App>))!;
-        _uriHandler = (IUriHandler)_services.GetService(typeof(IUriHandler))!;
+        _logger = _services.GetRequiredService<ILogger<App>>();
+        _uriHandler = _services.GetRequiredService<IUriHandler>();
+        _userNotifier = _services.GetRequiredService<IUserNotifier>();
 
         InitializeComponent();
     }
@@ -129,6 +156,18 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _logger.LogInformation("new instance launched");
+
+        // Prevent the TrayWindow from closing, just hide it.
+        if (TrayWindow != null)
+            throw new InvalidOperationException("OnLaunched was called multiple times? TrayWindow is already set");
+        TrayWindow = _services.GetRequiredService<TrayWindow>();
+        TrayWindow.Closed += (_, closedArgs) =>
+        {
+            if (!_handleWindowClosed) return;
+            closedArgs.Handled = true;
+            TrayWindow.AppWindow.Hide();
+        };
+
         // Start connecting to the manager in the background.
         var rpcController = _services.GetRequiredService<IRpcController>();
         if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
@@ -179,15 +218,6 @@ public partial class App : Application
 
             syncSessionCts.Dispose();
         }, CancellationToken.None);
-
-        // Prevent the TrayWindow from closing, just hide it.
-        var trayWindow = _services.GetRequiredService<TrayWindow>();
-        trayWindow.Closed += (_, closedArgs) =>
-        {
-            if (!_handleWindowClosed) return;
-            closedArgs.Handled = true;
-            trayWindow.AppWindow.Hide();
-        };
     }
 
     public void OnActivated(object? sender, AppActivationArguments args)
@@ -229,8 +259,8 @@ public partial class App : Application
 
     public void HandleNotification(AppNotificationManager? sender, AppNotificationActivatedEventArgs args)
     {
-        // right now, we don't do anything other than log
-        _logger.LogInformation("handled notification activation");
+        _logger.LogInformation("handled notification activation: {Argument}", args.Argument);
+        _userNotifier.HandleActivation(args);
     }
 
     private static void AddDefaultConfig(IConfigurationBuilder builder)
@@ -238,18 +268,27 @@ public partial class App : Application
         var logPath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CoderDesktop",
-            logFilename);
+            LogFilename);
         builder.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [MutagenControllerConfigSection + ":MutagenExecutablePath"] = @"C:\mutagen.exe",
+
             ["Serilog:Using:0"] = "Serilog.Sinks.File",
-            ["Serilog:MinimumLevel"] = "Information",
+            ["Serilog:MinimumLevel"] = DefaultLogLevel,
             ["Serilog:Enrich:0"] = "FromLogContext",
             ["Serilog:WriteTo:0:Name"] = "File",
             ["Serilog:WriteTo:0:Args:path"] = logPath,
             ["Serilog:WriteTo:0:Args:outputTemplate"] =
                 "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
             ["Serilog:WriteTo:0:Args:rollingInterval"] = "Day",
+
+#if DEBUG
+            ["Serilog:Using:1"] = "Serilog.Sinks.Debug",
+            ["Serilog:Enrich:1"] = "FromLogContext",
+            ["Serilog:WriteTo:1:Name"] = "Debug",
+            ["Serilog:WriteTo:1:Args:outputTemplate"] =
+                "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
+#endif
         });
     }
 }

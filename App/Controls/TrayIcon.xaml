@@ -32,7 +32,7 @@
                         <XamlUICommand
                             Label="Show Window"
                             Description="Show Window"
-                            Command="{x:Bind OpenCommand}">
+                            Command="{x:Bind OpenCommand, Mode=OneWay}">
 
                             <XamlUICommand.IconSource>
                                 <SymbolIconSource Symbol="OpenPane" />
@@ -51,9 +51,30 @@
                 <MenuFlyoutItem>
                     <MenuFlyoutItem.Command>
                         <XamlUICommand
+                            Label="Check for Updates"
+                            Description="Check for Updates"
+                            Command="{x:Bind CheckForUpdatesCommand, Mode=OneWay}">
+
+                            <XamlUICommand.IconSource>
+                                <SymbolIconSource Symbol="Download" />
+                            </XamlUICommand.IconSource>
+                            <XamlUICommand.KeyboardAccelerators>
+                                <KeyboardAccelerator
+                                    Key="U"
+                                    Modifiers="Control" />
+                            </XamlUICommand.KeyboardAccelerators>
+                        </XamlUICommand>
+                    </MenuFlyoutItem.Command>
+                </MenuFlyoutItem>
+
+                <MenuFlyoutSeparator />
+
+                <MenuFlyoutItem>
+                    <MenuFlyoutItem.Command>
+                        <XamlUICommand
                             Label="Exit"
                             Description="Exit"
-                            Command="{x:Bind ExitCommand}">
+                            Command="{x:Bind ExitCommand, Mode=OneWay}">
 
                             <XamlUICommand.IconSource>
                                 <SymbolIconSource Symbol="ClosePane" />

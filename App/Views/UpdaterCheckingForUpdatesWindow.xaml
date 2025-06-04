@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<winuiex:WindowEx
+    x:Class="Coder.Desktop.App.Views.UpdaterCheckingForUpdatesWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:winuiex="using:WinUIEx"
+    mc:Ignorable="d"
+    Title="Coder Desktop Updater"
+    IsResizable="false"
+    IsMaximizable="false"
+    Width="500" Height="190">
+
+    <Window.SystemBackdrop>
+        <DesktopAcrylicBackdrop />
+    </Window.SystemBackdrop>
+
+    <StackPanel Orientation="Vertical" Padding="32">
+        <ProgressRing IsActive="True"
+                      Margin="0,0,0,20"
+                      HorizontalAlignment="Center"/>
+
+        <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}"
+                   Text="Checking for updates..."
+                   HorizontalAlignment="Center" />
+    </StackPanel>
+</winuiex:WindowEx>

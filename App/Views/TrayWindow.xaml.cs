@@ -12,8 +12,8 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI.Core;
@@ -39,13 +39,14 @@ public sealed partial class TrayWindow : Window
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
     private readonly ISyncSessionController _syncSessionController;
+    private readonly IUpdateController _updateController;
     private readonly TrayWindowLoadingPage _loadingPage;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
 
     public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
-        ISyncSessionController syncSessionController,
+        ISyncSessionController syncSessionController, IUpdateController updateController,
         TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
@@ -53,6 +54,7 @@ public sealed partial class TrayWindow : Window
         _rpcController = rpcController;
         _credentialManager = credentialManager;
         _syncSessionController = syncSessionController;
+        _updateController = updateController;
         _loadingPage = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
@@ -70,8 +72,9 @@ public sealed partial class TrayWindow : Window
         SetPageByState(_rpcController.GetState(), _credentialManager.GetCachedCredentials(),
             _syncSessionController.GetState());
 
-        // Setting OpenCommand and ExitCommand directly in the .xaml doesn't seem to work for whatever reason.
+        // Setting these directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
+        TrayIcon.CheckForUpdatesCommand = Tray_CheckForUpdatesCommand;
         TrayIcon.ExitCommand = Tray_ExitCommand;
 
         // Hide the title bar and buttons. WinUi 3 provides a method to do this with
@@ -117,7 +120,6 @@ public sealed partial class TrayWindow : Window
             _lastWindowHeight = newHeight;
         };
     }
-
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
         SyncSessionControllerStateModel syncSessionModel)
@@ -232,7 +234,7 @@ public sealed partial class TrayWindow : Window
         var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
         AppWindow.MoveAndResize(rect);
         AppWindow.Show();
-        NativeApi.SetForegroundWindow(WindowNative.GetWindowHandle(this));
+        ForegroundWindow.MakeForeground(this);
     }
 
     private void SaveCursorPos()
@@ -316,6 +318,13 @@ public sealed partial class TrayWindow : Window
     }
 
     [RelayCommand]
+    private async Task Tray_CheckForUpdates()
+    {
+        // Handles errors itself for the most part.
+        await _updateController.CheckForUpdatesNow();
+    }
+
+    [RelayCommand]
     private void Tray_Exit()
     {
         // It's fine that this happens in the background.
@@ -329,9 +338,6 @@ public sealed partial class TrayWindow : Window
 
         [DllImport("user32.dll")]
         public static extern bool GetCursorPos(out POINT lpPoint);
-
-        [DllImport("user32.dll")]
-        public static extern bool SetForegroundWindow(IntPtr hwnd);
 
         public struct POINT
         {
