@@ -177,7 +177,7 @@ jobs:
           # to GitHub and then making a PR in a different repo.
           WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
 
-      
+
       - name: Comment on PR
         run: |
           # wait 30 seconds

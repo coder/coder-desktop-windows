@@ -101,7 +101,8 @@ public class SparkleUpdateController : IUpdateController
 
         _sparkle.CloseApplicationAsync += SparkleOnCloseApplicationAsync;
 
-        // TODO: user preference for automatic checking
+        // TODO: user preference for automatic checking. Remember to
+        //       StopLoop/StartLoop if it changes.
 #if !DEBUG || true
         _ = _sparkle.StartLoop(true, UpdateCheckInterval);
 #endif

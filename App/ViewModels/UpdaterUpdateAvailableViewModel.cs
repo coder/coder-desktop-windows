@@ -189,6 +189,7 @@ public partial class UpdaterUpdateAvailableViewModel : ObservableObject
         settings.IsStatusBarEnabled = false;
 
         // Hijack navigation to prevent links opening in the web view.
+        // TODO: block new windows as well
         webView.CoreWebView2.NavigationStarting += (_, e) =>
         {
             // webView.NavigateToString uses data URIs, so allow those to work.

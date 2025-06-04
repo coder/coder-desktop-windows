@@ -34,10 +34,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <None Remove="Views\Pages\UpdaterDownloadProgressMainPage.xaml" />
-    </ItemGroup>
-
-    <ItemGroup>
         <Content Include="coder.ico" />
         <EmbeddedResource Include="Assets\changelog.css" />
         <Manifest Include="$(ApplicationManifest)" />
@@ -89,11 +85,5 @@
         <ProjectReference Include="..\MutagenSdk\MutagenSdk.csproj" />
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
         <ProjectReference Include="..\Vpn\Vpn.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Page Update="Views\Pages\UpdaterDownloadProgressMainPage.xaml">
-        <Generator>MSBuild:Compile</Generator>
-      </Page>
     </ItemGroup>
 </Project>
