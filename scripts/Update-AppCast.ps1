@@ -27,7 +27,8 @@ param (
     [string] $channel,
 
     [Parameter(Mandatory = $false)]
-    [string] $pubDate = (Get-Date).ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss +0000"),
+    [ValidatePattern("^\w{3}, \d{2} \w{3} \d{4} \d{2}:\d{2}:\d{2} \+00:00$")]
+    [string] $pubDate = (Get-Date).ToUniversalTime().ToString("ddd, dd MMM yyyy HH:mm:ss +00:00"),
 
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path $_ })]

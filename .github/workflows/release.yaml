@@ -158,9 +158,9 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw "Failed to generate new appcast" }
 
         # Upload the new appcast and signature to GCS.
-        & gsutil cp $newAppCastPath $env:APPCAST_GCS_URI
+        & gsutil -h "Cache-Control:no-cache,max-age=0" cp $newAppCastPath $env:APPCAST_GCS_URI
         if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast" }
-        & gsutil cp $newAppCastSignaturePath $env:APPCAST_SIGNATURE_GCS_URI
+        & gsutil -h "Cache-Control:no-cache,max-age=0" cp $newAppCastSignaturePath $env:APPCAST_SIGNATURE_GCS_URI
         if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast signature" }
       env:
         APPCAST_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml
