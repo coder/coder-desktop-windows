@@ -38,12 +38,10 @@ public static class UpdateChannelExtensions
     }
 }
 
-// TODO: SET THESE TO THE CORRECT SETTINGS
 public class UpdaterConfig
 {
     public bool EnableUpdater { get; set; } = true;
-    //[Required] public string UpdateAppCastUrl { get; set; } = "https://releases.coder.com/coder-desktop/windows/appcast.xml";
-    [Required] public string UpdateAppCastUrl { get; set; } = "http://localhost:8000/appcast.xml";
+    [Required] public string UpdateAppCastUrl { get; set; } = "https://releases.coder.com/coder-desktop/windows/appcast.xml";
     [Required] public string UpdatePublicKeyBase64 { get; set; } = "NNWN4c+3PmMuAf2G1ERLlu0EwhzHfSiUugOt120hrH8=";
     public UpdateChannel? ForcedUpdateChannel { get; set; } = null;
 }
