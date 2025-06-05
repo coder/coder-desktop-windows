@@ -92,6 +92,10 @@ public class SparkleUpdateController : IUpdateController
         {
             // TODO: custom Configuration for persistence, could just specify
             //       our own save path with JSONConfiguration TBH
+            // GitHub releases endpoint returns a random UUID as the filename,
+            // so we tell NetSparkle to ignore it and use the last segment of
+            // the URL instead.
+            CheckServerFileName = false,
             LogWriter = new CoderSparkleLogger(logger),
             AppCastHelper = new CoderSparkleAppCastHelper(_config.ForcedUpdateChannel),
             UIFactory = uiFactory,
