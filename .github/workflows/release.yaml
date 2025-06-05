@@ -68,6 +68,9 @@ jobs:
         service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
         token_format: "access_token"
 
+    - name: Install gcloud
+      uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # 2.1.4
+
     - name: Install wix
       shell: pwsh
       run: |
@@ -119,6 +122,43 @@ jobs:
           ${{ steps.release.outputs.ARM64_OUTPUT_PATH }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Update appcast
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: pwsh
+        $ErrorActionPreference = "Stop"
+
+        $keyPath = Join-Path $env:TEMP "appcast-key.pem"
+        $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:APPCAST_SIGNATURE_KEY_BASE64))
+        Set-Content -Path $keyPath -Value $key
+
+        $oldAppCastPath = Join-Path $env:TEMP "appcast.old.xml"
+        & gsutil cp $env:APPCAST_GCS_URI $oldAppCastPath
+        if ($LASTEXITCODE -ne 0) { throw "Failed to download appcast" }
+
+        $newAppCastPath = Join-Path $env:TEMP "appcast.new.xml"
+        $newAppCastSignaturePath = $newAppCastPath + ".signature"
+        & ./scripts/Update-AppCast.ps1 `
+          -tag "${{ github.ref_name }}" `
+          -version "${{ steps.version.outputs.VERSION }}" `
+          -channel stable `
+          -x64Path "${{ steps.release.outputs.X64_OUTPUT_PATH }}" `
+          -arm64Path "${{ steps.release.outputs.ARM64_OUTPUT_PATH }}" `
+          -keyPath $keyPath `
+          -inputAppCastPath $oldAppCastPath `
+          -outputAppCastPath $newAppCastPath `
+          -outputAppCastSignaturePath $newAppCastSignaturePath
+        if ($LASTEXITCODE -ne 0) { throw "Failed to generate new appcast" }
+
+        & gsutil cp $newAppCastPath $env:APPCAST_GCS_URI
+        if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast" }
+        & gsutil cp $newAppCastSignaturePath $env:APPCAST_SIGNATURE_GCS_URI
+        if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast signature" }
+      env:
+        APPCAST_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml
+        APPCAST_SIGNATURE_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml.signature
+        APPCAST_SIGNATURE_KEY_BASE64: ${{ secrets.APPCAST_SIGNATURE_KEY_BASE64 }}
+        GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
 
   winget:
     runs-on: depot-windows-latest
@@ -176,7 +216,6 @@ jobs:
           # For wingetcreate. We need a real token since we're pushing a commit
           # to GitHub and then making a PR in a different repo.
           WINGET_GH_TOKEN: ${{ secrets.CDRCI_GITHUB_TOKEN }}
-
 
       - name: Comment on PR
         run: |

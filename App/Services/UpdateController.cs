@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Coder.Desktop.App.ViewModels;
@@ -43,7 +44,7 @@ public class UpdaterConfig
     public bool EnableUpdater { get; set; } = true;
     //[Required] public string UpdateAppCastUrl { get; set; } = "https://releases.coder.com/coder-desktop/windows/appcast.xml";
     [Required] public string UpdateAppCastUrl { get; set; } = "http://localhost:8000/appcast.xml";
-    [Required] public string UpdatePublicKeyBase64 { get; set; } = "Uxc0ir6j3GMhkL5D1O/W3lsD4BNk5puwM9hohNfm32k=";
+    [Required] public string UpdatePublicKeyBase64 { get; set; } = "NNWN4c+3PmMuAf2G1ERLlu0EwhzHfSiUugOt120hrH8=";
     public UpdateChannel? ForcedUpdateChannel { get; set; } = null;
 }
 
@@ -83,8 +84,7 @@ public class SparkleUpdateController : IUpdateController
         // Swift's Sparkle does not support verifying app cast signatures yet,
         // but we use this functionality on Windows for added security against
         // malicious release notes.
-        // TODO: REENABLE STRICT CHECKING
-        var checker = new Ed25519Checker(SecurityMode.Unsafe,
+        var checker = new Ed25519Checker(SecurityMode.Strict,
             publicKey: _config.UpdatePublicKeyBase64,
             readFileBeingVerifiedInChunks: true);
 
@@ -93,7 +93,7 @@ public class SparkleUpdateController : IUpdateController
             // TODO: custom Configuration for persistence, could just specify
             //       our own save path with JSONConfiguration TBH
             LogWriter = new CoderSparkleLogger(logger),
-            AppCastHelper = new CoderSparkleAppCastHelper(logger, _config.ForcedUpdateChannel),
+            AppCastHelper = new CoderSparkleAppCastHelper(_config.ForcedUpdateChannel),
             UIFactory = uiFactory,
             UseNotificationToast = uiFactory.CanShowToastMessages(),
             RelaunchAfterUpdate = true,
@@ -103,7 +103,7 @@ public class SparkleUpdateController : IUpdateController
 
         // TODO: user preference for automatic checking. Remember to
         //       StopLoop/StartLoop if it changes.
-#if !DEBUG || true
+#if !DEBUG
         _ = _sparkle.StartLoop(true, UpdateCheckInterval);
 #endif
     }
@@ -157,22 +157,20 @@ public class CoderSparkleLogger(ILogger<SparkleUpdateController> logger) : Spark
     }
 }
 
-public class CoderSparkleAppCastHelper : AppCastHelper
+public class CoderSparkleAppCastHelper(UpdateChannel? forcedChannel) : AppCastHelper
 {
-    private readonly UpdateChannel? _forcedChannel;
-
-    public CoderSparkleAppCastHelper(ILogger<SparkleUpdateController> logger, UpdateChannel? forcedChannel) : base()
-    {
-        _forcedChannel = forcedChannel;
-    }
+    // This might return some other OS if the user compiled the app for some
+    // different arch, but the end result is the same: no updates will be found
+    // for that arch.
+    private static string CurrentOperatingSystem => $"win-{RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant()}";
 
     public override List<AppCastItem> FilterUpdates(List<AppCastItem> items)
     {
         items = base.FilterUpdates(items);
 
-        // TODO: factor in user choice too once we have a settings page
-        var channel = _forcedChannel ?? UpdateChannel.Stable;
-        return items.FindAll(i => i.Channel != null && i.Channel == channel.ChannelName());
+        // TODO: factor in user channel choice too once we have a settings page
+        var channel = forcedChannel ?? UpdateChannel.Stable;
+        return items.FindAll(i => i.Channel == channel.ChannelName() && i.OperatingSystem == CurrentOperatingSystem);
     }
 }
 

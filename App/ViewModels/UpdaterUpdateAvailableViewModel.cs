@@ -189,7 +189,6 @@ public partial class UpdaterUpdateAvailableViewModel : ObservableObject
         settings.IsStatusBarEnabled = false;
 
         // Hijack navigation to prevent links opening in the web view.
-        // TODO: block new windows as well
         webView.CoreWebView2.NavigationStarting += (_, e) =>
         {
             // webView.NavigateToString uses data URIs, so allow those to work.
@@ -199,6 +198,14 @@ public partial class UpdaterUpdateAvailableViewModel : ObservableObject
             // Prevent the web view from trying to navigate to it.
             e.Cancel = true;
 
+            // Launch HTTP or HTTPS URLs in the default browser.
+            if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) && uri is { Scheme: "http" or "https" })
+                Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });
+        };
+        webView.CoreWebView2.NewWindowRequested += (_, e) =>
+        {
+            // Prevent new windows from being launched (e.g. target="_blank").
+            e.Handled = true;
             // Launch HTTP or HTTPS URLs in the default browser.
             if (Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri) && uri is { Scheme: "http" or "https" })
                 Process.Start(new ProcessStartInfo(e.Uri) { UseShellExecute = true });

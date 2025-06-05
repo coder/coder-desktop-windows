@@ -411,3 +411,12 @@ publish
 *.wixmdb
 *.wixprj
 *.wixproj
+
+appcast.xml
+appcast.xml.signature
+*.key
+*.key.*
+*.pem
+*.pem.*
+*.pub
+*.pub.*

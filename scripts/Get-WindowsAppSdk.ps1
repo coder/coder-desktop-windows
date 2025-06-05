@@ -5,6 +5,8 @@ param (
     [string] $arch
 )
 
+$ErrorActionPreference = "Stop"
+
 function Download-File([string] $url, [string] $outputPath, [string] $etagFile) {
     Write-Host "Downloading '$url' to '$outputPath'"
     # We use `curl.exe` here because `Invoke-WebRequest` is notoriously slow.
