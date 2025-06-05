@@ -128,14 +128,21 @@ jobs:
       shell: pwsh
         $ErrorActionPreference = "Stop"
 
+        # The Update-AppCast.ps1 script fetches the release notes from GitHub,
+        # which might take a few seconds to be ready.
+        Start-Sleep -Seconds 10
+
+        # Save the appcast signing key to a temporary file.
         $keyPath = Join-Path $env:TEMP "appcast-key.pem"
         $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:APPCAST_SIGNATURE_KEY_BASE64))
         Set-Content -Path $keyPath -Value $key
 
+        # Download the old appcast from GCS.
         $oldAppCastPath = Join-Path $env:TEMP "appcast.old.xml"
         & gsutil cp $env:APPCAST_GCS_URI $oldAppCastPath
         if ($LASTEXITCODE -ne 0) { throw "Failed to download appcast" }
 
+        # Generate the new appcast and signature.
         $newAppCastPath = Join-Path $env:TEMP "appcast.new.xml"
         $newAppCastSignaturePath = $newAppCastPath + ".signature"
         & ./scripts/Update-AppCast.ps1 `
@@ -150,6 +157,7 @@ jobs:
           -outputAppCastSignaturePath $newAppCastSignaturePath
         if ($LASTEXITCODE -ne 0) { throw "Failed to generate new appcast" }
 
+        # Upload the new appcast and signature to GCS.
         & gsutil cp $newAppCastPath $env:APPCAST_GCS_URI
         if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast" }
         & gsutil cp $newAppCastSignaturePath $env:APPCAST_SIGNATURE_GCS_URI

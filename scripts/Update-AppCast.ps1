@@ -15,9 +15,11 @@
 #          -outputAppCastSignaturePath <path>
 param (
     [Parameter(Mandatory = $true)]
+    [ValidatePattern("^v\d+\.\d+\.\d+$")]
     [string] $tag,
 
     [Parameter(Mandatory = $true)]
+    [ValidatePattern("^\d+\.\d+\.\d+$")]
     [string] $version,
 
     [Parameter(Mandatory = $true)]
