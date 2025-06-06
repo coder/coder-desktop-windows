@@ -15,7 +15,7 @@
     </Window.SystemBackdrop>
 
     <Grid>
-        <!-- For some strange reason, setting OpenCommand and ExitCommand here doesn't work, see .cs -->
+        <!-- For some strange reason, setting commands here doesn't work, see .cs -->
         <controls:TrayIcon x:Name="TrayIcon" />
 
         <!-- This is where the current Page is displayed -->

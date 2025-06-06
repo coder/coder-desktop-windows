@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<winuiex:WindowEx
+    x:Class="Coder.Desktop.App.Views.UpdaterDownloadProgressWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:winuiex="using:WinUIEx"
+    mc:Ignorable="d"
+    Title="Coder Desktop Updater"
+    IsMaximizable="False"
+    Width="500" Height="190"
+    MinWidth="500" MinHeight="190">
+
+    <Window.SystemBackdrop>
+        <DesktopAcrylicBackdrop />
+    </Window.SystemBackdrop>
+
+    <Frame x:Name="RootFrame" />
+</winuiex:WindowEx>

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Coder.Desktop.App.Views.Pages.UpdaterUpdateAvailableMainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <Page.Resources>
+        <!-- Apply a lighter or darker border and background based on theme. -->
+        <SolidColorBrush x:Key="ChangelogBorderBrush"
+                         Color="{ThemeResource TextFillColorPrimaryBrush}"
+                         Opacity="0.3" />
+    </Page.Resources>
+
+    <Grid Padding="24">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Style="{ThemeResource SubtitleTextBlockStyle}"
+                   Text="Updates available"
+                   Margin="0,0,0,16" />
+
+        <TextBlock Grid.Row="1"
+                   Text="{x:Bind ViewModel.MainText}"
+                   TextWrapping="WrapWholeWords"
+                   IsTextSelectionEnabled="True"
+                   Margin="0,0,0,24"/>
+
+        <TextBlock Grid.Row="2"
+                   Style="{ThemeResource BodyStrongTextBlockStyle}"
+                   Text="Release notes:"
+                   Margin="0,0,0,8"/>
+
+        <!--
+            TODO: it'd be nice to get this to have rounded corners and true
+                  transparency, but unfortunately it seems impossible
+        -->
+        <Border Grid.Row="3"
+                BorderBrush="{ThemeResource ChangelogBorderBrush}"
+                Margin="0,0,0,16">
+
+            <!-- We disable JS and navigation in this web view for security -->
+            <WebView2 DefaultBackgroundColor="Transparent"
+                      Loaded="{x:Bind ViewModel.Changelog_Loaded}" />
+        </Border>
+
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" /> <!-- empty -->
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <Button Grid.Column="0"
+                    Content="Skip this version"
+                    IsEnabled="{x:Bind ViewModel.MissingCriticalUpdate, Converter={StaticResource InverseBoolConverter}}"
+                    Visibility="{x:Bind ViewModel.SkipButtonVisible, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                    Click="{x:Bind ViewModel.SkipButton_Click}" />
+
+            <!-- skip for float -->
+
+            <Button Grid.Column="2"
+                    Content="Remind me later"
+                    IsEnabled="{x:Bind ViewModel.MissingCriticalUpdate, Converter={StaticResource InverseBoolConverter}}"
+                    Visibility="{x:Bind ViewModel.RemindMeLaterButtonVisible, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+                    Click="{x:Bind ViewModel.RemindMeLaterButton_Click}"
+                    Margin="0,0,8,0" />
+
+            <Button Grid.Column="3"
+                    Style="{StaticResource AccentButtonStyle}"
+                    Content="Install update"
+                    Click="{x:Bind ViewModel.InstallButton_Click}" />
+        </Grid>
+    </Grid>
+</Page>
