@@ -29,7 +29,6 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 {
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
-    private const string DefaultHostnameSuffix = ".coder";
 
     private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
@@ -53,6 +52,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEnableSection))]
+    [NotifyPropertyChangedFor(nameof(ShowVpnStartProgressSection))]
     [NotifyPropertyChangedFor(nameof(ShowWorkspacesHeader))]
     [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
     [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
@@ -63,6 +63,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowEnableSection))]
+    [NotifyPropertyChangedFor(nameof(ShowVpnStartProgressSection))]
     [NotifyPropertyChangedFor(nameof(ShowWorkspacesHeader))]
     [NotifyPropertyChangedFor(nameof(ShowNoAgentsSection))]
     [NotifyPropertyChangedFor(nameof(ShowAgentsSection))]
@@ -70,7 +71,25 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     [NotifyPropertyChangedFor(nameof(ShowFailedSection))]
     public partial string? VpnFailedMessage { get; set; } = null;
 
-    public bool ShowEnableSection => VpnFailedMessage is null && VpnLifecycle is not VpnLifecycle.Started;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VpnStartProgressIsIndeterminate))]
+    [NotifyPropertyChangedFor(nameof(VpnStartProgressValueOrDefault))]
+    public partial int? VpnStartProgressValue { get; set; } = null;
+
+    public int VpnStartProgressValueOrDefault => VpnStartProgressValue ?? 0;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(VpnStartProgressMessageOrDefault))]
+    public partial string? VpnStartProgressMessage { get; set; } = null;
+
+    public string VpnStartProgressMessageOrDefault =>
+        string.IsNullOrEmpty(VpnStartProgressMessage) ? VpnStartupProgress.DefaultStartProgressMessage : VpnStartProgressMessage;
+
+    public bool VpnStartProgressIsIndeterminate => VpnStartProgressValueOrDefault == 0;
+
+    public bool ShowEnableSection => VpnFailedMessage is null && VpnLifecycle is not VpnLifecycle.Starting and not VpnLifecycle.Started;
+
+    public bool ShowVpnStartProgressSection => VpnFailedMessage is null && VpnLifecycle is VpnLifecycle.Starting;
 
     public bool ShowWorkspacesHeader => VpnFailedMessage is null && VpnLifecycle is VpnLifecycle.Started;
 
@@ -169,6 +188,20 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
         VpnLifecycle = rpcModel.VpnLifecycle;
         VpnSwitchActive = rpcModel.VpnLifecycle is VpnLifecycle.Starting or VpnLifecycle.Started;
+
+        // VpnStartupProgress is only set when the VPN is starting.
+        if (rpcModel.VpnLifecycle is VpnLifecycle.Starting && rpcModel.VpnStartupProgress != null)
+        {
+            // Convert 0.00-1.00 to 0-100.
+            var progress = (int)(rpcModel.VpnStartupProgress.Progress * 100);
+            VpnStartProgressValue = Math.Clamp(progress, 0, 100);
+            VpnStartProgressMessage = rpcModel.VpnStartupProgress.ToString();
+        }
+        else
+        {
+            VpnStartProgressValue = null;
+            VpnStartProgressMessage = null;
+        }
 
         // Add every known agent.
         HashSet<ByteString> workspacesWithAgents = [];

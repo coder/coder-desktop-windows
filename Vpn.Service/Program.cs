@@ -16,10 +16,12 @@ public static class Program
 #if !DEBUG
     private const string ServiceName = "Coder Desktop";
     private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\VpnService";
+    private const string DefaultLogLevel = "Information";
 #else
     // This value matches Create-Service.ps1.
     private const string ServiceName = "Coder Desktop (Debug)";
     private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\DebugVpnService";
+    private const string DefaultLogLevel = "Debug";
 #endif
 
     private const string ManagerConfigSection = "Manager";
@@ -81,6 +83,10 @@ public static class Program
         builder.Services.AddSingleton<ITelemetryEnricher, TelemetryEnricher>();
 
         // Services
+        builder.Services.AddHostedService<ManagerService>();
+        builder.Services.AddHostedService<ManagerRpcService>();
+
+        // Either run as a Windows service or a console application
         if (!Environment.UserInteractive)
         {
             MainLogger.Information("Running as a windows service");
@@ -90,9 +96,6 @@ public static class Program
         {
             MainLogger.Information("Running as a console application");
         }
-
-        builder.Services.AddHostedService<ManagerService>();
-        builder.Services.AddHostedService<ManagerRpcService>();
 
         var host = builder.Build();
         Log.Logger = (ILogger)host.Services.GetService(typeof(ILogger))!;
@@ -108,7 +111,7 @@ public static class Program
             ["Serilog:Using:0"] = "Serilog.Sinks.File",
             ["Serilog:Using:1"] = "Serilog.Sinks.Console",
 
-            ["Serilog:MinimumLevel"] = "Information",
+            ["Serilog:MinimumLevel"] = DefaultLogLevel,
             ["Serilog:Enrich:0"] = "FromLogContext",
 
             ["Serilog:WriteTo:0:Name"] = "File",

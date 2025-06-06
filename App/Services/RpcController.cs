@@ -161,7 +161,10 @@ public class RpcController : IRpcController
             throw new RpcOperationException(
                 $"Cannot start VPN without valid credentials, current state: {credentials.State}");
 
-        MutateState(state => { state.VpnLifecycle = VpnLifecycle.Starting; });
+        MutateState(state =>
+        {
+            state.VpnLifecycle = VpnLifecycle.Starting;
+        });
 
         ServiceMessage reply;
         try
@@ -283,15 +286,28 @@ public class RpcController : IRpcController
         });
     }
 
+    private void ApplyStartProgressUpdate(StartProgress message)
+    {
+        MutateState(state =>
+        {
+            // The model itself will ignore this value if we're not in the
+            // starting state.
+            state.VpnStartupProgress = VpnStartupProgress.FromProto(message);
+        });
+    }
+
     private void SpeakerOnReceive(ReplyableRpcMessage<ClientMessage, ServiceMessage> message)
     {
         switch (message.Message.MsgCase)
         {
+            case ServiceMessage.MsgOneofCase.Start:
+            case ServiceMessage.MsgOneofCase.Stop:
             case ServiceMessage.MsgOneofCase.Status:
                 ApplyStatusUpdate(message.Message.Status);
                 break;
-            case ServiceMessage.MsgOneofCase.Start:
-            case ServiceMessage.MsgOneofCase.Stop:
+            case ServiceMessage.MsgOneofCase.StartProgress:
+                ApplyStartProgressUpdate(message.Message.StartProgress);
+                break;
             case ServiceMessage.MsgOneofCase.None:
             default:
                 // TODO: log unexpected message

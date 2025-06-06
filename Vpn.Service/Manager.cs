@@ -131,6 +131,8 @@ public class Manager : IManager
         {
             try
             {
+                await BroadcastStartProgress(StartProgressStage.Initializing, cancellationToken: ct);
+
                 var serverVersion =
                     await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
                 if (_status == TunnelStatus.Started && _lastStartRequest != null &&
@@ -151,10 +153,14 @@ public class Manager : IManager
                 _lastServerVersion = serverVersion;
 
                 // TODO: each section of this operation needs a timeout
+
                 // Stop the tunnel if it's running so we don't have to worry about
                 // permissions issues when replacing the binary.
                 await _tunnelSupervisor.StopAsync(ct);
+
                 await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion.SemVersion, ct);
+
+                await BroadcastStartProgress(StartProgressStage.Finalizing, cancellationToken: ct);
                 await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
                     HandleTunnelRpcError,
                     ct);
@@ -237,6 +243,9 @@ public class Manager : IManager
                     _logger.LogWarning("Received unexpected message reply type {MessageType}", message.Message.MsgCase);
                     break;
                 case TunnelMessage.MsgOneofCase.Log:
+                    // Ignored. We already log stdout/stderr from the tunnel
+                    // binary.
+                    break;
                 case TunnelMessage.MsgOneofCase.NetworkSettings:
                     _logger.LogWarning("Received message type {MessageType} that is not expected on Windows",
                         message.Message.MsgCase);
@@ -311,10 +320,26 @@ public class Manager : IManager
     private async Task BroadcastStatus(TunnelStatus? newStatus = null, CancellationToken ct = default)
     {
         if (newStatus != null) _status = newStatus.Value;
-        await _managerRpc.BroadcastAsync(new ServiceMessage
+        await FallibleBroadcast(new ServiceMessage
         {
             Status = await CurrentStatus(ct),
         }, ct);
+    }
+
+    private async Task FallibleBroadcast(ServiceMessage message, CancellationToken ct = default)
+    {
+        // Broadcast the messages out with a low timeout. If clients don't
+        // receive broadcasts in time, it's not a big deal.
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(TimeSpan.FromMilliseconds(30));
+        try
+        {
+            await _managerRpc.BroadcastAsync(message, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not broadcast low priority message to all RPC clients: {Message}", message);
+        }
     }
 
     private void HandleTunnelRpcError(Exception e)
@@ -425,12 +450,61 @@ public class Manager : IManager
             _logger.LogDebug("Skipping tunnel binary version validation");
         }
 
+        // Note: all ETag, signature and version validation is performed by the
+        // DownloadTask.
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 
-        // TODO: monitor and report progress when we have a mechanism to do so
+        // Wait for the download to complete, sending progress updates every
+        // 50ms.
+        while (true)
+        {
+            // Wait for the download to complete, or for a short delay before
+            // we send a progress update.
+            var delayTask = Task.Delay(TimeSpan.FromMilliseconds(50), ct);
+            var winner = await Task.WhenAny([
+                downloadTask.Task,
+                delayTask,
+            ]);
+            if (winner == downloadTask.Task)
+                break;
 
-        // Awaiting this will check the checksum (via the ETag) if the file
-        // exists, and will also validate the signature and version.
+            // Task.WhenAny will not throw if the winner was cancelled, so
+            // check CT afterward and not beforehand.
+            ct.ThrowIfCancellationRequested();
+
+            if (!downloadTask.DownloadStarted)
+                // Don't send progress updates if we don't know what the
+                // progress is yet.
+                continue;
+
+            var progress = new StartProgressDownloadProgress
+            {
+                BytesWritten = downloadTask.BytesWritten,
+            };
+            if (downloadTask.BytesTotal != null)
+                progress.BytesTotal = downloadTask.BytesTotal.Value;
+
+            await BroadcastStartProgress(StartProgressStage.Downloading, progress, ct);
+        }
+
+        // Await again to re-throw any exceptions that occurred during the
+        // download.
         await downloadTask.Task;
+
+        // We don't send a broadcast here as we immediately send one in the
+        // parent routine.
+        _logger.LogInformation("Completed downloading VPN binary");
+    }
+
+    private async Task BroadcastStartProgress(StartProgressStage stage, StartProgressDownloadProgress? downloadProgress = null, CancellationToken cancellationToken = default)
+    {
+        await FallibleBroadcast(new ServiceMessage
+        {
+            StartProgress = new StartProgress
+            {
+                Stage = stage,
+                DownloadProgress = downloadProgress,
+            },
+        }, cancellationToken);
     }
 }

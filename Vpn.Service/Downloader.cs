@@ -339,31 +339,35 @@ public class Downloader : IDownloader
 }
 
 /// <summary>
-///     Downloads an Url to a file on disk. The download will be written to a temporary file first, then moved to the final
+///     Downloads a Url to a file on disk. The download will be written to a temporary file first, then moved to the final
 ///     destination. The SHA1 of any existing file will be calculated and used as an ETag to avoid downloading the file if
 ///     it hasn't changed.
 /// </summary>
 public class DownloadTask
 {
-    private const int BufferSize = 4096;
+    private const int BufferSize = 64 * 1024;
+    private const string XOriginalContentLengthHeader = "X-Original-Content-Length"; // overrides Content-Length if available
 
-    private static readonly HttpClient HttpClient = new();
+    private static readonly HttpClient HttpClient = new(new HttpClientHandler
+    {
+        AutomaticDecompression = DecompressionMethods.All,
+    });
     private readonly string _destinationDirectory;
 
     private readonly ILogger _logger;
 
     private readonly RaiiSemaphoreSlim _semaphore = new(1, 1);
     private readonly IDownloadValidator _validator;
-    public readonly string DestinationPath;
+    private readonly string _destinationPath;
+    private readonly string _tempDestinationPath;
 
     public readonly HttpRequestMessage Request;
-    public readonly string TempDestinationPath;
 
-    public ulong? TotalBytes { get; private set; }
-    public ulong BytesRead { get; private set; }
     public Task Task { get; private set; } = null!; // Set in EnsureStartedAsync
-
-    public double? Progress => TotalBytes == null ? null : (double)BytesRead / TotalBytes.Value;
+    public bool DownloadStarted { get; private set; } // Whether we've received headers yet and started the actual download
+    public ulong BytesWritten { get; private set; }
+    public ulong? BytesTotal { get; private set; }
+    public double? Progress => BytesTotal == null ? null : (double)BytesWritten / BytesTotal.Value;
     public bool IsCompleted => Task.IsCompleted;
 
     internal DownloadTask(ILogger logger, HttpRequestMessage req, string destinationPath, IDownloadValidator validator)
@@ -374,17 +378,17 @@ public class DownloadTask
 
         if (string.IsNullOrWhiteSpace(destinationPath))
             throw new ArgumentException("Destination path must not be empty", nameof(destinationPath));
-        DestinationPath = Path.GetFullPath(destinationPath);
-        if (Path.EndsInDirectorySeparator(DestinationPath))
-            throw new ArgumentException($"Destination path '{DestinationPath}' must not end in a directory separator",
+        _destinationPath = Path.GetFullPath(destinationPath);
+        if (Path.EndsInDirectorySeparator(_destinationPath))
+            throw new ArgumentException($"Destination path '{_destinationPath}' must not end in a directory separator",
                 nameof(destinationPath));
 
-        _destinationDirectory = Path.GetDirectoryName(DestinationPath)
+        _destinationDirectory = Path.GetDirectoryName(_destinationPath)
                                 ?? throw new ArgumentException(
-                                    $"Destination path '{DestinationPath}' must have a parent directory",
+                                    $"Destination path '{_destinationPath}' must have a parent directory",
                                     nameof(destinationPath));
 
-        TempDestinationPath = Path.Combine(_destinationDirectory, "." + Path.GetFileName(DestinationPath) +
+        _tempDestinationPath = Path.Combine(_destinationDirectory, "." + Path.GetFileName(_destinationPath) +
                                                                   ".download-" + Path.GetRandomFileName());
     }
 
@@ -406,9 +410,9 @@ public class DownloadTask
 
         // If the destination path exists, generate a Coder SHA1 ETag and send
         // it in the If-None-Match header to the server.
-        if (File.Exists(DestinationPath))
+        if (File.Exists(_destinationPath))
         {
-            await using var stream = File.OpenRead(DestinationPath);
+            await using var stream = File.OpenRead(_destinationPath);
             var etag = Convert.ToHexString(await SHA1.HashDataAsync(stream, ct)).ToLower();
             Request.Headers.Add("If-None-Match", "\"" + etag + "\"");
         }
@@ -419,11 +423,11 @@ public class DownloadTask
             _logger.LogInformation("File has not been modified, skipping download");
             try
             {
-                await _validator.ValidateAsync(DestinationPath, ct);
+                await _validator.ValidateAsync(_destinationPath, ct);
             }
             catch (Exception e)
             {
-                _logger.LogWarning(e, "Existing file '{DestinationPath}' failed custom validation", DestinationPath);
+                _logger.LogWarning(e, "Existing file '{DestinationPath}' failed custom validation", _destinationPath);
                 throw new Exception("Existing file failed validation after 304 Not Modified", e);
             }
 
@@ -446,24 +450,38 @@ public class DownloadTask
         }
 
         if (res.Content.Headers.ContentLength >= 0)
-            TotalBytes = (ulong)res.Content.Headers.ContentLength;
+            BytesTotal = (ulong)res.Content.Headers.ContentLength;
+
+        // X-Original-Content-Length overrules Content-Length if set.
+        if (res.Headers.TryGetValues(XOriginalContentLengthHeader, out var headerValues))
+        {
+            // If there are multiple we only look at the first one.
+            var headerValue = headerValues.ToList().FirstOrDefault();
+            if (!string.IsNullOrEmpty(headerValue) && ulong.TryParse(headerValue, out var originalContentLength))
+                BytesTotal = originalContentLength;
+            else
+                _logger.LogWarning(
+                    "Failed to parse {XOriginalContentLengthHeader} header value '{HeaderValue}'",
+                    XOriginalContentLengthHeader, headerValue);
+        }
 
         await Download(res, ct);
     }
 
     private async Task Download(HttpResponseMessage res, CancellationToken ct)
     {
+        DownloadStarted = true;
         try
         {
             var sha1 = res.Headers.Contains("ETag") ? SHA1.Create() : null;
             FileStream tempFile;
             try
             {
-                tempFile = File.Create(TempDestinationPath, BufferSize, FileOptions.SequentialScan);
+                tempFile = File.Create(_tempDestinationPath, BufferSize, FileOptions.SequentialScan);
             }
             catch (Exception e)
             {
-                _logger.LogError(e, "Failed to create temporary file '{TempDestinationPath}'", TempDestinationPath);
+                _logger.LogError(e, "Failed to create temporary file '{TempDestinationPath}'", _tempDestinationPath);
                 throw;
             }
 
@@ -476,13 +494,14 @@ public class DownloadTask
                 {
                     await tempFile.WriteAsync(buffer.AsMemory(0, n), ct);
                     sha1?.TransformBlock(buffer, 0, n, null, 0);
-                    BytesRead += (ulong)n;
+                    BytesWritten += (ulong)n;
                 }
             }
 
-            if (TotalBytes != null && BytesRead != TotalBytes)
+            BytesTotal ??= BytesWritten;
+            if (BytesWritten != BytesTotal)
                 throw new IOException(
-                    $"Downloaded file size does not match response Content-Length: Content-Length={TotalBytes}, BytesRead={BytesRead}");
+                    $"Downloaded file size does not match expected response content length: Expected={BytesTotal}, BytesWritten={BytesWritten}");
 
             // Verify the ETag if it was sent by the server.
             if (res.Headers.Contains("ETag") && sha1 != null)
@@ -497,26 +516,34 @@ public class DownloadTask
 
             try
             {
-                await _validator.ValidateAsync(TempDestinationPath, ct);
+                await _validator.ValidateAsync(_tempDestinationPath, ct);
             }
             catch (Exception e)
             {
                 _logger.LogWarning(e, "Downloaded file '{TempDestinationPath}' failed custom validation",
-                    TempDestinationPath);
+                    _tempDestinationPath);
                 throw new HttpRequestException("Downloaded file failed validation", e);
             }
 
-            File.Move(TempDestinationPath, DestinationPath, true);
+            File.Move(_tempDestinationPath, _destinationPath, true);
         }
-        finally
+        catch
         {
 #if DEBUG
             _logger.LogWarning("Not deleting temporary file '{TempDestinationPath}' in debug mode",
-                TempDestinationPath);
+                _tempDestinationPath);
 #else
-            if (File.Exists(TempDestinationPath))
-                File.Delete(TempDestinationPath);
+            try
+            {
+                if (File.Exists(_tempDestinationPath))
+                    File.Delete(_tempDestinationPath);
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Failed to delete temporary file '{TempDestinationPath}'", _tempDestinationPath);
+            }
 #endif
+            throw;
         }
     }
 }
