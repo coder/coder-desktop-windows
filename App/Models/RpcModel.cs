@@ -88,8 +88,8 @@ public class VpnStartupProgress
     private const double DownloadProgressMin = 0.05;
     private const double DownloadProgressMax = 0.80;
 
-    public VpnStartupStage Stage { get; set; } = VpnStartupStage.Unknown;
-    public VpnDownloadProgress? DownloadProgress { get; set; } = null;
+    public VpnStartupStage Stage { get; init; } = VpnStartupStage.Unknown;
+    public VpnDownloadProgress? DownloadProgress { get; init; } = null;
 
     // 0.0 to 1.0
     public double Progress
@@ -165,10 +165,25 @@ public class RpcModel
 {
     public RpcLifecycle RpcLifecycle { get; set; } = RpcLifecycle.Disconnected;
 
-    public VpnLifecycle VpnLifecycle { get; set; } = VpnLifecycle.Unknown;
+    public VpnLifecycle VpnLifecycle
+    {
+        get;
+        set
+        {
+            if (VpnLifecycle != value && value == VpnLifecycle.Starting)
+                // Reset the startup progress when the VPN lifecycle changes to
+                // Starting.
+                VpnStartupProgress = null;
+            field = value;
+        }
+    }
 
     // Nullable because it is only set when the VpnLifecycle is Starting
-    public VpnStartupProgress? VpnStartupProgress { get; set; }
+    public VpnStartupProgress? VpnStartupProgress
+    {
+        get => VpnLifecycle is VpnLifecycle.Starting ? field ?? new VpnStartupProgress() : null;
+        set;
+    }
 
     public IReadOnlyList<Workspace> Workspaces { get; set; } = [];
 

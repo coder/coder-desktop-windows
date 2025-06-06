@@ -127,14 +127,20 @@ public class ManagerRpc : IManagerRpc
 
     public async Task BroadcastAsync(ServiceMessage message, CancellationToken ct)
     {
+        // Sends messages to all clients simultaneously and waits for them all
+        // to send or fail/timeout.
+        //
         // Looping over a ConcurrentDictionary is exception-safe, but any items
         // added or removed during the loop may or may not be included.
-        foreach (var (clientId, client) in _activeClients)
+        await Task.WhenAll(_activeClients.Select(async item =>
+        {
             try
             {
-                var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                // Enforce upper bound in case a CT with a timeout wasn't
+                // supplied.
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 cts.CancelAfter(TimeSpan.FromSeconds(2));
-                await client.Speaker.SendMessage(message, cts.Token);
+                await item.Value.Speaker.SendMessage(message, cts.Token);
             }
             catch (ObjectDisposedException)
             {
@@ -142,11 +148,12 @@ public class ManagerRpc : IManagerRpc
             }
             catch (Exception e)
             {
-                _logger.LogWarning(e, "Failed to send message to client {ClientId}", clientId);
+                _logger.LogWarning(e, "Failed to send message to client {ClientId}", item.Key);
                 // TODO: this should probably kill the client, but due to the
                 //       async nature of the client handling, calling Dispose
                 //       will not remove the client from the active clients list
             }
+        }));
     }
 
     private async Task HandleRpcClientAsync(ulong clientId, Speaker<ServiceMessage, ClientMessage> speaker,

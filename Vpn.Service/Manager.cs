@@ -331,7 +331,7 @@ public class Manager : IManager
         // Broadcast the messages out with a low timeout. If clients don't
         // receive broadcasts in time, it's not a big deal.
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        //cts.CancelAfter(TimeSpan.FromMilliseconds(100));
+        cts.CancelAfter(TimeSpan.FromMilliseconds(30));
         try
         {
             await _managerRpc.BroadcastAsync(message, cts.Token);

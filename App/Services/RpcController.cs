@@ -164,7 +164,6 @@ public class RpcController : IRpcController
         MutateState(state =>
         {
             state.VpnLifecycle = VpnLifecycle.Starting;
-            state.VpnStartupProgress = new VpnStartupProgress();
         });
 
         ServiceMessage reply;
@@ -255,9 +254,6 @@ public class RpcController : IRpcController
         using (_stateLock.Lock())
         {
             mutator(_state);
-            // Unset the startup progress if the VpnLifecycle is not Starting
-            if (_state.VpnLifecycle != VpnLifecycle.Starting)
-                _state.VpnStartupProgress = null;
             newState = _state.Clone();
         }
 
@@ -294,8 +290,8 @@ public class RpcController : IRpcController
     {
         MutateState(state =>
         {
-            // MutateState will undo these changes if it doesn't believe we're
-            // in the "Starting" state.
+            // The model itself will ignore this value if we're not in the
+            // starting state.
             state.VpnStartupProgress = VpnStartupProgress.FromProto(message);
         });
     }
