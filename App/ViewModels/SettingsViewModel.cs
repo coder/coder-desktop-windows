@@ -20,16 +20,24 @@ public partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial bool StartOnLogin { get; set; }
 
-    private ISettingsManager _settingsManager;
+    private ISettingsManager<CoderConnectSettings> _connectSettingsManager;
+    private CoderConnectSettings _connectSettings = new CoderConnectSettings();
     private IStartupManager _startupManager;
 
-    public SettingsViewModel(ILogger<SettingsViewModel> logger, ISettingsManager settingsManager, IStartupManager startupManager)
+    public SettingsViewModel(ILogger<SettingsViewModel> logger, ISettingsManager<CoderConnectSettings> settingsManager, IStartupManager startupManager)
     {
-        _settingsManager = settingsManager;
+        _connectSettingsManager = settingsManager;
         _startupManager = startupManager;
         _logger = logger;
-        ConnectOnLaunch = _settingsManager.ConnectOnLaunch;
-        StartOnLogin = _settingsManager.StartOnLogin;
+        // Application settings are loaded on application startup,
+        // so we expect the settings to be available immediately.
+        var settingsCache = settingsManager.GetFromCache();
+        if (settingsCache is not null)
+        {
+            _connectSettings = settingsCache.Clone();
+        }
+        StartOnLogin = startupManager.IsEnabled();
+        ConnectOnLaunch = _connectSettings.ConnectOnLaunch;
 
         // Various policies can disable the "Start on login" option.
         // We disable the option in the UI if the policy is set.
@@ -48,11 +56,12 @@ public partial class SettingsViewModel : ObservableObject
             return;
         try
         {
-            _settingsManager.ConnectOnLaunch = ConnectOnLaunch;
+            _connectSettings.ConnectOnLaunch = ConnectOnLaunch;
+            _connectSettingsManager.Write(_connectSettings);
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error saving {SettingsManager.ConnectOnLaunchKey} setting: {ex.Message}");
+            _logger.LogError($"Error saving Coder Connect settings: {ex.Message}");
         }
     }
 
@@ -62,7 +71,6 @@ public partial class SettingsViewModel : ObservableObject
             return;
         try
         {
-            _settingsManager.StartOnLogin = StartOnLogin;
             if (StartOnLogin)
             {
                 _startupManager.Enable();
@@ -74,7 +82,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error saving {SettingsManager.StartOnLoginKey} setting: {ex.Message}");
+            _logger.LogError($"Error setting StartOnLogin in registry: {ex.Message}");
         }
     }
 }

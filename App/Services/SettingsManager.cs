@@ -1,65 +1,57 @@
+using Google.Protobuf.WellKnownTypes;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Xml.Linq;
 
 namespace Coder.Desktop.App.Services;
 
 /// <summary>
 /// Settings contract exposing properties for app settings.
 /// </summary>
-public interface ISettingsManager
+public interface ISettingsManager<T> where T : ISettings, new()
 {
     /// <summary>
-    /// Returns the value of the StartOnLogin setting. Returns <c>false</c> if the key is not found.
+    /// Reads the settings from the file system.
+    /// Always returns the latest settings, even if they were modified by another instance of the app.
+    /// Returned object is always a fresh instance, so it can be modified without affecting the stored settings.
     /// </summary>
-    bool StartOnLogin { get; set; }
-
+    /// <param name="ct"></param>
+    /// <returns></returns>
+    public Task<T> Read(CancellationToken ct = default);
     /// <summary>
-    /// Returns the value of the ConnectOnLaunch setting. Returns <c>false</c> if the key is not found.
+    /// Writes the settings to the file system.
     /// </summary>
-    bool ConnectOnLaunch { get; set; }
+    /// <param name="settings">Object containing the settings.</param>
+    /// <param name="ct"></param>
+    /// <returns></returns>
+    public Task Write(T settings, CancellationToken ct = default);
+    /// <summary>
+    /// Returns null if the settings are not cached or not available.
+    /// </summary>
+    /// <returns></returns>
+    public T? GetFromCache();
 }
 
 /// <summary>
 /// Implemention of <see cref="ISettingsManager"/> that persists settings to a JSON file
 /// located in the user's local application data folder.
 /// </summary>
-public sealed class SettingsManager : ISettingsManager
+public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings, new()
 {
     private readonly string _settingsFilePath;
-    private Settings _settings;
-    private readonly string _fileName = "app-settings.json";
     private readonly string _appName = "CoderDesktop";
+    private string _fileName;
     private readonly object _lock = new();
 
-    public const string ConnectOnLaunchKey = "ConnectOnLaunch";
-    public const string StartOnLoginKey = "StartOnLogin";
+    private T? _cachedSettings;
 
-    public bool StartOnLogin
-    {
-        get
-        {
-            return Read(StartOnLoginKey, false);
-        }
-        set
-        {
-            Save(StartOnLoginKey, value);
-        }
-    }
-
-    public bool ConnectOnLaunch
-    {
-        get
-        {
-            return Read(ConnectOnLaunchKey, false);
-        }
-        set
-        {
-            Save(ConnectOnLaunchKey, value);
-        }
-    }
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(3);
 
     /// <param name="settingsFilePath">
     /// For unit‑tests you can pass an absolute path that already exists.
@@ -81,109 +73,129 @@ public sealed class SettingsManager : ISettingsManager
                 _appName);
 
         Directory.CreateDirectory(folder);
+
+        _fileName = T.SettingsFileName;
         _settingsFilePath = Path.Combine(folder, _fileName);
-
-        if (!File.Exists(_settingsFilePath))
-        {
-            // Create the settings file if it doesn't exist
-            _settings = new();
-            File.WriteAllText(_settingsFilePath, JsonSerializer.Serialize(_settings, SettingsJsonContext.Default.Settings));
-        }
-        else
-        {
-            _settings = Load();
-        }
     }
 
-    private void Save(string name, bool value)
+    public async Task<T> Read(CancellationToken ct = default)
     {
-        lock (_lock)
-        {
-            try
-            {
-                // We lock the file for the entire operation to prevent concurrent writes   
-                using var fs = new FileStream(_settingsFilePath,
-                    FileMode.OpenOrCreate,
-                    FileAccess.ReadWrite,
-                    FileShare.None);
+        // try to get the lock with short timeout
+        if (!await _gate.WaitAsync(LockTimeout, ct).ConfigureAwait(false))
+            throw new InvalidOperationException(
+                $"Could not acquire the settings lock within {LockTimeout.TotalSeconds} s.");
 
-                // Ensure cache is loaded before saving 
-                var freshCache = JsonSerializer.Deserialize(fs, SettingsJsonContext.Default.Settings) ?? new();
-                _settings = freshCache;
-                _settings.Options[name] = JsonSerializer.SerializeToElement(value);
-                fs.Position = 0; // Reset stream position to the beginning before writing
-
-                JsonSerializer.Serialize(fs, _settings, SettingsJsonContext.Default.Settings);
-
-                // This ensures the file is truncated to the new length
-                // if the new content is shorter than the old content
-                fs.SetLength(fs.Position);
-            }
-            catch
-            {
-                throw new InvalidOperationException($"Failed to persist settings to {_settingsFilePath}. The file may be corrupted, malformed or locked.");
-            }
-        }
-    }
-
-    private bool Read(string name, bool defaultValue)
-    {
-        lock (_lock)
-        {
-            if (_settings.Options.TryGetValue(name, out var element))
-            {
-                try
-                {
-                    return element.Deserialize<bool?>() ?? defaultValue;
-                }
-                catch
-                {
-                    // malformed value – return default value
-                    return defaultValue;
-                }
-            }
-            return defaultValue; // key not found – return default value
-        }
-    }
-
-    private Settings Load()
-    {
         try
         {
-            using var fs = File.OpenRead(_settingsFilePath);
-            return JsonSerializer.Deserialize(fs, SettingsJsonContext.Default.Settings) ?? new();
+            if (!File.Exists(_settingsFilePath))
+                return new();
+
+            var json = await File.ReadAllTextAsync(_settingsFilePath, ct)
+                                 .ConfigureAwait(false);
+
+            // deserialize; fall back to default(T) if empty or malformed
+            var result = JsonSerializer.Deserialize<T>(json)!;
+            _cachedSettings = result;
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            throw; // propagate caller-requested cancellation
         }
         catch (Exception ex)
         {
-            throw new InvalidOperationException($"Failed to load settings from {_settingsFilePath}. The file may be corrupted or malformed. Exception: {ex.Message}");
+            throw new InvalidOperationException(
+                $"Failed to read settings from {_settingsFilePath}. " +
+                "The file may be corrupted, malformed or locked.", ex);
         }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task Write(T settings, CancellationToken ct = default)
+    {
+        // try to get the lock with short timeout
+        if (!await _gate.WaitAsync(LockTimeout, ct).ConfigureAwait(false))
+            throw new InvalidOperationException(
+                $"Could not acquire the settings lock within {LockTimeout.TotalSeconds} s.");
+
+        try
+        {
+            // overwrite the settings file with the new settings
+            var json = JsonSerializer.Serialize(
+                settings, new JsonSerializerOptions() { WriteIndented = true });
+            _cachedSettings = settings; // cache the settings
+            await File.WriteAllTextAsync(_settingsFilePath, json, ct)
+                      .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;  // let callers observe cancellation
+        }
+        catch (Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"Failed to persist settings to {_settingsFilePath}. " +
+                "The file may be corrupted, malformed or locked.", ex);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public T? GetFromCache()
+    {
+        return _cachedSettings;
     }
 }
 
-public class Settings
+public interface ISettings
 {
     /// <summary>
-    /// User settings version. Increment this when the settings schema changes.
+    /// Gets the version of the settings schema.
+    /// </summary>
+    int Version { get; }
+
+    /// <summary>
+    /// FileName where the settings are stored.
+    /// </summary>
+    static abstract string SettingsFileName { get; }
+}
+
+/// <summary>
+/// CoderConnect settings class that holds the settings for the CoderConnect feature.
+/// </summary>
+public class CoderConnectSettings : ISettings
+{
+    /// <summary>
+    /// CoderConnect settings version. Increment this when the settings schema changes.
     /// In future iterations we will be able to handle migrations when the user has
     /// an older version.
     /// </summary>
     public int Version { get; set; }
-    public Dictionary<string, JsonElement> Options { get; set; }
+    public bool ConnectOnLaunch { get; set; }
+    public static string SettingsFileName { get; } = "coder-connect-settings.json";
 
     private const int VERSION = 1; // Default version for backward compatibility
-    public Settings()
+    public CoderConnectSettings()
     {
         Version = VERSION;
-        Options = [];
+        ConnectOnLaunch = false;
     }
 
-    public Settings(int? version, Dictionary<string, JsonElement> options)
+    public CoderConnectSettings(int? version, bool connectOnLogin)
     {
         Version = version ?? VERSION;
-        Options = options;
+        ConnectOnLaunch = connectOnLogin;
     }
-}
 
-[JsonSerializable(typeof(Settings))]
-[JsonSourceGenerationOptions(WriteIndented = true)]
-public partial class SettingsJsonContext : JsonSerializerContext;
+    public CoderConnectSettings Clone()
+    {
+        return new CoderConnectSettings(Version, ConnectOnLaunch);
+    }
+
+
+}

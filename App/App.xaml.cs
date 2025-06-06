@@ -44,7 +44,7 @@ public partial class App : Application
     private readonly ILogger<App> _logger;
     private readonly IUriHandler _uriHandler;
 
-    private readonly ISettingsManager _settingsManager;
+    private readonly ISettingsManager<CoderConnectSettings> _settingsManager;
 
     private readonly IHostApplicationLifetime _appLifetime;
 
@@ -94,7 +94,7 @@ public partial class App : Application
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
 
-        services.AddSingleton<ISettingsManager, SettingsManager>();
+        services.AddSingleton<ISettingsManager<CoderConnectSettings>, SettingsManager<CoderConnectSettings>>();
         services.AddSingleton<IStartupManager, StartupManager>();
         // SettingsWindow views and view models
         services.AddTransient<SettingsViewModel>();
@@ -118,10 +118,10 @@ public partial class App : Application
         services.AddTransient<TrayWindow>();
 
         _services = services.BuildServiceProvider();
-        _logger = (ILogger<App>)_services.GetService(typeof(ILogger<App>))!;
-        _uriHandler = (IUriHandler)_services.GetService(typeof(IUriHandler))!;
-        _settingsManager = (ISettingsManager)_services.GetService(typeof(ISettingsManager))!;
-        _appLifetime = (IHostApplicationLifetime)_services.GetRequiredService<IHostApplicationLifetime>();
+        _logger = _services.GetRequiredService<ILogger<App>>();
+        _uriHandler = _services.GetRequiredService<IUriHandler>();
+        _settingsManager = _services.GetRequiredService<ISettingsManager<CoderConnectSettings>>();
+        _appLifetime = _services.GetRequiredService<IHostApplicationLifetime>();
 
         InitializeComponent();
     }
@@ -167,12 +167,15 @@ public partial class App : Application
         using var credsCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         credsCts.CancelAfter(TimeSpan.FromSeconds(15));
 
-        Task loadCredsTask = credentialManager.LoadCredentials(credsCts.Token);
-        Task reconnectTask = rpcController.Reconnect(cancellationToken);
+        var loadCredsTask = credentialManager.LoadCredentials(credsCts.Token);
+        var reconnectTask = rpcController.Reconnect(cancellationToken);
+        var settingsTask = _settingsManager.Read(cancellationToken);
+
+        var dependenciesLoaded = true;
 
         try
         {
-            await Task.WhenAll(loadCredsTask, reconnectTask);
+            await Task.WhenAll(loadCredsTask, reconnectTask, settingsTask);
         }
         catch (Exception)
         {
@@ -184,10 +187,17 @@ public partial class App : Application
                 _logger.LogError(reconnectTask.Exception!.GetBaseException(),
                                  "Failed to connect to VPN service");
 
-            return;
+            if (settingsTask.IsFaulted)
+                _logger.LogError(settingsTask.Exception!.GetBaseException(),
+                                 "Failed to fetch Coder Connect settings");
+
+            // Don't attempt to connect if we failed to load credentials or reconnect.
+            // This will prevent the app from trying to connect to the VPN service.
+            dependenciesLoaded = false; 
         }
 
-        if (_settingsManager.ConnectOnLaunch)
+        var attemptCoderConnection = settingsTask.Result?.ConnectOnLaunch ?? false;
+        if (dependenciesLoaded && attemptCoderConnection)
         {
             try
             {
