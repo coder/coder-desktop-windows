@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<Page
+    x:Class="Coder.Desktop.App.Views.Pages.SettingsMainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:viewmodels="using:Coder.Desktop.App.ViewModels"
+    xmlns:converters="using:Coder.Desktop.App.Converters"
+    xmlns:ui="using:CommunityToolkit.WinUI"
+    xmlns:win="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    mc:Ignorable="d"
+    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    <Page.Resources>
+        <!--  Spacing between cards  -->
+        <x:Double x:Key="SettingsCardSpacing">4</x:Double>
+        <!--  Style (inc. the correct spacing) of a section header  -->
+        <Style x:Key="SettingsSectionHeaderTextBlockStyle"
+               BasedOn="{StaticResource BodyStrongTextBlockStyle}"
+               TargetType="TextBlock">
+            <Style.Setters>
+                <Setter Property="Margin" Value="1,30,0,6" />
+            </Style.Setters>
+        </Style>
+    </Page.Resources>
+    <ScrollViewer>
+        <Grid Padding="20, 0, 20, 0">
+            <StackPanel MaxWidth="1000"
+                        HorizontalAlignment="Stretch"
+                        Spacing="{StaticResource SettingsCardSpacing}">
+                <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Coder Desktop" />
+                <controls:SettingsCard Description="This setting controls whether the Coder Desktop app starts on Windows startup."
+                                       Header="Start on login"
+                                       HeaderIcon="{ui:FontIcon Glyph=&#xE819;}"
+                                       IsEnabled="{x:Bind ViewModel.StartOnLoginDisabled, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}">
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.StartOnLogin, Mode=TwoWay}" />
+                </controls:SettingsCard>
+                <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Coder Connect" />
+                <controls:SettingsCard Description="This setting controls whether Coder Connect automatically starts with Coder Desktop. "
+                                       Header="Connect on launch"
+                                       HeaderIcon="{ui:FontIcon Glyph=&#xE8AF;}"
+                                       >
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
+                </controls:SettingsCard>
+            </StackPanel>
+        </Grid>
+    </ScrollViewer>
+</Page>
