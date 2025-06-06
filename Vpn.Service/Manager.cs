@@ -450,34 +450,46 @@ public class Manager : IManager
             _logger.LogDebug("Skipping tunnel binary version validation");
         }
 
+        // Note: all ETag, signature and version validation is performed by the
+        // DownloadTask.
         var downloadTask = await _downloader.StartDownloadAsync(req, _config.TunnelBinaryPath, validators, ct);
 
-        var progressLock = new RaiiSemaphoreSlim(1, 1);
-        var progressBroadcastCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        downloadTask.ProgressChanged += (sender, ev) =>
+        // Wait for the download to complete, sending progress updates every
+        // 50ms.
+        while (true)
         {
-            using var _ = progressLock.Lock();
-            if (progressBroadcastCts.IsCancellationRequested) return;
-            _logger.LogInformation("Download progress: {ev}", ev);
+            // Wait for the download to complete, or for a short delay before
+            // we send a progress update.
+            var delayTask = Task.Delay(TimeSpan.FromMilliseconds(50), ct);
+            var winner = await Task.WhenAny([
+                downloadTask.Task,
+                delayTask,
+            ]);
+            if (winner == downloadTask.Task)
+                break;
+
+            // Task.WhenAny will not throw if the winner was cancelled, so
+            // check CT afterward and not beforehand.
+            ct.ThrowIfCancellationRequested();
+
+            if (!downloadTask.DownloadStarted)
+                // Don't send progress updates if we don't know what the
+                // progress is yet.
+                continue;
 
             var progress = new StartProgressDownloadProgress
             {
-                BytesWritten = ev.BytesWritten,
+                BytesWritten = downloadTask.BytesWritten,
             };
-            if (ev.BytesTotal != null)
-                progress.BytesTotal = ev.BytesTotal.Value;
-            BroadcastStartProgress(StartProgressStage.Downloading, progress, progressBroadcastCts.Token)
-                .Wait(progressBroadcastCts.Token);
-        };
+            if (downloadTask.BytesTotal != null)
+                progress.BytesTotal = downloadTask.BytesTotal.Value;
 
-        // Awaiting this will check the checksum (via the ETag) if the file
-        // exists, and will also validate the signature and version.
+            await BroadcastStartProgress(StartProgressStage.Downloading, progress, ct);
+        }
+
+        // Await again to re-throw any exceptions that occurred during the
+        // download.
         await downloadTask.Task;
-
-        // Prevent any lagging progress events from being sent.
-        // ReSharper disable once PossiblyMistakenUseOfCancellationToken
-        using (await progressLock.LockAsync(ct))
-            await progressBroadcastCts.CancelAsync();
 
         // We don't send a broadcast here as we immediately send one in the
         // parent routine.
@@ -486,7 +498,6 @@ public class Manager : IManager
 
     private async Task BroadcastStartProgress(StartProgressStage stage, StartProgressDownloadProgress? downloadProgress = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Start progress: {stage}", stage);
         await FallibleBroadcast(new ServiceMessage
         {
             StartProgress = new StartProgress

@@ -338,42 +338,6 @@ public class Downloader : IDownloader
     }
 }
 
-public class DownloadProgressEvent
-{
-    // TODO: speed calculation would be nice
-    public ulong BytesWritten { get; init; }
-    public ulong? BytesTotal { get; init; } // null if unknown
-
-    public double? Progress => BytesTotal == null ? null : (double)BytesWritten / BytesTotal.Value;
-
-    public override string ToString()
-    {
-        var s = FriendlyBytes(BytesWritten);
-        if (BytesTotal != null)
-            s += $" of {FriendlyBytes(BytesTotal.Value)}";
-        else
-            s += " of unknown";
-        if (Progress != null)
-            s += $" ({Progress:0%})";
-        return s;
-    }
-
-    private static readonly string[] ByteSuffixes = ["B", "KB", "MB", "GB", "TB", "PB", "EB"];
-
-    // Unfortunately this is copied from FriendlyByteConverter in App. Ideally
-    // it should go into some shared utilities project, but it's overkill to do
-    // that for a single tiny function until we have more shared code.
-    private static string FriendlyBytes(ulong bytes)
-    {
-        if (bytes == 0)
-            return $"0 {ByteSuffixes[0]}";
-
-        var place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
-        var num = Math.Round(bytes / Math.Pow(1024, place), 1);
-        return $"{num} {ByteSuffixes[place]}";
-    }
-}
-
 /// <summary>
 ///     Downloads a Url to a file on disk. The download will be written to a temporary file first, then moved to the final
 ///     destination. The SHA1 of any existing file will be calculated and used as an ETag to avoid downloading the file if
@@ -381,8 +345,7 @@ public class DownloadProgressEvent
 /// </summary>
 public class DownloadTask
 {
-    private const int BufferSize = 4096;
-    private const int ProgressUpdateDelayMs = 50;
+    private const int BufferSize = 64 * 1024;
     private const string XOriginalContentLengthHeader = "X-Original-Content-Length"; // overrides Content-Length if available
 
     private static readonly HttpClient HttpClient = new(new HttpClientHandler
@@ -398,22 +361,13 @@ public class DownloadTask
     private readonly string _destinationPath;
     private readonly string _tempDestinationPath;
 
-    // ProgressChanged events are always delayed by up to 50ms to avoid
-    // flooding.
-    //
-    // This will be called:
-    // - once after the request succeeds but before the read/write routine
-    //   begins
-    // - occasionally while the file is being downloaded (at least 50ms apart)
-    // - once when the download is complete
-    public EventHandler<DownloadProgressEvent>? ProgressChanged;
-
     public readonly HttpRequestMessage Request;
 
     public Task Task { get; private set; } = null!; // Set in EnsureStartedAsync
+    public bool DownloadStarted { get; private set; } // Whether we've received headers yet and started the actual download
     public ulong BytesWritten { get; private set; }
-    public ulong? TotalBytes { get; private set; }
-    public double? Progress => TotalBytes == null ? null : (double)BytesWritten / TotalBytes.Value;
+    public ulong? BytesTotal { get; private set; }
+    public double? Progress => BytesTotal == null ? null : (double)BytesWritten / BytesTotal.Value;
     public bool IsCompleted => Task.IsCompleted;
 
     internal DownloadTask(ILogger logger, HttpRequestMessage req, string destinationPath, IDownloadValidator validator)
@@ -496,7 +450,7 @@ public class DownloadTask
         }
 
         if (res.Content.Headers.ContentLength >= 0)
-            TotalBytes = (ulong)res.Content.Headers.ContentLength;
+            BytesTotal = (ulong)res.Content.Headers.ContentLength;
 
         // X-Original-Content-Length overrules Content-Length if set.
         if (res.Headers.TryGetValues(XOriginalContentLengthHeader, out var headerValues))
@@ -504,24 +458,19 @@ public class DownloadTask
             // If there are multiple we only look at the first one.
             var headerValue = headerValues.ToList().FirstOrDefault();
             if (!string.IsNullOrEmpty(headerValue) && ulong.TryParse(headerValue, out var originalContentLength))
-                TotalBytes = originalContentLength;
+                BytesTotal = originalContentLength;
             else
                 _logger.LogWarning(
                     "Failed to parse {XOriginalContentLengthHeader} header value '{HeaderValue}'",
                     XOriginalContentLengthHeader, headerValue);
         }
 
-        SendProgressUpdate(new DownloadProgressEvent
-        {
-            BytesWritten = 0,
-            BytesTotal = TotalBytes,
-        });
-
         await Download(res, ct);
     }
 
     private async Task Download(HttpResponseMessage res, CancellationToken ct)
     {
+        DownloadStarted = true;
         try
         {
             var sha1 = res.Headers.Contains("ETag") ? SHA1.Create() : null;
@@ -546,28 +495,13 @@ public class DownloadTask
                     await tempFile.WriteAsync(buffer.AsMemory(0, n), ct);
                     sha1?.TransformBlock(buffer, 0, n, null, 0);
                     BytesWritten += (ulong)n;
-                    await QueueProgressUpdate(new DownloadProgressEvent
-                    {
-                        BytesWritten = BytesWritten,
-                        BytesTotal = TotalBytes,
-                    }, ct);
                 }
             }
 
-            // Clear any pending progress updates to ensure they won't be sent
-            // after the final update.
-            await ClearQueuedProgressUpdate(ct);
-            // Then write the final status update.
-            TotalBytes = BytesWritten;
-            SendProgressUpdate(new DownloadProgressEvent
-            {
-                BytesWritten = BytesWritten,
-                BytesTotal = BytesWritten,
-            });
-
-            if (TotalBytes != null && BytesWritten != TotalBytes)
+            BytesTotal ??= BytesWritten;
+            if (BytesWritten != BytesTotal)
                 throw new IOException(
-                    $"Downloaded file size does not match response Content-Length: Content-Length={TotalBytes}, BytesRead={BytesWritten}");
+                    $"Downloaded file size does not match expected response content length: Expected={BytesTotal}, BytesWritten={BytesWritten}");
 
             // Verify the ETag if it was sent by the server.
             if (res.Headers.Contains("ETag") && sha1 != null)
@@ -611,70 +545,5 @@ public class DownloadTask
 #endif
             throw;
         }
-    }
-
-    // _progressEventLock protects _progressUpdateTask and _pendingProgressEvent.
-    private readonly RaiiSemaphoreSlim _progressEventLock = new(1, 1);
-    private readonly CancellationTokenSource _progressUpdateCts = new();
-    private Task? _progressUpdateTask;
-    private DownloadProgressEvent? _pendingProgressEvent;
-
-    // Can be called multiple times, but must not be called or in progress while
-    // SendQueuedProgressUpdateNow is called.
-    private async Task QueueProgressUpdate(DownloadProgressEvent e, CancellationToken ct)
-    {
-        using var _1 = await _progressEventLock.LockAsync(ct);
-        _pendingProgressEvent = e;
-
-        if (_progressUpdateCts.IsCancellationRequested)
-            throw new InvalidOperationException("Progress update task was cancelled, cannot queue new progress update");
-
-        // Start a task with a 50ms delay unless one is already running.
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _progressUpdateCts.Token);
-        cts.CancelAfter(TimeSpan.FromSeconds(5));
-        _progressUpdateTask ??= Task.Delay(ProgressUpdateDelayMs, cts.Token)
-            .ContinueWith(t =>
-            {
-                cts.Cancel();
-                using var _2 = _progressEventLock.Lock();
-                _progressUpdateTask = null;
-                if (t.IsFaulted || t.IsCanceled) return;
-
-                var ev = _pendingProgressEvent;
-                if (ev != null) SendProgressUpdate(ev);
-            }, cts.Token);
-    }
-
-    // Must only be called after all QueueProgressUpdate calls have completed.
-    private async Task ClearQueuedProgressUpdate(CancellationToken ct)
-    {
-        Task? t;
-        using (var _ = _progressEventLock.LockAsync(ct))
-        {
-            await _progressUpdateCts.CancelAsync();
-            t = _progressUpdateTask;
-        }
-
-        // We can't continue to hold the lock here because the continuation
-        // grabs a lock. We don't need to worry about a new task spawning after
-        // this because the token is cancelled.
-        if (t == null) return;
-        try
-        {
-            await t.WaitAsync(ct);
-        }
-        catch (TaskCanceledException)
-        {
-            // Ignore
-        }
-    }
-
-    private void SendProgressUpdate(DownloadProgressEvent e)
-    {
-        var handler = ProgressChanged;
-        if (handler == null)
-            return;
-        // Start a new task in the background to invoke the event.
-        _ = Task.Run(() => handler.Invoke(this, e));
     }
 }
