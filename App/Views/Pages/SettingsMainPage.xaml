@@ -13,13 +13,9 @@
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d"
     Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
-
     <Page.Resources>
-        <!--  These styles can be referenced to create a consistent SettingsPage layout  -->
-
         <!--  Spacing between cards  -->
         <x:Double x:Key="SettingsCardSpacing">4</x:Double>
-
         <!--  Style (inc. the correct spacing) of a section header  -->
         <Style x:Key="SettingsSectionHeaderTextBlockStyle"
                BasedOn="{StaticResource BodyStrongTextBlockStyle}"
@@ -34,16 +30,13 @@
             <StackPanel MaxWidth="1000"
                         HorizontalAlignment="Stretch"
                         Spacing="{StaticResource SettingsCardSpacing}">
-
                 <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Coder Desktop" />
-
                 <controls:SettingsCard Description="This setting controls whether the Coder Desktop app starts on Windows startup."
                                        Header="Start on login"
                                        HeaderIcon="{ui:FontIcon Glyph=&#xE819;}"
                                        IsEnabled="{x:Bind ViewModel.StartOnLoginDisabled, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}">
                     <ToggleSwitch IsOn="{x:Bind ViewModel.StartOnLogin, Mode=TwoWay}" />
                 </controls:SettingsCard>
-
                 <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Coder Connect" />
                 <controls:SettingsCard Description="This setting controls whether Coder Connect automatically starts with Coder Desktop. "
                                        Header="Connect on launch"
@@ -51,9 +44,7 @@
                                        >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
                 </controls:SettingsCard>
-
             </StackPanel>
         </Grid>
     </ScrollViewer>
-
 </Page>

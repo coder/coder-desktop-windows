@@ -193,7 +193,7 @@ public partial class App : Application
 
             // Don't attempt to connect if we failed to load credentials or reconnect.
             // This will prevent the app from trying to connect to the VPN service.
-            dependenciesLoaded = false; 
+            dependenciesLoaded = false;
         }
 
         var attemptCoderConnection = settingsTask.Result?.ConnectOnLaunch ?? false;
