@@ -126,6 +126,7 @@ jobs:
     - name: Update appcast
       if: startsWith(github.ref, 'refs/tags/')
       shell: pwsh
+      run: |
         $ErrorActionPreference = "Stop"
 
         # The Update-AppCast.ps1 script fetches the release notes from GitHub,
