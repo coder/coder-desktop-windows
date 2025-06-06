@@ -1,4 +1,5 @@
 using Google.Protobuf.WellKnownTypes;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -30,11 +31,6 @@ public interface ISettingsManager<T> where T : ISettings, new()
     /// <param name="ct"></param>
     /// <returns></returns>
     public Task Write(T settings, CancellationToken ct = default);
-    /// <summary>
-    /// Returns null if the settings are not cached or not available.
-    /// </summary>
-    /// <returns></returns>
-    public T? GetFromCache();
 }
 
 /// <summary>
@@ -80,6 +76,12 @@ public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings
 
     public async Task<T> Read(CancellationToken ct = default)
     {
+        if (_cachedSettings is not null)
+        {
+            // return cached settings if available
+            return (T)_cachedSettings.Clone();
+        }
+
         // try to get the lock with short timeout
         if (!await _gate.WaitAsync(LockTimeout, ct).ConfigureAwait(false))
             throw new InvalidOperationException(
@@ -145,24 +147,21 @@ public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings
             _gate.Release();
         }
     }
-
-    public T? GetFromCache()
-    {
-        return _cachedSettings;
-    }
 }
 
 public interface ISettings
 {
     /// <summary>
+    /// FileName where the settings are stored.
+    /// </summary>
+    static abstract string SettingsFileName { get; }
+
+    /// <summary>
     /// Gets the version of the settings schema.
     /// </summary>
     int Version { get; }
 
-    /// <summary>
-    /// FileName where the settings are stored.
-    /// </summary>
-    static abstract string SettingsFileName { get; }
+    ISettings Clone();
 }
 
 /// <summary>
@@ -170,16 +169,17 @@ public interface ISettings
 /// </summary>
 public class CoderConnectSettings : ISettings
 {
+    public static string SettingsFileName { get; } = "coder-connect-settings.json";
+    public int Version { get; set; }
+    public bool ConnectOnLaunch { get; set; }
+
     /// <summary>
-    /// CoderConnect settings version. Increment this when the settings schema changes.
+    /// CoderConnect current settings version. Increment this when the settings schema changes.
     /// In future iterations we will be able to handle migrations when the user has
     /// an older version.
     /// </summary>
-    public int Version { get; set; }
-    public bool ConnectOnLaunch { get; set; }
-    public static string SettingsFileName { get; } = "coder-connect-settings.json";
+    private const int VERSION = 1;
 
-    private const int VERSION = 1; // Default version for backward compatibility
     public CoderConnectSettings()
     {
         Version = VERSION;
@@ -192,10 +192,13 @@ public class CoderConnectSettings : ISettings
         ConnectOnLaunch = connectOnLogin;
     }
 
+    ISettings ISettings.Clone()
+    {
+        return Clone();
+    }
+
     public CoderConnectSettings Clone()
     {
         return new CoderConnectSettings(Version, ConnectOnLaunch);
     }
-
-
 }

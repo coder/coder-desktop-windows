@@ -31,11 +31,7 @@ public partial class SettingsViewModel : ObservableObject
         _logger = logger;
         // Application settings are loaded on application startup,
         // so we expect the settings to be available immediately.
-        var settingsCache = settingsManager.GetFromCache();
-        if (settingsCache is not null)
-        {
-            _connectSettings = settingsCache.Clone();
-        }
+        var settingsCache = settingsManager.Read();
         StartOnLogin = startupManager.IsEnabled();
         ConnectOnLaunch = _connectSettings.ConnectOnLaunch;
 
