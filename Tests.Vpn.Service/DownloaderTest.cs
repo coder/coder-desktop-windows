@@ -344,11 +344,11 @@ public class DownloaderTest
         Assert.That(list.Count, Is.GreaterThanOrEqualTo(2)); // there may be an item in the middle
         // The first item should be the initial progress with 0 bytes written.
         Assert.That(list[0].BytesWritten, Is.EqualTo(0));
-        Assert.That(list[0].TotalBytes, Is.EqualTo(6)); // from X-Original-Content-Length
+        Assert.That(list[0].BytesTotal, Is.EqualTo(6)); // from X-Original-Content-Length
         Assert.That(list[0].Progress, Is.EqualTo(0.0d));
         // The last item should be final progress with the actual total bytes.
         Assert.That(list[^1].BytesWritten, Is.EqualTo(4));
-        Assert.That(list[^1].TotalBytes, Is.EqualTo(4)); // from the actual bytes written
+        Assert.That(list[^1].BytesTotal, Is.EqualTo(4)); // from the actual bytes written
         Assert.That(list[^1].Progress, Is.EqualTo(1.0d));
     }
 

@@ -342,14 +342,15 @@ public class DownloadProgressEvent
 {
     // TODO: speed calculation would be nice
     public ulong BytesWritten { get; init; }
-    public ulong? TotalBytes { get; init; } // null if unknown
-    public double? Progress { get; init; }  // 0.0 - 1.0, null if unknown
+    public ulong? BytesTotal { get; init; } // null if unknown
+
+    public double? Progress => BytesTotal == null ? null : (double)BytesWritten / BytesTotal.Value;
 
     public override string ToString()
     {
         var s = FriendlyBytes(BytesWritten);
-        if (TotalBytes != null)
-            s += $" of {FriendlyBytes(TotalBytes.Value)}";
+        if (BytesTotal != null)
+            s += $" of {FriendlyBytes(BytesTotal.Value)}";
         else
             s += " of unknown";
         if (Progress != null)
@@ -513,8 +514,7 @@ public class DownloadTask
         SendProgressUpdate(new DownloadProgressEvent
         {
             BytesWritten = 0,
-            TotalBytes = TotalBytes,
-            Progress = 0.0,
+            BytesTotal = TotalBytes,
         });
 
         await Download(res, ct);
@@ -549,8 +549,7 @@ public class DownloadTask
                     await QueueProgressUpdate(new DownloadProgressEvent
                     {
                         BytesWritten = BytesWritten,
-                        TotalBytes = TotalBytes,
-                        Progress = Progress,
+                        BytesTotal = TotalBytes,
                     }, ct);
                 }
             }
@@ -563,8 +562,7 @@ public class DownloadTask
             SendProgressUpdate(new DownloadProgressEvent
             {
                 BytesWritten = BytesWritten,
-                TotalBytes = BytesWritten,
-                Progress = 1.0,
+                BytesTotal = BytesWritten,
             });
 
             if (TotalBytes != null && BytesWritten != TotalBytes)

@@ -227,9 +227,18 @@ message StartResponse {
 //       inability to easily send messages to a specific client in the Speaker
 //       implementation. If clients are not expecting these messages, they
 //       should ignore them.
+enum StartProgressStage {
+	Initializing = 0;
+	Downloading = 1;
+	Finalizing = 2;
+}
+message StartProgressDownloadProgress {
+	uint64 bytes_written = 1;
+	optional uint64 bytes_total = 2; // unknown in some situations
+}
 message StartProgress {
-	double progress = 1; // 0.0 to 1.0
-	string message = 2; // human-readable status message, must be set
+	StartProgressStage stage = 1;
+	optional StartProgressDownloadProgress download_progress = 2; // only set when stage == Downloading
 }
 
 // StopRequest is a request from the manager to stop the tunnel. The tunnel replies with a

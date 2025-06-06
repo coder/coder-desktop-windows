@@ -164,8 +164,7 @@ public class RpcController : IRpcController
         MutateState(state =>
         {
             state.VpnLifecycle = VpnLifecycle.Starting;
-            // Explicitly clear the startup progress.
-            state.VpnStartupProgress = null;
+            state.VpnStartupProgress = new VpnStartupProgress();
         });
 
         ServiceMessage reply;
@@ -297,11 +296,7 @@ public class RpcController : IRpcController
         {
             // MutateState will undo these changes if it doesn't believe we're
             // in the "Starting" state.
-            state.VpnStartupProgress = new VpnStartupProgress
-            {
-                Progress = message.Progress,
-                Message = message.Message,
-            };
+            state.VpnStartupProgress = VpnStartupProgress.FromProto(message);
         });
     }
 

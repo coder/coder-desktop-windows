@@ -26,10 +26,6 @@ public interface IManager : IDisposable
 /// </summary>
 public class Manager : IManager
 {
-    // We scale the download progress to 0.00-0.90, and use 0.90-1.00 for the
-    // remainder of startup.
-    private const double DownloadProgressScale = 0.90;
-
     private readonly ManagerConfig _config;
     private readonly IDownloader _downloader;
     private readonly ILogger<Manager> _logger;
@@ -135,7 +131,7 @@ public class Manager : IManager
         {
             try
             {
-                await BroadcastStartProgress(0.0, "Starting Coder Connect...", ct);
+                await BroadcastStartProgress(StartProgressStage.Initializing, cancellationToken: ct);
 
                 var serverVersion =
                     await CheckServerVersionAndCredentials(message.Start.CoderUrl, message.Start.ApiToken, ct);
@@ -164,7 +160,7 @@ public class Manager : IManager
 
                 await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion.SemVersion, ct);
 
-                await BroadcastStartProgress(DownloadProgressScale, "Starting Coder Connect...", ct);
+                await BroadcastStartProgress(StartProgressStage.Finalizing, cancellationToken: ct);
                 await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
                     HandleTunnelRpcError,
                     ct);
@@ -464,10 +460,14 @@ public class Manager : IManager
             if (progressBroadcastCts.IsCancellationRequested) return;
             _logger.LogInformation("Download progress: {ev}", ev);
 
-            // Scale the progress value to be between 0.00 and 0.90.
-            var progress = ev.Progress * DownloadProgressScale ?? 0.0;
-            var message = $"Downloading Coder Connect binary...\n{ev}";
-            BroadcastStartProgress(progress, message, progressBroadcastCts.Token).Wait(progressBroadcastCts.Token);
+            var progress = new StartProgressDownloadProgress
+            {
+                BytesWritten = ev.BytesWritten,
+            };
+            if (ev.BytesTotal != null)
+                progress.BytesTotal = ev.BytesTotal.Value;
+            BroadcastStartProgress(StartProgressStage.Downloading, progress, progressBroadcastCts.Token)
+                .Wait(progressBroadcastCts.Token);
         };
 
         // Awaiting this will check the checksum (via the ETag) if the file
@@ -484,16 +484,16 @@ public class Manager : IManager
         _logger.LogInformation("Completed downloading VPN binary");
     }
 
-    private async Task BroadcastStartProgress(double progress, string message, CancellationToken ct = default)
+    private async Task BroadcastStartProgress(StartProgressStage stage, StartProgressDownloadProgress? downloadProgress = null, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Start progress: {Progress:0%} - {Message}", progress, message);
+        _logger.LogInformation("Start progress: {stage}", stage);
         await FallibleBroadcast(new ServiceMessage
         {
             StartProgress = new StartProgress
             {
-                Progress = progress,
-                Message = message,
+                Stage = stage,
+                DownloadProgress = downloadProgress,
             },
-        }, ct);
+        }, cancellationToken);
     }
 }

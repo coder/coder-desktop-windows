@@ -29,7 +29,6 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 {
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
-    private const string DefaultStartProgressMessage = "Starting Coder Connect...";
 
     private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
@@ -84,7 +83,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
     public partial string? VpnStartProgressMessage { get; set; } = null;
 
     public string VpnStartProgressMessageOrDefault =>
-        string.IsNullOrEmpty(VpnStartProgressMessage) ? DefaultStartProgressMessage : VpnStartProgressMessage;
+        string.IsNullOrEmpty(VpnStartProgressMessage) ? VpnStartupProgress.DefaultStartProgressMessage : VpnStartProgressMessage;
 
     public bool VpnStartProgressIsIndeterminate => VpnStartProgressValueOrDefault == 0;
 
@@ -196,7 +195,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             // Convert 0.00-1.00 to 0-100.
             var progress = (int)(rpcModel.VpnStartupProgress.Progress * 100);
             VpnStartProgressValue = Math.Clamp(progress, 0, 100);
-            VpnStartProgressMessage = string.IsNullOrEmpty(rpcModel.VpnStartupProgress.Message) ? null : rpcModel.VpnStartupProgress.Message;
+            VpnStartProgressMessage = rpcModel.VpnStartupProgress.ToString();
         }
         else
         {
