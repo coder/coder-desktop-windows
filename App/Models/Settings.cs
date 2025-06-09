@@ -32,6 +32,9 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
 {
     public static string SettingsFileName { get; } = "coder-connect-settings.json";
     public int Version { get; set; }
+    /// <summary>
+    /// When this is true, CoderConnect will automatically connect to the Coder VPN when the application starts.
+    /// </summary>
     public bool ConnectOnLaunch { get; set; }
 
     /// <summary>
