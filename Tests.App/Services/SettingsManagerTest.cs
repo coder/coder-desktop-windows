@@ -1,3 +1,4 @@
+using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 
 namespace Coder.Desktop.Tests.App.Services;
@@ -24,7 +25,7 @@ public sealed class SettingsManagerTests
     [Test]
     public void Save_Persists()
     {
-        bool expected = true;
+        var expected = true;
         var settings = new CoderConnectSettings
         {
             Version = 1,

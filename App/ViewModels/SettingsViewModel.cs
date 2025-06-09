@@ -1,8 +1,7 @@
+using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
-using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml;
 using System;
 
 namespace Coder.Desktop.App.ViewModels;
@@ -29,9 +28,7 @@ public partial class SettingsViewModel : ObservableObject
         _connectSettingsManager = settingsManager;
         _startupManager = startupManager;
         _logger = logger;
-        // Application settings are loaded on application startup,
-        // so we expect the settings to be available immediately.
-        var settingsCache = settingsManager.Read();
+        _connectSettings = settingsManager.Read().GetAwaiter().GetResult();
         StartOnLogin = startupManager.IsEnabled();
         ConnectOnLaunch = _connectSettings.ConnectOnLaunch;
 

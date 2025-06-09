@@ -1,20 +1,16 @@
-using Google.Protobuf.WellKnownTypes;
-using Serilog;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Linq;
+using Coder.Desktop.App.Models;
 
 namespace Coder.Desktop.App.Services;
 
 /// <summary>
 /// Settings contract exposing properties for app settings.
 /// </summary>
-public interface ISettingsManager<T> where T : ISettings, new()
+public interface ISettingsManager<T> where T : ISettings<T>, new()
 {
     /// <summary>
     /// Reads the settings from the file system.
@@ -23,26 +19,25 @@ public interface ISettingsManager<T> where T : ISettings, new()
     /// </summary>
     /// <param name="ct"></param>
     /// <returns></returns>
-    public Task<T> Read(CancellationToken ct = default);
+    Task<T> Read(CancellationToken ct = default);
     /// <summary>
     /// Writes the settings to the file system.
     /// </summary>
     /// <param name="settings">Object containing the settings.</param>
     /// <param name="ct"></param>
     /// <returns></returns>
-    public Task Write(T settings, CancellationToken ct = default);
+    Task Write(T settings, CancellationToken ct = default);
 }
 
 /// <summary>
 /// Implemention of <see cref="ISettingsManager"/> that persists settings to a JSON file
 /// located in the user's local application data folder.
 /// </summary>
-public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings, new()
+public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings<T>, new()
 {
     private readonly string _settingsFilePath;
     private readonly string _appName = "CoderDesktop";
     private string _fileName;
-    private readonly object _lock = new();
 
     private T? _cachedSettings;
 
@@ -79,7 +74,7 @@ public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings
         if (_cachedSettings is not null)
         {
             // return cached settings if available
-            return (T)_cachedSettings.Clone();
+            return _cachedSettings.Clone();
         }
 
         // try to get the lock with short timeout
@@ -98,7 +93,7 @@ public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings
             // deserialize; fall back to default(T) if empty or malformed
             var result = JsonSerializer.Deserialize<T>(json)!;
             _cachedSettings = result;
-            return result;
+            return _cachedSettings.Clone(); // return a fresh instance of the settings
         }
         catch (OperationCanceledException)
         {
@@ -146,59 +141,5 @@ public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings
         {
             _gate.Release();
         }
-    }
-}
-
-public interface ISettings
-{
-    /// <summary>
-    /// FileName where the settings are stored.
-    /// </summary>
-    static abstract string SettingsFileName { get; }
-
-    /// <summary>
-    /// Gets the version of the settings schema.
-    /// </summary>
-    int Version { get; }
-
-    ISettings Clone();
-}
-
-/// <summary>
-/// CoderConnect settings class that holds the settings for the CoderConnect feature.
-/// </summary>
-public class CoderConnectSettings : ISettings
-{
-    public static string SettingsFileName { get; } = "coder-connect-settings.json";
-    public int Version { get; set; }
-    public bool ConnectOnLaunch { get; set; }
-
-    /// <summary>
-    /// CoderConnect current settings version. Increment this when the settings schema changes.
-    /// In future iterations we will be able to handle migrations when the user has
-    /// an older version.
-    /// </summary>
-    private const int VERSION = 1;
-
-    public CoderConnectSettings()
-    {
-        Version = VERSION;
-        ConnectOnLaunch = false;
-    }
-
-    public CoderConnectSettings(int? version, bool connectOnLogin)
-    {
-        Version = version ?? VERSION;
-        ConnectOnLaunch = connectOnLogin;
-    }
-
-    ISettings ISettings.Clone()
-    {
-        return Clone();
-    }
-
-    public CoderConnectSettings Clone()
-    {
-        return new CoderConnectSettings(Version, ConnectOnLaunch);
     }
 }
