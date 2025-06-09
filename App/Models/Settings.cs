@@ -1,7 +1,4 @@
-using System;
-
 namespace Coder.Desktop.App.Models;
-
 
 public interface ISettings<T> : ICloneable<T>
 {
