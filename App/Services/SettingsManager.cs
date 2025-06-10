@@ -13,9 +13,8 @@ namespace Coder.Desktop.App.Services;
 public interface ISettingsManager<T> where T : ISettings<T>, new()
 {
     /// <summary>
-    /// Reads the settings from the file system.
-    /// Always returns the latest settings, even if they were modified by another instance of the app.
-    /// Returned object is always a fresh instance, so it can be modified without affecting the stored settings.
+    /// Reads the settings from the file system or returns from cache if available.
+    /// Returned object is always a cloned instance, so it can be modified without affecting the stored settings.
     /// </summary>
     /// <param name="ct"></param>
     /// <returns></returns>

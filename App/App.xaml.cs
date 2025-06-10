@@ -209,7 +209,8 @@ public partial class App : Application
         }
 
         // Initialize file sync.
-        var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        using var syncSessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        syncSessionCts.CancelAfter(TimeSpan.FromSeconds(10));
         var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
         try
         {
