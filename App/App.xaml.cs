@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,6 +42,10 @@ public partial class App : Application
 
     private readonly ILogger<App> _logger;
     private readonly IUriHandler _uriHandler;
+
+    private readonly ISettingsManager<CoderConnectSettings> _settingsManager;
+
+    private readonly IHostApplicationLifetime _appLifetime;
 
     public App()
     {
@@ -90,6 +93,13 @@ public partial class App : Application
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
 
+        services.AddSingleton<ISettingsManager<CoderConnectSettings>, SettingsManager<CoderConnectSettings>>();
+        services.AddSingleton<IStartupManager, StartupManager>();
+        // SettingsWindow views and view models
+        services.AddTransient<SettingsViewModel>();
+        // SettingsMainPage is created by SettingsWindow.
+        services.AddTransient<SettingsWindow>();
+
         // DirectoryPickerWindow views and view models are created by FileSyncListViewModel.
 
         // TrayWindow views and view models
@@ -107,8 +117,10 @@ public partial class App : Application
         services.AddTransient<TrayWindow>();
 
         _services = services.BuildServiceProvider();
-        _logger = (ILogger<App>)_services.GetService(typeof(ILogger<App>))!;
-        _uriHandler = (IUriHandler)_services.GetService(typeof(IUriHandler))!;
+        _logger = _services.GetRequiredService<ILogger<App>>();
+        _uriHandler = _services.GetRequiredService<IUriHandler>();
+        _settingsManager = _services.GetRequiredService<ISettingsManager<CoderConnectSettings>>();
+        _appLifetime = _services.GetRequiredService<IHostApplicationLifetime>();
 
         InitializeComponent();
     }
@@ -129,58 +141,8 @@ public partial class App : Application
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
         _logger.LogInformation("new instance launched");
-        // Start connecting to the manager in the background.
-        var rpcController = _services.GetRequiredService<IRpcController>();
-        if (rpcController.GetState().RpcLifecycle == RpcLifecycle.Disconnected)
-            // Passing in a CT with no cancellation is desired here, because
-            // the named pipe open will block until the pipe comes up.
-            _logger.LogDebug("reconnecting with VPN service");
-        _ = rpcController.Reconnect(CancellationToken.None).ContinueWith(t =>
-        {
-            if (t.Exception != null)
-            {
-                _logger.LogError(t.Exception, "failed to connect to VPN service");
-#if DEBUG
-                Debug.WriteLine(t.Exception);
-                Debugger.Break();
-#endif
-            }
-        });
 
-        // Load the credentials in the background.
-        var credentialManagerCts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        var credentialManager = _services.GetRequiredService<ICredentialManager>();
-        _ = credentialManager.LoadCredentials(credentialManagerCts.Token).ContinueWith(t =>
-        {
-            if (t.Exception != null)
-            {
-                _logger.LogError(t.Exception, "failed to load credentials");
-#if DEBUG
-                Debug.WriteLine(t.Exception);
-                Debugger.Break();
-#endif
-            }
-
-            credentialManagerCts.Dispose();
-        }, CancellationToken.None);
-
-        // Initialize file sync.
-        // We're adding a 5s delay here to avoid race conditions when loading the mutagen binary.
-
-        _ = Task.Delay(5000).ContinueWith((_) =>
-        {
-            var syncSessionCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
-            syncSessionController.RefreshState(syncSessionCts.Token).ContinueWith(
-                t =>
-                {
-                    if (t.IsCanceled || t.Exception != null)
-                    {
-                        _logger.LogError(t.Exception, "failed to refresh sync state (canceled = {canceled})", t.IsCanceled);
-                    }
-                    syncSessionCts.Dispose();
-                }, CancellationToken.None);
-        });
+        _ = InitializeServicesAsync(_appLifetime.ApplicationStopping);
 
         // Prevent the TrayWindow from closing, just hide it.
         var trayWindow = _services.GetRequiredService<TrayWindow>();
@@ -190,6 +152,74 @@ public partial class App : Application
             closedArgs.Handled = true;
             trayWindow.AppWindow.Hide();
         };
+    }
+
+    /// <summary>
+    /// Loads stored VPN credentials, reconnects the RPC controller,
+    /// and (optionally) starts the VPN tunnel on application launch.
+    /// </summary>
+    private async Task InitializeServicesAsync(CancellationToken cancellationToken = default)
+    {
+        var credentialManager = _services.GetRequiredService<ICredentialManager>();
+        var rpcController = _services.GetRequiredService<IRpcController>();
+
+        using var credsCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        credsCts.CancelAfter(TimeSpan.FromSeconds(15));
+
+        var loadCredsTask = credentialManager.LoadCredentials(credsCts.Token);
+        var reconnectTask = rpcController.Reconnect(cancellationToken);
+        var settingsTask = _settingsManager.Read(cancellationToken);
+
+        var dependenciesLoaded = true;
+
+        try
+        {
+            await Task.WhenAll(loadCredsTask, reconnectTask, settingsTask);
+        }
+        catch (Exception)
+        {
+            if (loadCredsTask.IsFaulted)
+                _logger.LogError(loadCredsTask.Exception!.GetBaseException(),
+                                 "Failed to load credentials");
+
+            if (reconnectTask.IsFaulted)
+                _logger.LogError(reconnectTask.Exception!.GetBaseException(),
+                                 "Failed to connect to VPN service");
+
+            if (settingsTask.IsFaulted)
+                _logger.LogError(settingsTask.Exception!.GetBaseException(),
+                                 "Failed to fetch Coder Connect settings");
+
+            // Don't attempt to connect if we failed to load credentials or reconnect.
+            // This will prevent the app from trying to connect to the VPN service.
+            dependenciesLoaded = false;
+        }
+
+        var attemptCoderConnection = settingsTask.Result?.ConnectOnLaunch ?? false;
+        if (dependenciesLoaded && attemptCoderConnection)
+        {
+            try
+            {
+                await rpcController.StartVpn(cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to connect on launch");
+            }
+        }
+
+        // Initialize file sync.
+        using var syncSessionCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        syncSessionCts.CancelAfter(TimeSpan.FromSeconds(10));
+        var syncSessionController = _services.GetRequiredService<ISyncSessionController>();
+        try
+        {
+            await syncSessionController.RefreshState(syncSessionCts.Token);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Failed to refresh sync session state {ex.Message}", ex);
+        }
     }
 
     public void OnActivated(object? sender, AppActivationArguments args)
