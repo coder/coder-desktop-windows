@@ -273,7 +273,6 @@
                                             CommandParameter="{Binding ElementName=AppButton}"
                                             Width="34"
                                             Height="34"
-                                            
                                             ToolTipService.ToolTip="{x:Bind Details}">
                                             <HyperlinkButton.Resources>
                                                 <SolidColorBrush x:Key="HyperlinkButtonBackground" Color="#1F000000"/>
