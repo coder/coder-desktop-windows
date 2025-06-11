@@ -123,7 +123,7 @@ public class Speaker<TS, TR> : IAsyncDisposable
         // Handshakes should always finish quickly, so enforce a 5s timeout.
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         cts.CancelAfter(TimeSpan.FromSeconds(5));
-        await PerformHandshake(ct);
+        await PerformHandshake(cts.Token);
 
         // Start ReceiveLoop in the background.
         _receiveTask = ReceiveLoop(_cts.Token);

@@ -25,7 +25,7 @@
         Orientation="Vertical"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Top"
-        Padding="20,20,20,30"
+        Padding="20,20,20,20"
         Spacing="10">
 
         <Grid>
@@ -43,6 +43,8 @@
             <ProgressRing
                 Grid.Column="1"
                 IsActive="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource ConnectingBoolConverter}, Mode=OneWay}"
+                IsIndeterminate="{x:Bind ViewModel.VpnStartProgressIsIndeterminate, Mode=OneWay}"
+                Value="{x:Bind ViewModel.VpnStartProgressValueOrDefault, Mode=OneWay}"
                 Width="24"
                 Height="24"
                 Margin="10,0"
@@ -72,6 +74,13 @@
             TextWrapping="Wrap"
             Margin="0,6,0,6"
             Visibility="{x:Bind ViewModel.ShowEnableSection, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
+            Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
+
+        <TextBlock
+            Text="{x:Bind ViewModel.VpnStartProgressMessageOrDefault, Mode=OneWay}"
+            TextWrapping="Wrap"
+            Margin="0,6,0,6"
+            Visibility="{x:Bind ViewModel.ShowVpnStartProgressSection, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}"
             Foreground="{ThemeResource SystemControlForegroundBaseMediumBrush}" />
 
         <TextBlock
@@ -332,8 +341,17 @@
         <controls:HorizontalRule />
 
         <HyperlinkButton
+            Command="{x:Bind ViewModel.ShowSettingsWindowCommand, Mode=OneWay}"
+            Margin="-12,-4,-12,-4"
+            HorizontalAlignment="Stretch"
+            HorizontalContentAlignment="Left">
+
+            <TextBlock Text="Settings" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
+        </HyperlinkButton>
+
+        <HyperlinkButton
             Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
-            Margin="-12,0"
+            Margin="-12,-4,-12,-4"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left">
 
@@ -342,9 +360,9 @@
 
         <HyperlinkButton
             Command="{x:Bind ViewModel.ExitCommand, Mode=OneWay}"
-            Margin="-12,-8,-12,-5"
+            Margin="-12,-4,-12,-4"
             HorizontalAlignment="Stretch"
-            HorizontalContentAlignment="Left">          
+            HorizontalContentAlignment="Left">
 
             <TextBlock Text="Exit" Foreground="{ThemeResource DefaultTextForegroundThemeBrush}" />
         </HyperlinkButton>
