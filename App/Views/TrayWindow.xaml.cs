@@ -5,6 +5,7 @@ using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;
+using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -13,6 +14,7 @@ using System;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
 using Windows.System;
+using Windows.UI.Core;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
