@@ -11,7 +11,7 @@
     Title="Sign in to Coder">
 
     <Window.SystemBackdrop>
-        <DesktopAcrylicBackdrop />
+        <MicaBackdrop/>
     </Window.SystemBackdrop>
 
     <controls:SizedFrame x:Name="RootFrame" />

@@ -4,7 +4,10 @@ using Coder.Desktop.App.Services;
 using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Configuration;
 using Microsoft.UI;
+using Microsoft.UI.Composition;
+using Microsoft.UI.Composition.SystemBackdrops;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
@@ -17,6 +20,7 @@ using System.Runtime.InteropServices;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI.Core;
+using WinRT;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
@@ -60,7 +64,6 @@ public sealed partial class TrayWindow : Window
 
         InitializeComponent();
         AppWindow.Hide();
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         Activated += Window_Activated;
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 
@@ -117,7 +120,6 @@ public sealed partial class TrayWindow : Window
             _lastWindowHeight = newHeight;
         };
     }
-
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
         SyncSessionControllerStateModel syncSessionModel)

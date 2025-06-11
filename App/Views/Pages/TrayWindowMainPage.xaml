@@ -267,13 +267,18 @@
                                     <DataTemplate x:DataType="viewModels:AgentAppViewModel">
                                         <HyperlinkButton
                                             x:Name="AppButton"
-                                            Padding="6"
-                                            Margin="0"
+                                            Padding="4"
+                                            Margin="2"
                                             Command="{x:Bind OpenAppCommand}"
                                             CommandParameter="{Binding ElementName=AppButton}"
                                             Width="34"
                                             Height="34"
+                                            
                                             ToolTipService.ToolTip="{x:Bind Details}">
+                                            <HyperlinkButton.Resources>
+                                                <SolidColorBrush x:Key="HyperlinkButtonBackground" Color="#1F000000"/>
+                                                <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColorDark1}" />
+                                            </HyperlinkButton.Resources>
 
                                             <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                                 <Image
