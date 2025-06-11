@@ -9,10 +9,8 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Windows.Graphics;
 using Windows.System;
@@ -60,7 +58,6 @@ public sealed partial class TrayWindow : Window
 
         InitializeComponent();
         AppWindow.Hide();
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         Activated += Window_Activated;
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 
@@ -117,7 +114,6 @@ public sealed partial class TrayWindow : Window
             _lastWindowHeight = newHeight;
         };
     }
-
 
     private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
         SyncSessionControllerStateModel syncSessionModel)

@@ -16,8 +16,6 @@ public sealed partial class FileSyncListWindow : WindowEx
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
 
-        SystemBackdrop = new DesktopAcrylicBackdrop();
-
         ViewModel.Initialize(this, DispatcherQueue);
         RootFrame.Content = new FileSyncListMainPage(ViewModel);
 
