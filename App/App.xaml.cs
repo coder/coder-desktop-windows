@@ -91,6 +91,7 @@ public partial class App : Application
         services.AddSingleton<ICoderApiClientFactory, CoderApiClientFactory>();
         services.AddSingleton<IAgentApiClientFactory, AgentApiClientFactory>();
 
+        services.AddSingleton<IDispatcherQueueManager, AppDispatcherQueueManager>();
         services.AddSingleton<ICredentialBackend>(_ =>
             new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
@@ -291,7 +292,7 @@ public partial class App : Application
     public void HandleNotification(AppNotificationManager? sender, AppNotificationActivatedEventArgs args)
     {
         _logger.LogInformation("handled notification activation: {Argument}", args.Argument);
-        _userNotifier.HandleActivation(args);
+        _userNotifier.HandleNotificationActivation(args.Arguments);
     }
 
     private static void AddDefaultConfig(IConfigurationBuilder builder)

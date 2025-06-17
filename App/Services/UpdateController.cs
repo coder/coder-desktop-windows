@@ -40,10 +40,12 @@ public static class UpdateChannelExtensions
 
 public class UpdaterConfig
 {
-    public bool EnableUpdater { get; set; } = true;
-    [Required] public string UpdateAppCastUrl { get; set; } = "https://releases.coder.com/coder-desktop/windows/appcast.xml";
-    [Required] public string UpdatePublicKeyBase64 { get; set; } = "NNWN4c+3PmMuAf2G1ERLlu0EwhzHfSiUugOt120hrH8=";
-    public UpdateChannel? ForcedUpdateChannel { get; set; } = null;
+    public bool Enable { get; set; } = true;
+    [Required] public string AppCastUrl { get; set; } = "https://releases.coder.com/coder-desktop/windows/appcast.xml";
+    [Required] public string PublicKeyBase64 { get; set; } = "NNWN4c+3PmMuAf2G1ERLlu0EwhzHfSiUugOt120hrH8=";
+    // This preference forces an update channel to be used and prevents the
+    // user from picking their own channel.
+    public UpdateChannel? ForcedChannel { get; set; } = null;
 }
 
 public interface IUpdateController : IAsyncDisposable
@@ -52,23 +54,29 @@ public interface IUpdateController : IAsyncDisposable
     public Task CheckForUpdatesNow();
 }
 
-public class SparkleUpdateController : IUpdateController
+public class SparkleUpdateController : IUpdateController, INotificationHandler
 {
+    internal const string NotificationHandlerName = "SparkleUpdateNotification";
+
     private static readonly TimeSpan UpdateCheckInterval = TimeSpan.FromHours(24);
 
     private readonly ILogger<SparkleUpdateController> _logger;
     private readonly UpdaterConfig _config;
+    private readonly IUserNotifier _userNotifier;
     private readonly IUIFactory _uiFactory;
 
     private readonly SparkleUpdater? _sparkle;
 
-    public SparkleUpdateController(ILogger<SparkleUpdateController> logger, IOptions<UpdaterConfig> config, IUIFactory uiFactory)
+    public SparkleUpdateController(ILogger<SparkleUpdateController> logger, IOptions<UpdaterConfig> config, IUserNotifier userNotifier, IUIFactory uiFactory)
     {
         _logger = logger;
         _config = config.Value;
+        _userNotifier = userNotifier;
         _uiFactory = uiFactory;
 
-        if (!_config.EnableUpdater)
+        _userNotifier.RegisterHandler(NotificationHandlerName, this);
+
+        if (!_config.Enable)
         {
             _logger.LogInformation("updater disabled by policy");
             return;
@@ -83,10 +91,10 @@ public class SparkleUpdateController : IUpdateController
         // but we use this functionality on Windows for added security against
         // malicious release notes.
         var checker = new Ed25519Checker(SecurityMode.Strict,
-            publicKey: _config.UpdatePublicKeyBase64,
+            publicKey: _config.PublicKeyBase64,
             readFileBeingVerifiedInChunks: true);
 
-        _sparkle = new SparkleUpdater(_config.UpdateAppCastUrl, checker)
+        _sparkle = new SparkleUpdater(_config.AppCastUrl, checker)
         {
             // TODO: custom Configuration for persistence, could just specify
             //       our own save path with JSONConfiguration TBH
@@ -95,7 +103,7 @@ public class SparkleUpdateController : IUpdateController
             // the URL instead.
             CheckServerFileName = false,
             LogWriter = new CoderSparkleLogger(logger),
-            AppCastHelper = new CoderSparkleAppCastHelper(_config.ForcedUpdateChannel),
+            AppCastHelper = new CoderSparkleAppCastHelper(_config.ForcedChannel),
             UIFactory = uiFactory,
             UseNotificationToast = uiFactory.CanShowToastMessages(),
             RelaunchAfterUpdate = true,
@@ -148,6 +156,11 @@ public class SparkleUpdateController : IUpdateController
     {
         _sparkle?.Dispose();
         return ValueTask.CompletedTask;
+    }
+
+    public void HandleNotificationActivation(IDictionary<string, string> args)
+    {
+        _ = CheckForUpdatesNow();
     }
 }
 
@@ -268,12 +281,15 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
 
     void IUIFactory.ShowToast(Action clickHandler)
     {
-        userNotifier.ShowActionNotification(
+        // We disregard the Action passed to us by NetSparkle as it uses cached
+        // data and does not perform a new update check. The
+        // INotificationHandler is registered by SparkleUpdateController.
+        _ = userNotifier.ShowActionNotification(
             "Coder Desktop",
             "Updates are available, click for more information.",
-            clickHandler,
-            CancellationToken.None)
-            .Wait();
+            SparkleUpdateController.NotificationHandlerName,
+            null,
+            CancellationToken.None);
     }
 
     void IUIFactory.Shutdown()
