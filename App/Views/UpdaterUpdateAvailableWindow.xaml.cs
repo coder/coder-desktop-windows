@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml.Media;
 using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views.Pages;
@@ -32,7 +31,6 @@ public sealed partial class UpdaterUpdateAvailableWindow : WindowEx, IUpdateAvai
 
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         AppWindow.Hide();
 
         RootFrame.Content = new UpdaterUpdateAvailableMainPage(ViewModel);
@@ -53,7 +51,8 @@ public sealed partial class UpdaterUpdateAvailableWindow : WindowEx, IUpdateAvai
 
     void IUpdateAvailable.Close()
     {
-        UserRespondedToUpdateCheck(UpdateAvailableResult.None); // the Avalonia UI does this "just in case"
+        // The NetSparkle built-in Avalonia UI does this "just in case"
+        UserRespondedToUpdateCheck(UpdateAvailableResult.None);
         Close();
     }
 

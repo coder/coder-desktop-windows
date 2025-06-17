@@ -13,7 +13,7 @@
     Width="500" Height="190">
 
     <Window.SystemBackdrop>
-        <DesktopAcrylicBackdrop />
+        <MicaBackdrop />
     </Window.SystemBackdrop>
 
     <StackPanel Orientation="Vertical" Padding="32">

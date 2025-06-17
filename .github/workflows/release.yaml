@@ -148,7 +148,6 @@ jobs:
         $newAppCastSignaturePath = $newAppCastPath + ".signature"
         & ./scripts/Update-AppCast.ps1 `
           -tag "${{ github.ref_name }}" `
-          -version "${{ steps.version.outputs.VERSION }}" `
           -channel stable `
           -x64Path "${{ steps.release.outputs.X64_OUTPUT_PATH }}" `
           -arm64Path "${{ steps.release.outputs.ARM64_OUTPUT_PATH }}" `

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,8 @@ using Microsoft.Extensions.Options;
 using Microsoft.UI.Xaml;
 using NetSparkleUpdater;
 using NetSparkleUpdater.AppCastHandlers;
+using NetSparkleUpdater.AssemblyAccessors;
+using NetSparkleUpdater.Configurations;
 using NetSparkleUpdater.Enums;
 using NetSparkleUpdater.Interfaces;
 using NetSparkleUpdater.SignatureVerifiers;
@@ -94,10 +97,16 @@ public class SparkleUpdateController : IUpdateController, INotificationHandler
             publicKey: _config.PublicKeyBase64,
             readFileBeingVerifiedInChunks: true);
 
+        // Tell NetSparkle to store its configuration in the same directory as
+        // our other config files.
+        var appConfigDir = SettingsManagerUtils.AppSettingsDirectory();
+        var sparkleConfigPath = Path.Combine(appConfigDir, "updater.json");
+        var sparkleAssemblyAccessor = new AssemblyDiagnosticsAccessor(null); // null => use current executable path
+        var sparkleConfig = new JSONConfiguration(sparkleAssemblyAccessor, sparkleConfigPath);
+
         _sparkle = new SparkleUpdater(_config.AppCastUrl, checker)
         {
-            // TODO: custom Configuration for persistence, could just specify
-            //       our own save path with JSONConfiguration TBH
+            Configuration = sparkleConfig,
             // GitHub releases endpoint returns a random UUID as the filename,
             // so we tell NetSparkle to ignore it and use the last segment of
             // the URL instead.
@@ -141,14 +150,14 @@ public class SparkleUpdateController : IUpdateController, INotificationHandler
         try
         {
             if (coderFactory is not null)
-                coderFactory.ForceDisableToasts = true;
+                coderFactory.ForceDisableToastMessages = true;
 
             await _sparkle.CheckForUpdatesAtUserRequest(true);
         }
         finally
         {
             if (coderFactory is not null)
-                coderFactory.ForceDisableToasts = false;
+                coderFactory.ForceDisableToastMessages = false;
         }
     }
 
@@ -192,7 +201,7 @@ public class CoderSparkleAppCastHelper(UpdateChannel? forcedChannel) : AppCastHe
 // ReSharper disable once InconsistentNaming // the interface name is "UI", not "Ui"
 public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAvailableViewModelFactory updateAvailableViewModelFactory) : IUIFactory
 {
-    public bool ForceDisableToasts;
+    public bool ForceDisableToastMessages;
 
     bool IUIFactory.HideReleaseNotes { get; set; }
     bool IUIFactory.HideSkipButton { get; set; }
@@ -276,7 +285,7 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
 
     bool IUIFactory.CanShowToastMessages()
     {
-        return !ForceDisableToasts;
+        return !ForceDisableToastMessages;
     }
 
     void IUIFactory.ShowToast(Action clickHandler)

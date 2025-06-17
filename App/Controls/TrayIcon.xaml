@@ -32,7 +32,7 @@
                         <XamlUICommand
                             Label="Show Window"
                             Description="Show Window"
-                            Command="{x:Bind OpenCommand, Mode=OneWay}">
+                            Command="{x:Bind OpenCommand}">
 
                             <XamlUICommand.IconSource>
                                 <SymbolIconSource Symbol="OpenPane" />
@@ -53,7 +53,7 @@
                         <XamlUICommand
                             Label="Check for Updates"
                             Description="Check for Updates"
-                            Command="{x:Bind CheckForUpdatesCommand, Mode=OneWay}">
+                            Command="{x:Bind CheckForUpdatesCommand}">
 
                             <XamlUICommand.IconSource>
                                 <SymbolIconSource Symbol="Download" />
@@ -74,7 +74,7 @@
                         <XamlUICommand
                             Label="Exit"
                             Description="Exit"
-                            Command="{x:Bind ExitCommand, Mode=OneWay}">
+                            Command="{x:Bind ExitCommand}">
 
                             <XamlUICommand.IconSource>
                                 <SymbolIconSource Symbol="ClosePane" />

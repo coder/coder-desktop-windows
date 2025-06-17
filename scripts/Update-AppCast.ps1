@@ -5,7 +5,6 @@
 #
 # Usage: Update-AppCast.ps1
 #          -tag <tag>
-#          -version <version>
 #          -channel <stable|preview>
 #          -x64Path <path>
 #          -arm64Path <path>
@@ -17,10 +16,6 @@ param (
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^v\d+\.\d+\.\d+$")]
     [string] $tag,
-
-    [Parameter(Mandatory = $true)]
-    [ValidatePattern("^\d+\.\d+\.\d+$")]
-    [string] $version,
 
     [Parameter(Mandatory = $true)]
     [ValidateSet('stable', 'preview')]
@@ -56,6 +51,8 @@ param (
 $ErrorActionPreference = "Stop"
 
 $repo = "coder/coder-desktop-windows"
+
+$version = $tag.Substring(1) # remove the v prefix
 
 function Get-Ed25519Signature {
     param (

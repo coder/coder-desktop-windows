@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml.Media;
 using System;
 using Coder.Desktop.App.Utils;
 using NetSparkleUpdater.Interfaces;
@@ -15,7 +14,6 @@ public sealed partial class UpdaterCheckingForUpdatesWindow : WindowEx, ICheckin
     {
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         AppWindow.Hide();
 
         Closed += (_, _) => UpdatesUIClosing?.Invoke(this, EventArgs.Empty);

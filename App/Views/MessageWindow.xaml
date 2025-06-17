@@ -12,7 +12,7 @@
     MinWidth="500" MinHeight="240">
 
     <Window.SystemBackdrop>
-        <DesktopAcrylicBackdrop />
+        <MicaBackdrop />
     </Window.SystemBackdrop>
 
     <Grid Padding="24">

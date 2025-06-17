@@ -1,9 +1,5 @@
-using System.Diagnostics;
-using Windows.Foundation;
-using Windows.Graphics;
 using Coder.Desktop.App.Utils;
 using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Media;
 using WinUIEx;
 
 namespace Coder.Desktop.App.Views;
@@ -21,7 +17,6 @@ public sealed partial class MessageWindow : WindowEx
 
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         this.CenterOnScreen();
         AppWindow.Show();
 

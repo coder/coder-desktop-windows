@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml.Media;
 using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.ViewModels;
 using Coder.Desktop.App.Views.Pages;
@@ -16,7 +15,7 @@ public sealed partial class UpdaterDownloadProgressWindow : WindowEx, IDownloadP
 
     public UpdaterDownloadProgressViewModel ViewModel;
 
-    private bool _didCallDownloadProcessCompletedHandler;
+    private bool _downloadProcessCompletedInvoked;
 
     public UpdaterDownloadProgressWindow(UpdaterDownloadProgressViewModel viewModel)
     {
@@ -25,7 +24,6 @@ public sealed partial class UpdaterDownloadProgressWindow : WindowEx, IDownloadP
 
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         AppWindow.Hide();
 
         RootFrame.Content = new UpdaterDownloadProgressMainPage(ViewModel);
@@ -35,9 +33,9 @@ public sealed partial class UpdaterDownloadProgressWindow : WindowEx, IDownloadP
 
     public void SendResponse(DownloadInstallEventArgs args)
     {
-        if (_didCallDownloadProcessCompletedHandler)
+        if (_downloadProcessCompletedInvoked)
             return;
-        _didCallDownloadProcessCompletedHandler = true;
+        _downloadProcessCompletedInvoked = true;
         DownloadProcessCompleted?.Invoke(this, args);
     }
 
