@@ -6,7 +6,8 @@ access to your remote development environments through features like Coder
 Connect (VPN-like connectivity) and file synchronization between local and
 remote directories.
 
-Learn more about Coder Desktop in the [official documentation](https://coder.com/docs/user-guides/desktop).
+Learn more about Coder Desktop in the
+[official documentation](https://coder.com/docs/user-guides/desktop).
 
 This repo contains the C# source code for Coder Desktop for Windows. You can
 download the latest version from the GitHub releases.
