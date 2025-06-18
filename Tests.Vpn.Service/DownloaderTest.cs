@@ -323,6 +323,7 @@ public class DownloaderTest
             ctx.Response.ContentType = "text/plain";
             // Don't set Content-Length.
             await ctx.Response.OutputStream.WriteAsync("test"u8.ToArray(), ct);
+            await ctx.Response.OutputStream.FlushAsync(ct);
         });
         var url = new Uri(httpServer.BaseUrl + "/test");
         var destPath = Path.Combine(_tempDir, "test");
@@ -345,6 +346,7 @@ public class DownloaderTest
             ctx.Response.Headers.Add("X-Original-Content-Length", "5"); // incorrect
             ctx.Response.ContentType = "text/plain";
             await ctx.Response.OutputStream.WriteAsync("test"u8.ToArray(), ct);
+            await ctx.Response.OutputStream.FlushAsync(ct);
         });
         var url = new Uri(httpServer.BaseUrl + "/test");
         var destPath = Path.Combine(_tempDir, "test");

@@ -28,26 +28,15 @@ public interface ISettingsManager<T> where T : ISettings<T>, new()
     Task Write(T settings, CancellationToken ct = default);
 }
 
-/// <summary>
-/// Implemention of <see cref="ISettingsManager"/> that persists settings to a JSON file
-/// located in the user's local application data folder.
-/// </summary>
-public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings<T>, new()
+public static class SettingsManagerUtils
 {
-    private readonly string _settingsFilePath;
-    private readonly string _appName = "CoderDesktop";
-    private string _fileName;
+    private const string AppName = "CoderDesktop";
 
-    private T? _cachedSettings;
-
-    private readonly SemaphoreSlim _gate = new(1, 1);
-    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(3);
-
-    /// <param name="settingsFilePath">
-    /// For unit‑tests you can pass an absolute path that already exists.
-    /// Otherwise the settings file will be created in the user's local application data folder.
-    /// </param>
-    public SettingsManager(string? settingsFilePath = null)
+    /// <summary>
+    /// Generates the settings directory path and ensures it exists.
+    /// </summary>
+    /// <param name="settingsFilePath">Custom settings root, defaults to AppData/Local</param>
+    public static string AppSettingsDirectory(string? settingsFilePath = null)
     {
         if (settingsFilePath is null)
         {
@@ -60,9 +49,35 @@ public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings
 
         var folder = Path.Combine(
                 settingsFilePath,
-                _appName);
+                AppName);
 
         Directory.CreateDirectory(folder);
+        return folder;
+    }
+}
+
+/// <summary>
+/// Implementation of <see cref="ISettingsManager"/> that persists settings to
+/// a JSON file located in the user's local application data folder.
+/// </summary>
+public sealed class SettingsManager<T> : ISettingsManager<T> where T : ISettings<T>, new()
+{
+
+    private readonly string _settingsFilePath;
+    private readonly string _fileName;
+
+    private T? _cachedSettings;
+
+    private readonly SemaphoreSlim _gate = new(1, 1);
+    private static readonly TimeSpan LockTimeout = TimeSpan.FromSeconds(3);
+
+    /// <param name="settingsFilePath">
+    /// For unit‑tests you can pass an absolute path that already exists.
+    /// Otherwise the settings file will be created in the user's local application data folder.
+    /// </param>
+    public SettingsManager(string? settingsFilePath = null)
+    {
+        var folder = SettingsManagerUtils.AppSettingsDirectory(settingsFilePath);
 
         _fileName = T.SettingsFileName;
         _settingsFilePath = Path.Combine(folder, _fileName);
