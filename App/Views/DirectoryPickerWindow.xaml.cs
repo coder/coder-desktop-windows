@@ -19,8 +19,6 @@ public sealed partial class DirectoryPickerWindow : WindowEx
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
 
-        SystemBackdrop = new DesktopAcrylicBackdrop();
-
         viewModel.Initialize(this, DispatcherQueue);
         RootFrame.Content = new DirectoryPickerMainPage(viewModel);
 
