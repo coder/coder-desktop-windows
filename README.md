@@ -1,6 +1,10 @@
 # Coder Desktop for Windows
 
-Coder Desktop allows you to work on your Coder workspaces as though they're on your local network, with no port-forwarding required. It provides seamless access to your remote development environments through features like Coder Connect (VPN-like connectivity) and file synchronization between local and remote directories.
+Coder Desktop allows you to work on your Coder workspaces as though they're
+on your local network, with no port-forwarding required. It provides seamless
+access to your remote development environments through features like Coder
+Connect (VPN-like connectivity) and file synchronization between local and
+remote directories.
 
 Learn more about Coder Desktop in the [official documentation](https://coder.com/docs/user-guides/desktop).
 
