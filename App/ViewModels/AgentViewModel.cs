@@ -1,11 +1,3 @@
-using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
-using Windows.ApplicationModel.DataTransfer;
 using Coder.Desktop.App.Services;
 using Coder.Desktop.App.Utils;
 using Coder.Desktop.CoderSdk;
@@ -18,15 +10,24 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Xml.Linq;
+using Windows.ApplicationModel.DataTransfer;
 
 namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentViewModelFactory
 {
     public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string fullyQualifiedDomainName,
-        string hostnameSuffix,
-        AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName);
-
+        string hostnameSuffix, AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl,
+        string? workspaceName, bool? didP2p, string? preferredDerp, TimeSpan? latency, TimeSpan? preferredDerpLatency, DateTime? lastHandshake);
     public AgentViewModel CreateDummy(IAgentExpanderHost expanderHost, Uuid id,
         string hostnameSuffix,
         AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string workspaceName);
@@ -40,8 +41,11 @@ public class AgentViewModelFactory(
 {
     public AgentViewModel Create(IAgentExpanderHost expanderHost, Uuid id, string fullyQualifiedDomainName,
         string hostnameSuffix,
-        AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl, string? workspaceName)
+        AgentConnectionStatus connectionStatus, Uri dashboardBaseUrl,
+        string? workspaceName, bool? didP2p, string? preferredDerp, TimeSpan? latency, TimeSpan? preferredDerpLatency,
+        DateTime? lastHandshake)
     {
+        System.Diagnostics.Debug.WriteLine($"Creating agent: {didP2p} {preferredDerp} {latency} {lastHandshake}");
         return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory,
             expanderHost, id)
         {
@@ -51,6 +55,11 @@ public class AgentViewModelFactory(
             ConnectionStatus = connectionStatus,
             DashboardBaseUrl = dashboardBaseUrl,
             WorkspaceName = workspaceName,
+            DidP2p = didP2p,
+            PreferredDerp = preferredDerp,
+            Latency = latency,
+            PreferredDerpLatency = preferredDerpLatency,
+            LastHandshake = lastHandshake,
         };
     }
 
@@ -73,10 +82,10 @@ public class AgentViewModelFactory(
 
 public enum AgentConnectionStatus
 {
-    Green,
-    Yellow,
-    Red,
-    Gray,
+    Healthy,
+    Unhealthy,
+    NoRecentHandshake,
+    Offline,
 }
 
 public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentViewModel>
@@ -182,6 +191,75 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     [NotifyPropertyChangedFor(nameof(ExpandAppsMessage))]
     public partial bool AppFetchErrored { get; set; } = false;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
+    public partial bool? DidP2p { get; set; } = false;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
+    public partial string? PreferredDerp { get; set; } = null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
+    public partial TimeSpan? Latency { get; set; } = null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
+    public partial TimeSpan? PreferredDerpLatency { get; set; } = null;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
+    public partial DateTime? LastHandshake { get; set; } = null;
+
+    public string ConnectionTooltip { get
+        {
+            var description = new StringBuilder();
+
+            if (DidP2p != null && DidP2p.Value && Latency != null)
+            {
+                description.Append($"""
+                You're connected peer-to-peer.
+
+                You ↔ {Latency.Value.Milliseconds} ms ↔ {WorkspaceName}
+                """
+                );
+            }
+            else if (PreferredDerpLatency != null)
+            {
+                description.Append($"""
+                You're connected through a DERP relay.
+                We'll switch over to peer-to-peer when available.
+
+                Total latency: {PreferredDerpLatency.Value.Milliseconds} ms
+                """
+                );
+
+                if (PreferredDerp != null && Latency != null)
+                {
+                    description.Append($"\nYou ↔ {PreferredDerp}: {PreferredDerpLatency.Value.Milliseconds} ms");
+
+                    var derpToWorkspaceEstimatedLatency = Latency - PreferredDerpLatency;
+
+                    // Guard against negative values if the two readings were taken at different times
+                    if (derpToWorkspaceEstimatedLatency > TimeSpan.Zero)
+                    {
+                        description.Append($"\n{PreferredDerp} ms ↔ {WorkspaceName}: {derpToWorkspaceEstimatedLatency.Value.Milliseconds} ms");
+                    }
+                }
+            }
+            if (LastHandshake != null)
+                description.Append($"\n\nLast handshake: {LastHandshake?.ToString() ?? "Unknown"}");
+
+            var tooltip = description.ToString().TrimEnd('\n', ' ');
+
+            if (string.IsNullOrEmpty(tooltip))
+                return "No connection information available.";
+
+            return tooltip;
+        }
+    }
+
+
     // We only show 6 apps max, which fills the entire width of the tray
     // window.
     public IEnumerable<AgentAppViewModel> VisibleApps => Apps.Count > MaxAppsPerRow ? Apps.Take(MaxAppsPerRow) : Apps;
@@ -192,7 +270,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     {
         get
         {
-            if (ConnectionStatus == AgentConnectionStatus.Gray)
+            if (ConnectionStatus == AgentConnectionStatus.Offline)
                 return "Your workspace is offline.";
             if (FetchingApps && Apps.Count == 0)
                 // Don't show this message if we have any apps already. When
@@ -285,6 +363,16 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             DashboardBaseUrl = model.DashboardBaseUrl;
         if (WorkspaceName != model.WorkspaceName)
             WorkspaceName = model.WorkspaceName;
+        if (DidP2p != model.DidP2p)
+            DidP2p = model.DidP2p;
+        if (PreferredDerp != model.PreferredDerp)
+            PreferredDerp = model.PreferredDerp;
+        if (Latency != model.Latency)
+            Latency = model.Latency;
+        if (PreferredDerpLatency != model.PreferredDerpLatency)
+            PreferredDerpLatency = model.PreferredDerpLatency;
+        if (LastHandshake != model.LastHandshake)
+            LastHandshake = model.LastHandshake;
 
         // Apps are not set externally.
 
@@ -307,7 +395,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
 
     partial void OnConnectionStatusChanged(AgentConnectionStatus oldValue, AgentConnectionStatus newValue)
     {
-        if (IsExpanded && newValue is not AgentConnectionStatus.Gray) FetchApps();
+        if (IsExpanded && newValue is not AgentConnectionStatus.Offline) FetchApps();
     }
 
     private void FetchApps()
@@ -316,7 +404,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
         FetchingApps = true;
 
         // If the workspace is off, then there's no agent and there's no apps.
-        if (ConnectionStatus == AgentConnectionStatus.Gray)
+        if (ConnectionStatus == AgentConnectionStatus.Offline)
         {
             FetchingApps = false;
             Apps.Clear();
