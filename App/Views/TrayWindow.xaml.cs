@@ -12,7 +12,9 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.System;
@@ -22,7 +24,7 @@ using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
 namespace Coder.Desktop.App.Views;
 
-public sealed partial class TrayWindow : Window
+public sealed partial class TrayWindow : Window, INotificationHandler
 {
     private const int WIDTH = 300;
 
@@ -34,19 +36,25 @@ public sealed partial class TrayWindow : Window
     private int _lastWindowHeight;
     private Storyboard? _currentSb;
 
+    private VpnLifecycle prevVpnLifecycle = VpnLifecycle.Stopped;
+    private RpcLifecycle prevRpcLifecycle = RpcLifecycle.Disconnected;
+
     private NativeApi.POINT? _lastActivatePosition;
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
     private readonly ISyncSessionController _syncSessionController;
     private readonly IUpdateController _updateController;
+    private readonly IUserNotifier _userNotifier;
     private readonly TrayWindowLoadingPage _loadingPage;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
 
-    public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
+    public TrayWindow(
+        IRpcController rpcController, ICredentialManager credentialManager,
         ISyncSessionController syncSessionController, IUpdateController updateController,
+        IUserNotifier userNotifier,
         TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
@@ -55,12 +63,14 @@ public sealed partial class TrayWindow : Window
         _credentialManager = credentialManager;
         _syncSessionController = syncSessionController;
         _updateController = updateController;
+        _userNotifier = userNotifier;
         _loadingPage = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
         _mainPage = mainPage;
 
         InitializeComponent();
+        _userNotifier.RegisterHandler("TrayWindow", this);
         AppWindow.Hide();
         SystemBackdrop = new DesktopAcrylicBackdrop();
         Activated += Window_Activated;
@@ -146,9 +156,55 @@ public sealed partial class TrayWindow : Window
         }
     }
 
+    private void NotifyUser(RpcModel rpcModel)
+    {
+        // This method is called when the state changes, but we don't want to notify
+        // the user if the state hasn't changed.
+        var isRpcLifecycleChanged = rpcModel.RpcLifecycle != RpcLifecycle.Connecting && prevRpcLifecycle != rpcModel.RpcLifecycle;
+        var isVpnLifecycleChanged = (rpcModel.VpnLifecycle == VpnLifecycle.Started || rpcModel.VpnLifecycle == VpnLifecycle.Stopped) && prevVpnLifecycle != rpcModel.VpnLifecycle;
+
+        if (!isRpcLifecycleChanged && !isVpnLifecycleChanged)
+        {
+            return;
+        }
+        var message = string.Empty;
+        // Compose the message based on the lifecycle changes
+        if (isRpcLifecycleChanged)
+            message += rpcModel.RpcLifecycle switch
+            {
+                RpcLifecycle.Connected => "Connected to Coder vpn service.",
+                RpcLifecycle.Disconnected => "Disconnected from Coder vpn service.",
+                _ => "" // This will never be hit.
+            };
+
+        if(message.Length > 0 && isVpnLifecycleChanged)
+            message += " ";
+
+        if (isVpnLifecycleChanged)
+            message += rpcModel.VpnLifecycle switch
+            {
+                VpnLifecycle.Started => "Coder Connect started.",
+                VpnLifecycle.Stopped => "Coder Connect stopped.",
+                _ => "" // This will never be hit.
+            };
+
+        // Save state for the next notification check
+        prevRpcLifecycle = rpcModel.RpcLifecycle;
+        prevVpnLifecycle = rpcModel.VpnLifecycle;
+
+        if (_aw.IsVisible)
+        {
+            return; // No need to notify if the window is not visible.
+        }
+
+        // Trigger notification
+        _userNotifier.ShowActionNotification(message, string.Empty, nameof(TrayWindow), null, CancellationToken.None);
+    }
+
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
         SetPageByState(model, _credentialManager.GetCachedCredentials(), _syncSessionController.GetState());
+        NotifyUser(model);
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)
@@ -328,6 +384,11 @@ public sealed partial class TrayWindow : Window
     {
         // It's fine that this happens in the background.
         _ = ((App)Application.Current).ExitApplication();
+    }
+
+    public void HandleNotificationActivation(IDictionary<string, string> args)
+    {
+        Tray_Open();
     }
 
     public static class NativeApi
