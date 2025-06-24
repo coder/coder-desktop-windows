@@ -19,6 +19,10 @@
         <DefineConstants>DISABLE_XAML_GENERATED_MAIN;DISABLE_XAML_GENERATED_BREAK_ON_UNHANDLED_EXCEPTION</DefineConstants>
 
         <AssemblyName>Coder Desktop</AssemblyName>
+        <AssemblyTitle>Coder Desktop</AssemblyTitle>
+        <Company>Coder Technologies Inc.</Company>
+        <Product>Coder Desktop</Product>
+        <Copyright>© Coder Technologies Inc.</Copyright>
         <ApplicationIcon>coder.ico</ApplicationIcon>
     </PropertyGroup>
 
@@ -31,9 +35,7 @@
 
     <ItemGroup>
         <Content Include="coder.ico" />
-    </ItemGroup>
-
-    <ItemGroup>
+        <EmbeddedResource Include="Assets\changelog.css" />
         <Manifest Include="$(ApplicationManifest)" />
     </ItemGroup>
 
@@ -68,10 +70,15 @@
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
         <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
         <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.6.250108002" />
+        <PackageReference Include="NetSparkleUpdater.SparkleUpdater" Version="3.0.2" />
         <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
         <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
         <PackageReference Include="WinUIEx" Version="2.5.1" />
+    </ItemGroup>
+
+    <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+        <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
     </ItemGroup>
 
     <ItemGroup>

@@ -51,6 +51,27 @@
                 <MenuFlyoutItem>
                     <MenuFlyoutItem.Command>
                         <XamlUICommand
+                            Label="Check for Updates"
+                            Description="Check for Updates"
+                            Command="{x:Bind CheckForUpdatesCommand}">
+
+                            <XamlUICommand.IconSource>
+                                <SymbolIconSource Symbol="Download" />
+                            </XamlUICommand.IconSource>
+                            <XamlUICommand.KeyboardAccelerators>
+                                <KeyboardAccelerator
+                                    Key="U"
+                                    Modifiers="Control" />
+                            </XamlUICommand.KeyboardAccelerators>
+                        </XamlUICommand>
+                    </MenuFlyoutItem.Command>
+                </MenuFlyoutItem>
+
+                <MenuFlyoutSeparator />
+
+                <MenuFlyoutItem>
+                    <MenuFlyoutItem.Command>
+                        <XamlUICommand
                             Label="Exit"
                             Description="Exit"
                             Command="{x:Bind ExitCommand}">

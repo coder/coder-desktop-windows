@@ -115,6 +115,15 @@
           "Microsoft.Windows.SDK.BuildTools": "10.0.22621.756"
         }
       },
+      "NetSparkleUpdater.SparkleUpdater": {
+        "type": "Direct",
+        "requested": "[3.0.2, )",
+        "resolved": "3.0.2",
+        "contentHash": "ruDV/hBjZX7DTFMvcJAgA8bUEB8zkq23i/zwpKKWr/vK/IxWIQESYRfP2JpQfKSqlVFNL5uOlJ86wV6nJAi09w==",
+        "dependencies": {
+          "NetSparkleUpdater.Chaos.NaCl": "0.9.3"
+        }
+      },
       "Serilog.Extensions.Hosting": {
         "type": "Direct",
         "requested": "[9.0.0, )",
@@ -137,6 +146,15 @@
           "Microsoft.Extensions.Configuration.Binder": "9.0.0",
           "Microsoft.Extensions.DependencyModel": "9.0.0",
           "Serilog": "4.2.0"
+        }
+      },
+      "Serilog.Sinks.Debug": {
+        "type": "Direct",
+        "requested": "[3.0.0, )",
+        "resolved": "3.0.0",
+        "contentHash": "4BzXcdrgRX7wde9PmHuYd9U6YqycCC28hhpKonK7hx0wb19eiuRj16fPcPSVp0o/Y1ipJuNLYQ00R3q2Zs8FDA==",
+        "dependencies": {
+          "Serilog": "4.0.0"
         }
       },
       "Serilog.Sinks.File": {
@@ -483,6 +501,11 @@
         "type": "Transitive",
         "resolved": "10.0.22621.756",
         "contentHash": "7ZL2sFSioYm1Ry067Kw1hg0SCcW5kuVezC2SwjGbcPE61Nn+gTbH86T73G3LcEOVj0S3IZzNuE/29gZvOLS7VA=="
+      },
+      "NetSparkleUpdater.Chaos.NaCl": {
+        "type": "Transitive",
+        "resolved": "0.9.3",
+        "contentHash": "Copo3+rYuRVOuc6fmzHwXwehDC8l8DQ3y2VRI/d0sQTwProL4QAjkxRPV0zr3XBz1A8ZODXATOXV0hJXc7YdKg=="
       },
       "Semver": {
         "type": "Transitive",

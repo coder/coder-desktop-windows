@@ -263,7 +263,6 @@ public class Program
         programFiles64Folder.AddDir(installDir);
         project.AddDir(programFiles64Folder);
 
-
         project.AddRegValues(
             // Add registry values that are consumed by the manager. Note that these
             // should not be changed. See Vpn.Service/Program.cs (AddDefaultConfig) and

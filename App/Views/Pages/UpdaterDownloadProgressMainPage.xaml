@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Coder.Desktop.App.Views.Pages.UpdaterDownloadProgressMainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d">
+
+    <StackPanel Orientation="Vertical" Padding="24">
+        <TextBlock Style="{ThemeResource SubtitleTextBlockStyle}"
+                   Text="{x:Bind ViewModel.DownloadingTitle, Mode=OneWay}"
+                   Margin="0,0,0,16" />
+
+        <ProgressBar Value="{x:Bind ViewModel.DownloadProgressValue, Mode=OneWay}"
+                     IsIndeterminate="{x:Bind ViewModel.DownloadProgressIndeterminate, Mode=OneWay}"
+                     Margin="0,0,0,24"
+                     HorizontalAlignment="Stretch" />
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Style="{ThemeResource CaptionTextBlockStyle}"
+                       Text="{x:Bind ViewModel.UserReadableDownloadProgress, Mode=OneWay}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="0,0,24,0" />
+
+            <Button Grid.Column="1"
+                    Content="{x:Bind ViewModel.ActionButtonTitle, Mode=OneWay}"
+                    IsEnabled="{x:Bind ViewModel.IsActionButtonEnabled, Mode=OneWay}"
+                    HorizontalAlignment="Right"
+                    Click="{x:Bind ViewModel.ActionButton_Click}" />
+        </Grid>
+    </StackPanel>
+</Page>
