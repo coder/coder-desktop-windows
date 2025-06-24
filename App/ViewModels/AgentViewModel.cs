@@ -45,7 +45,6 @@ public class AgentViewModelFactory(
         string? workspaceName, bool? didP2p, string? preferredDerp, TimeSpan? latency, TimeSpan? preferredDerpLatency,
         DateTime? lastHandshake)
     {
-        System.Diagnostics.Debug.WriteLine($"Creating agent: {didP2p} {preferredDerp} {latency} {lastHandshake}");
         return new AgentViewModel(childLogger, coderApiClientFactory, credentialManager, agentAppViewModelFactory,
             expanderHost, id)
         {
@@ -86,6 +85,19 @@ public enum AgentConnectionStatus
     Unhealthy,
     NoRecentHandshake,
     Offline,
+}
+
+public static class AgentConnectionStatusExtensions
+{
+    public static string ToDisplayString(this AgentConnectionStatus status) =>
+        status switch
+        {
+            AgentConnectionStatus.Healthy => "Healthy",
+            AgentConnectionStatus.Unhealthy => "High latency",
+            AgentConnectionStatus.NoRecentHandshake => "No recent handshake",
+            AgentConnectionStatus.Offline => "Offline",
+            _ => status.ToString()
+        };
 }
 
 public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentViewModel>
@@ -169,6 +181,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowExpandAppsMessage))]
     [NotifyPropertyChangedFor(nameof(ExpandAppsMessage))]
+    [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
     public required partial AgentConnectionStatus ConnectionStatus { get; set; }
 
     [ObservableProperty]
@@ -214,11 +227,12 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     public string ConnectionTooltip { get
         {
             var description = new StringBuilder();
+            var highLatencyWarning = ConnectionStatus == AgentConnectionStatus.Unhealthy ? $"({AgentConnectionStatus.Unhealthy.ToDisplayString()})" : "";
 
             if (DidP2p != null && DidP2p.Value && Latency != null)
             {
                 description.Append($"""
-                You're connected peer-to-peer.
+                You're connected peer-to-peer. {highLatencyWarning}
 
                 You ↔ {Latency.Value.Milliseconds} ms ↔ {WorkspaceName}
                 """
@@ -227,7 +241,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             else if (PreferredDerpLatency != null)
             {
                 description.Append($"""
-                You're connected through a DERP relay.
+                You're connected through a DERP relay. {highLatencyWarning}
                 We'll switch over to peer-to-peer when available.
 
                 Total latency: {PreferredDerpLatency.Value.Milliseconds} ms
@@ -247,15 +261,14 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
                     }
                 }
             }
+            else
+            {
+                description.Append(ConnectionStatus.ToDisplayString());
+            }
             if (LastHandshake != null)
-                description.Append($"\n\nLast handshake: {LastHandshake?.ToString() ?? "Unknown"}");
+                description.Append($"\n\nLast handshake: {LastHandshake?.ToString()}");
 
-            var tooltip = description.ToString().TrimEnd('\n', ' ');
-
-            if (string.IsNullOrEmpty(tooltip))
-                return "No connection information available.";
-
-            return tooltip;
+            return description.ToString().TrimEnd('\n', ' '); ;
         }
     }
 

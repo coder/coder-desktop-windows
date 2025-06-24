@@ -224,12 +224,13 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             if (string.IsNullOrWhiteSpace(fqdn))
                 continue;
 
-
+#pragma warning disable CS8602 // Protobuf will always set this value, so we can safely dereference them.
             var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
+#pragma warning restore CS8602
 
             // For compatibility with older deployments, we assume that if the
             // last ping is null, the agent is healthy.
-            var isLatencyAcceptable = agent.LastPing != null ? agent.LastPing.Latency.ToTimeSpan() < HealthyPingThreshold : true;
+            var isLatencyAcceptable = agent.LastPing == null || agent.LastPing.Latency.ToTimeSpan() < HealthyPingThreshold;
             var connectionStatus = AgentConnectionStatus.Healthy;
             if (lastHandshakeAgo > TimeSpan.FromMinutes(5))
             {
@@ -243,7 +244,6 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             
             workspacesWithAgents.Add(agent.WorkspaceId);
             var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
-            System.Diagnostics.Debug.WriteLine($"Agent {uuid} LastHandshakeAgo: {lastHandshakeAgo} ConnectionStatus: {connectionStatus} FQDN: {fqdn} Last ping: {agent.LastPing} Last handshake: {agent.LastHandshake}");
 
             agents.Add(_agentViewModelFactory.Create(
                 this,
