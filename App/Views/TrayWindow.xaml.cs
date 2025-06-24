@@ -33,8 +33,6 @@ public sealed partial class TrayWindow : Window
     private int _lastWindowHeight;
     private Storyboard? _currentSb;
 
-    private NativeApi.POINT? _lastActivatePosition;
-
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
     private readonly ISyncSessionController _syncSessionController;
@@ -98,18 +96,18 @@ public sealed partial class TrayWindow : Window
                  WindowNative.GetWindowHandle(this)));
         SizeProxy.SizeChanged += (_, e) =>
         {
-            if (_currentSb is null) return;            // nothing running
+            if (_currentSb is null) return; // nothing running
 
-            int newHeight = (int)Math.Round(
+            var newHeight = (int)Math.Round(
                                 e.NewSize.Height * DisplayScale.WindowScale(this));
 
-            int delta = newHeight - _lastWindowHeight;
+            var delta = newHeight - _lastWindowHeight;
             if (delta == 0) return;
 
             var pos = _aw.Position;
             var size = _aw.Size;
 
-            pos.Y -= delta;                    // grow upward
+            pos.Y -= delta; // grow upward
             size.Height = newHeight;
 
             _aw.MoveAndResize(
@@ -225,25 +223,12 @@ public sealed partial class TrayWindow : Window
 
     private void MoveResizeAndActivate()
     {
-        SaveCursorPos();
         var size = CalculateWindowSize(RootFrame.GetContentSize().Height);
         var pos = CalculateWindowPosition(size);
         var rect = new RectInt32(pos.X, pos.Y, size.Width, size.Height);
         AppWindow.MoveAndResize(rect);
         AppWindow.Show();
         ForegroundWindow.MakeForeground(this);
-    }
-
-    private void SaveCursorPos()
-    {
-        var res = NativeApi.GetCursorPos(out var cursorPosition);
-        if (res)
-            _lastActivatePosition = cursorPosition;
-        else
-            // When the cursor position is null, we will spawn the window in
-            // the bottom right corner of the primary display.
-            // TODO: log(?) an error when this happens
-            _lastActivatePosition = null;
     }
 
     private SizeInt32 CalculateWindowSize(double height)
@@ -257,41 +242,44 @@ public sealed partial class TrayWindow : Window
         return new SizeInt32(newWidth, newHeight);
     }
 
-    private PointInt32 CalculateWindowPosition(SizeInt32 size)
+    private PointInt32 CalculateWindowPosition(SizeInt32 panelSize)
     {
-        var width = size.Width;
-        var height = size.Height;
+        var area = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary);
+        // whole monitor
+        var bounds = area.OuterBounds;
+        // monitor minus taskbar
+        var workArea = area.WorkArea;
 
-        var cursorPosition = _lastActivatePosition;
-        if (cursorPosition is null)
+        // get taskbar details - position, gap (size), auto-hide
+        var tb = GetTaskbarInfo(area);
+
+        // safe edges where tray window can touch the screen 
+        var safeRight = workArea.X + workArea.Width;
+        var safeBottom = workArea.Y + workArea.Height;
+
+        // if the taskbar is auto-hidden at the bottom, stay clear of its reveal band
+        if (tb.Position == TaskbarPosition.Bottom && tb.AutoHide)
+            safeBottom -= tb.Gap;                       // shift everything up by its thickness
+
+        // pick corner & position the panel
+        int x, y;
+        switch (tb.Position)
         {
-            var primaryWorkArea = DisplayArea.Primary.WorkArea;
-            return new PointInt32(
-                primaryWorkArea.Width - width,
-                primaryWorkArea.Height - height
-            );
+            case TaskbarPosition.Left: // for Left we will stick to the left-bottom corner
+                x = bounds.X + tb.Gap; // just right of the bar
+                y = safeBottom - panelSize.Height;
+                break;
+
+            case TaskbarPosition.Top: // for Top we will stick to the top-right corner
+                x = safeRight - panelSize.Width;
+                y = bounds.Y + tb.Gap; // just below the bar
+                break;
+
+            default: // Bottom or Right bar we will stick to the bottom-right corner
+                x = safeRight - panelSize.Width;
+                y = safeBottom - panelSize.Height;
+                break;
         }
-
-        // Spawn the window to the top right of the cursor.
-        var x = cursorPosition.Value.X + 10;
-        var y = cursorPosition.Value.Y - 10 - height;
-
-        var workArea = DisplayArea.GetFromPoint(
-            new PointInt32(cursorPosition.Value.X, cursorPosition.Value.Y),
-            DisplayAreaFallback.Primary
-        ).WorkArea;
-
-        // Adjust if the window goes off the right edge of the display.
-        if (x + width > workArea.X + workArea.Width) x = workArea.X + workArea.Width - width;
-
-        // Adjust if the window goes off the bottom edge of the display.
-        if (y + height > workArea.Y + workArea.Height) y = workArea.Y + workArea.Height - height;
-
-        // Adjust if the window goes off the left edge of the display (somehow).
-        if (x < workArea.X) x = workArea.X;
-
-        // Adjust if the window goes off the top edge of the display (somehow).
-        if (y < workArea.Y) y = workArea.Y;
 
         return new PointInt32(x, y);
     }
@@ -342,4 +330,71 @@ public sealed partial class TrayWindow : Window
             public int Y;
         }
     }
+
+    internal enum TaskbarPosition { Left, Top, Right, Bottom }
+
+    internal readonly record struct TaskbarInfo(TaskbarPosition Position, int Gap, bool AutoHide);
+
+    // -----------------------------------------------------------------------------
+    //  Taskbar helpers – ABM_GETTASKBARPOS / ABM_GETSTATE via SHAppBarMessage
+    // -----------------------------------------------------------------------------
+    private static TaskbarInfo GetTaskbarInfo(DisplayArea area)
+    {
+        var data = new APPBARDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<APPBARDATA>()
+        };
+
+        // Locate the taskbar.
+        if (SHAppBarMessage(ABM_GETTASKBARPOS, ref data) == 0)
+            return new TaskbarInfo(TaskbarPosition.Bottom, 0, false); // failsafe
+
+        var autoHide = (SHAppBarMessage(ABM_GETSTATE, ref data) & ABS_AUTOHIDE) != 0;
+
+        // Use uEdge instead of guessing from the RECT.
+        var pos = data.uEdge switch
+        {
+            ABE_LEFT => TaskbarPosition.Left,
+            ABE_TOP => TaskbarPosition.Top,
+            ABE_RIGHT => TaskbarPosition.Right,
+            _ => TaskbarPosition.Bottom,   // ABE_BOTTOM or anything unexpected
+        };
+
+        // Thickness (gap) = shorter side of the rect.
+        var gap = (pos == TaskbarPosition.Left || pos == TaskbarPosition.Right)
+                  ? data.rc.right - data.rc.left    // width
+                  : data.rc.bottom - data.rc.top;   // height
+
+        return new TaskbarInfo(pos, gap, autoHide);
+    }
+
+    // -------------  P/Invoke plumbing -------------
+    private const uint ABM_GETTASKBARPOS = 0x0005;
+    private const uint ABM_GETSTATE = 0x0004;
+    private const int ABS_AUTOHIDE = 0x0001;
+
+    private const int ABE_LEFT = 0;   // values returned in APPBARDATA.uEdge
+    private const int ABE_TOP = 1;
+    private const int ABE_RIGHT = 2;
+    private const int ABE_BOTTOM = 3;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct APPBARDATA
+    {
+        public uint cbSize;
+        public IntPtr hWnd;
+        public uint uCallbackMessage;
+        public uint uEdge;   // contains ABE_* value
+        public RECT rc;
+        public int lParam;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int left, top, right, bottom;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Auto)]
+    private static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
 }
