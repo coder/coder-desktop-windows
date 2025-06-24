@@ -16,6 +16,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.Win32;
 using Microsoft.Windows.AppLifecycle;
@@ -26,7 +27,7 @@ using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
 namespace Coder.Desktop.App;
 
-public partial class App : Application
+public partial class App : Application, IDispatcherQueueManager
 {
     private const string MutagenControllerConfigSection = "MutagenController";
     private const string UpdaterConfigSection = "Updater";
@@ -50,12 +51,10 @@ public partial class App : Application
     private readonly ILogger<App> _logger;
     private readonly IUriHandler _uriHandler;
     private readonly IUserNotifier _userNotifier;
+    private readonly ISettingsManager<CoderConnectSettings> _settingsManager;
+    private readonly IHostApplicationLifetime _appLifetime;
 
     private bool _handleWindowClosed = true;
-
-    private readonly ISettingsManager<CoderConnectSettings> _settingsManager;
-
-    private readonly IHostApplicationLifetime _appLifetime;
 
     public App()
     {
@@ -91,7 +90,7 @@ public partial class App : Application
         services.AddSingleton<ICoderApiClientFactory, CoderApiClientFactory>();
         services.AddSingleton<IAgentApiClientFactory, AgentApiClientFactory>();
 
-        services.AddSingleton<IDispatcherQueueManager, AppDispatcherQueueManager>();
+        services.AddSingleton<IDispatcherQueueManager>(_ => this);
         services.AddSingleton<ICredentialBackend>(_ =>
             new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
@@ -322,5 +321,18 @@ public partial class App : Application
                 "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
 #endif
         });
+    }
+
+    public void RunInUiThread(DispatcherQueueHandler action)
+    {
+        var dispatcherQueue = TrayWindow?.DispatcherQueue;
+        if (dispatcherQueue is null)
+            throw new InvalidOperationException("DispatcherQueue is not available");
+        if (dispatcherQueue.HasThreadAccess)
+        {
+            action();
+            return;
+        }
+        dispatcherQueue.TryEnqueue(action);
     }
 }

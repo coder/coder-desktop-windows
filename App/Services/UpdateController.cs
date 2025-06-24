@@ -163,6 +163,7 @@ public class SparkleUpdateController : IUpdateController, INotificationHandler
 
     public ValueTask DisposeAsync()
     {
+        _userNotifier.UnregisterHandler(NotificationHandlerName);
         _sparkle?.Dispose();
         return ValueTask.CompletedTask;
     }
@@ -203,9 +204,9 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
 {
     public bool ForceDisableToastMessages;
 
-    bool IUIFactory.HideReleaseNotes { get; set; }
-    bool IUIFactory.HideSkipButton { get; set; }
-    bool IUIFactory.HideRemindMeLaterButton { get; set; }
+    public bool HideReleaseNotes { get; set; }
+    public bool HideSkipButton { get; set; }
+    public bool HideRemindMeLaterButton { get; set; }
 
     // This stuff is ignored as we use our own template in the ViewModel
     // directly:
@@ -215,8 +216,6 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
     public IUpdateAvailable CreateUpdateAvailableWindow(List<AppCastItem> updates, ISignatureVerifier? signatureVerifier,
         string currentVersion = "", string appName = "Coder Desktop", bool isUpdateAlreadyDownloaded = false)
     {
-        IUIFactory factory = this;
-
         var viewModel = updateAvailableViewModelFactory.Create(
             updates,
             signatureVerifier,
@@ -225,11 +224,11 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
             isUpdateAlreadyDownloaded);
 
         var window = new UpdaterUpdateAvailableWindow(viewModel);
-        if (factory.HideReleaseNotes)
+        if (HideReleaseNotes)
             (window as IUpdateAvailable).HideReleaseNotes();
-        if (factory.HideSkipButton)
+        if (HideSkipButton)
             (window as IUpdateAvailable).HideSkipButton();
-        if (factory.HideRemindMeLaterButton)
+        if (HideRemindMeLaterButton)
             (window as IUpdateAvailable).HideRemindMeLaterButton();
 
         return window;

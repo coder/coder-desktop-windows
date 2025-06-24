@@ -17,6 +17,7 @@ public interface INotificationHandler
 public interface IUserNotifier : INotificationHandler, IAsyncDisposable
 {
     public void RegisterHandler(string name, INotificationHandler handler);
+    public void UnregisterHandler(string name);
 
     public Task ShowErrorNotification(string title, string message, CancellationToken ct = default);
     public Task ShowActionNotification(string title, string message, string handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default);
@@ -47,6 +48,12 @@ public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager 
             throw new InvalidOperationException($"A handler with the name '{name}' is already registered.");
     }
 
+    public void UnregisterHandler(string name)
+    {
+        if (!Handlers.TryRemove(name, out _))
+            throw new InvalidOperationException($"No handler with the name '{name}' is registered.");
+    }
+
     public Task ShowErrorNotification(string title, string message, CancellationToken ct = default)
     {
         var builder = new AppNotificationBuilder().AddText(title).AddText(message);
@@ -57,10 +64,7 @@ public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager 
     public Task ShowActionNotification(string title, string message, string handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default)
     {
         if (!Handlers.TryGetValue(handlerName, out _))
-        {
-            logger.LogWarning("no action handler found for notification with name {HandlerName}, ignoring", handlerName);
-            return Task.CompletedTask;
-        }
+            throw new InvalidOperationException($"No action handler with the name '{handlerName}' is registered.");
 
         var builder = new AppNotificationBuilder()
             .AddText(title)
