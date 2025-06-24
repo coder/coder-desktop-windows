@@ -224,24 +224,28 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             if (string.IsNullOrWhiteSpace(fqdn))
                 continue;
 
-#pragma warning disable CS8602 // Protobuf will always set this value, so we can safely dereference them.
-            var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
-#pragma warning restore CS8602
-
-            // For compatibility with older deployments, we assume that if the
-            // last ping is null, the agent is healthy.
-            var isLatencyAcceptable = agent.LastPing == null || agent.LastPing.Latency.ToTimeSpan() < HealthyPingThreshold;
             var connectionStatus = AgentConnectionStatus.Healthy;
-            if (lastHandshakeAgo > TimeSpan.FromMinutes(5))
+
+            if (agent.LastHandshake != null && agent.LastHandshake.ToDateTime() != default && agent.LastHandshake.ToDateTime() < DateTime.UtcNow)
             {
-                connectionStatus = AgentConnectionStatus.NoRecentHandshake;
+                // For compatibility with older deployments, we assume that if the
+                // last ping is null, the agent is healthy.
+                var isLatencyAcceptable = agent.LastPing == null || agent.LastPing.Latency.ToTimeSpan() < HealthyPingThreshold;
+
+                var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
+
+                if (lastHandshakeAgo > TimeSpan.FromMinutes(5))
+                    connectionStatus = AgentConnectionStatus.NoRecentHandshake;
+                else if (!isLatencyAcceptable)
+                    connectionStatus = AgentConnectionStatus.Unhealthy;
             }
-            else if (!isLatencyAcceptable)
+            else
             {
-                connectionStatus = AgentConnectionStatus.Unhealthy;
+                // If the last handshake is not correct (null, default or in the future),
+                // we assume the agent is connecting (yellow status icon).
+                connectionStatus = AgentConnectionStatus.Connecting;
             }
 
-            
             workspacesWithAgents.Add(agent.WorkspaceId);
             var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
 
@@ -257,7 +261,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
                 agent.LastPing?.PreferredDerp,
                 agent.LastPing?.Latency?.ToTimeSpan(),
                 agent.LastPing?.PreferredDerpLatency?.ToTimeSpan(),
-                agent.LastHandshake?.ToDateTime()));
+                agent.LastHandshake != null && agent.LastHandshake.ToDateTime() != default ? agent.LastHandshake?.ToDateTime() : null));
         }
 
         // For every stopped workspace that doesn't have any agents, add a

@@ -152,6 +152,11 @@
                                                     <SolidColorBrush Color="#ffcc01" />
                                                 </converters:StringToBrushSelectorItem.Value>
                                             </converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem Key="Connecting">
+                                                <converters:StringToBrushSelectorItem.Value>
+                                                    <SolidColorBrush Color="#ffcc01" />
+                                                </converters:StringToBrushSelectorItem.Value>
+                                            </converters:StringToBrushSelectorItem>
                                             <converters:StringToBrushSelectorItem Key="Healthy">
                                                 <converters:StringToBrushSelectorItem.Value>
                                                     <SolidColorBrush Color="#34c759" />

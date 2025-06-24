@@ -82,9 +82,10 @@ public class AgentViewModelFactory(
 public enum AgentConnectionStatus
 {
     Healthy,
+    Connecting,
     Unhealthy,
     NoRecentHandshake,
-    Offline,
+    Offline
 }
 
 public static class AgentConnectionStatusExtensions
@@ -93,6 +94,7 @@ public static class AgentConnectionStatusExtensions
         status switch
         {
             AgentConnectionStatus.Healthy => "Healthy",
+            AgentConnectionStatus.Connecting => "Connecting",
             AgentConnectionStatus.Unhealthy => "High latency",
             AgentConnectionStatus.NoRecentHandshake => "No recent handshake",
             AgentConnectionStatus.Offline => "Offline",
@@ -224,7 +226,9 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
     [NotifyPropertyChangedFor(nameof(ConnectionTooltip))]
     public partial DateTime? LastHandshake { get; set; } = null;
 
-    public string ConnectionTooltip { get
+    public string ConnectionTooltip
+    {
+        get
         {
             var description = new StringBuilder();
             var highLatencyWarning = ConnectionStatus == AgentConnectionStatus.Unhealthy ? $"({AgentConnectionStatus.Unhealthy.ToDisplayString()})" : "";
