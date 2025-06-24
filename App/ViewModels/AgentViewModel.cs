@@ -242,17 +242,17 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
                 """
                 );
             }
-            else if (PreferredDerpLatency != null)
+            else if (Latency != null)
             {
                 description.Append($"""
                 You're connected through a DERP relay. {highLatencyWarning}
                 We'll switch over to peer-to-peer when available.
 
-                Total latency: {PreferredDerpLatency.Value.Milliseconds} ms
+                Total latency: {Latency.Value.Milliseconds} ms
                 """
                 );
 
-                if (PreferredDerp != null && Latency != null)
+                if (PreferredDerpLatency != null)
                 {
                     description.Append($"\nYou ↔ {PreferredDerp}: {PreferredDerpLatency.Value.Milliseconds} ms");
 
