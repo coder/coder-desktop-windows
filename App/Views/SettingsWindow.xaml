@@ -13,7 +13,7 @@
     MinWidth="600" MinHeight="350">
 
     <Window.SystemBackdrop>
-        <DesktopAcrylicBackdrop />
+        <MicaBackdrop/>
     </Window.SystemBackdrop>
 
     <Frame x:Name="RootFrame" />

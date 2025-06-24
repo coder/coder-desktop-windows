@@ -9,7 +9,6 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
 using System.Runtime.InteropServices;
@@ -62,7 +61,6 @@ public sealed partial class TrayWindow : Window
 
         InitializeComponent();
         AppWindow.Hide();
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         Activated += Window_Activated;
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 

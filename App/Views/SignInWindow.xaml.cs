@@ -24,7 +24,6 @@ public sealed partial class SignInWindow : Window
     {
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
-        SystemBackdrop = new DesktopAcrylicBackdrop();
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 
         _signInUrlPage = new SignInUrlPage(this, viewModel);
