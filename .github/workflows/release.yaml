@@ -166,6 +166,7 @@ jobs:
         APPCAST_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml
         APPCAST_SIGNATURE_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml.signature
         APPCAST_SIGNATURE_KEY_BASE64: ${{ secrets.APPCAST_SIGNATURE_KEY_BASE64 }}
+        GH_TOKEN: ${{ github.token }}
         GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
 
   winget:
