@@ -1,19 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <winuiex:WindowEx
-    x:Class="Coder.Desktop.App.Views.SettingsWindow"
+    x:Class="Coder.Desktop.App.Views.UpdaterUpdateAvailableWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:winuiex="using:WinUIEx"
     mc:Ignorable="d"
-    Title="Coder Settings"
-    Width="600" Height="350"
-    MinWidth="600" MinHeight="350">
+    Title="Coder Desktop Updater"
+    IsResizable="True"
+    IsMaximizable="False"
+    Width="600" Height="500"
+    MinWidth="600" MinHeight="500">
 
     <Window.SystemBackdrop>
-        <MicaBackdrop/>
+        <MicaBackdrop />
     </Window.SystemBackdrop>
 
     <Frame x:Name="RootFrame" />

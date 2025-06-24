@@ -16,8 +16,6 @@ public sealed partial class SettingsWindow : WindowEx
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
 
-        SystemBackdrop = new DesktopAcrylicBackdrop();
-
         RootFrame.Content = new SettingsMainPage(ViewModel);
 
         this.CenterOnScreen();

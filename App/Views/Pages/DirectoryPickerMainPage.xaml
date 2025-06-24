@@ -9,8 +9,7 @@
     xmlns:converters="using:Coder.Desktop.App.Converters"
     xmlns:toolkit="using:CommunityToolkit.WinUI.Controls"
     xmlns:viewmodels="using:Coder.Desktop.App.ViewModels"
-    mc:Ignorable="d"
-    Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+    mc:Ignorable="d">
 
     <Grid>
         <Grid
