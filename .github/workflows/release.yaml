@@ -17,7 +17,9 @@ permissions:
 
 jobs:
   release:
-    runs-on: ${{ github.repository_owner == 'coder' && 'windows-latest-16-cores' || 'windows-latest' }}
+    # windows-2025 is required for an up-to-date version of OpenSSL for the
+    # appcast generation.
+    runs-on: ${{ github.repository_owner == 'coder' && 'windows-2025-16-cores' || 'windows-2025' }}
     outputs:
       version: ${{ steps.version.outputs.VERSION }}
     timeout-minutes: 15
