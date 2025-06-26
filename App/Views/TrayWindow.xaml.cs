@@ -171,7 +171,7 @@ public sealed partial class TrayWindow : Window
                 _ => "" // This will never be hit.
             };
 
-        if(message.Length > 0 && isVpnLifecycleChanged)
+        if (message.Length > 0 && isVpnLifecycleChanged)
             message += " ";
 
         if (isVpnLifecycleChanged)
