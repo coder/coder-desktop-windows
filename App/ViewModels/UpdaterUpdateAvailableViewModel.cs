@@ -4,10 +4,12 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Coder.Desktop.App.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.Web.WebView2.Core;
 using NetSparkleUpdater;
 using NetSparkleUpdater.Enums;
 using NetSparkleUpdater.Events;
@@ -174,8 +176,18 @@ public partial class UpdaterUpdateAvailableViewModel : ObservableObject
         if (sender is not WebView2 webView)
             return;
 
-        // Start the engine.
-        await webView.EnsureCoreWebView2Async();
+        // Start the engine with a custom user data folder. The default for
+        // unpackaged WinUI 3 apps is to write to a subfolder in the app's
+        // install directory, which is Program Files by default and not
+        // writeable by the user.
+        var userDataFolder = Path.Join(SettingsManagerUtils.AppSettingsDirectory(), "WebView2");
+        _logger.LogDebug("Creating WebView2 user data folder at {UserDataFolder}", userDataFolder);
+        Directory.CreateDirectory(userDataFolder);
+        var env = await CoreWebView2Environment.CreateWithOptionsAsync(
+            null,
+            userDataFolder,
+            new CoreWebView2EnvironmentOptions());
+        await webView.EnsureCoreWebView2Async(env);
 
         // Disable unwanted features.
         var settings = webView.CoreWebView2.Settings;

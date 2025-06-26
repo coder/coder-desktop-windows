@@ -17,6 +17,8 @@
         <LangVersion>preview</LangVersion>
         <!-- We have our own implementation of main with exception handling -->
         <DefineConstants>DISABLE_XAML_GENERATED_MAIN;DISABLE_XAML_GENERATED_BREAK_ON_UNHANDLED_EXCEPTION</DefineConstants>
+        <!-- Default version for debug builds, overridden during releases -->
+        <Version>0.1.0.0</Version>
 
         <AssemblyName>Coder Desktop</AssemblyName>
         <AssemblyTitle>Coder Desktop</AssemblyTitle>
