@@ -23,7 +23,7 @@ using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
 namespace Coder.Desktop.App.Views;
 
-public sealed partial class TrayWindow : Window, INotificationHandler
+public sealed partial class TrayWindow : Window
 {
     private const int WIDTH = 300;
 
@@ -37,8 +37,6 @@ public sealed partial class TrayWindow : Window, INotificationHandler
 
     private VpnLifecycle prevVpnLifecycle = VpnLifecycle.Stopped;
     private RpcLifecycle prevRpcLifecycle = RpcLifecycle.Disconnected;
-
-    private NativeApi.POINT? _lastActivatePosition;
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
@@ -69,7 +67,6 @@ public sealed partial class TrayWindow : Window, INotificationHandler
         _mainPage = mainPage;
 
         InitializeComponent();
-        _userNotifier.RegisterHandler("TrayWindow", this);
         AppWindow.Hide();
         Activated += Window_Activated;
         RootFrame.SizeChanged += RootFrame_SizeChanged;
@@ -158,7 +155,7 @@ public sealed partial class TrayWindow : Window, INotificationHandler
     {
         // This method is called when the state changes, but we don't want to notify
         // the user if the state hasn't changed.
-        var isRpcLifecycleChanged = rpcModel.RpcLifecycle != RpcLifecycle.Connecting && prevRpcLifecycle != rpcModel.RpcLifecycle;
+        var isRpcLifecycleChanged = rpcModel.RpcLifecycle == RpcLifecycle.Disconnected && prevRpcLifecycle != rpcModel.RpcLifecycle;
         var isVpnLifecycleChanged = (rpcModel.VpnLifecycle == VpnLifecycle.Started || rpcModel.VpnLifecycle == VpnLifecycle.Stopped) && prevVpnLifecycle != rpcModel.VpnLifecycle;
 
         if (!isRpcLifecycleChanged && !isVpnLifecycleChanged)
@@ -170,8 +167,7 @@ public sealed partial class TrayWindow : Window, INotificationHandler
         if (isRpcLifecycleChanged)
             message += rpcModel.RpcLifecycle switch
             {
-                RpcLifecycle.Connected => "Connected to Coder vpn service.",
-                RpcLifecycle.Disconnected => "Disconnected from Coder vpn service.",
+                RpcLifecycle.Disconnected => "Disconnected from Coder background service.",
                 _ => "" // This will never be hit.
             };
 
@@ -196,7 +192,7 @@ public sealed partial class TrayWindow : Window, INotificationHandler
         }
 
         // Trigger notification
-        _userNotifier.ShowActionNotification(message, string.Empty, nameof(TrayWindow), null, CancellationToken.None);
+        _userNotifier.ShowActionNotification(message, string.Empty, null, null, CancellationToken.None);
     }
 
     private void RpcController_StateChanged(object? _, RpcModel model)
@@ -355,7 +351,7 @@ public sealed partial class TrayWindow : Window, INotificationHandler
     }
 
     [RelayCommand]
-    private void Tray_Open()
+    public void Tray_Open()
     {
         MoveResizeAndActivate();
     }
@@ -372,11 +368,6 @@ public sealed partial class TrayWindow : Window, INotificationHandler
     {
         // It's fine that this happens in the background.
         _ = ((App)Application.Current).ExitApplication();
-    }
-
-    public void HandleNotificationActivation(IDictionary<string, string> args)
-    {
-        Tray_Open();
     }
 
     public static class NativeApi
