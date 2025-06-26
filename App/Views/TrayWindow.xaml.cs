@@ -390,7 +390,7 @@ public sealed partial class TrayWindow : Window
     internal readonly record struct TaskbarInfo(TaskbarPosition Position, int Gap, bool AutoHide);
 
     // -----------------------------------------------------------------------------
-    //  Taskbar helpers � ABM_GETTASKBARPOS / ABM_GETSTATE via SHAppBarMessage
+    //  Taskbar helpers - ABM_GETTASKBARPOS / ABM_GETSTATE via SHAppBarMessage
     // -----------------------------------------------------------------------------
     private static TaskbarInfo GetTaskbarInfo(DisplayArea area)
     {
