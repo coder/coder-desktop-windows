@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Security.Principal;
 using System.Threading.Tasks;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
@@ -29,6 +30,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 {
     private const int MaxAgents = 5;
     private const string DefaultDashboardUrl = "https://coder.com";
+    private readonly TimeSpan HealthyPingThreshold = TimeSpan.FromMilliseconds(150);
 
     private readonly IServiceProvider _services;
     private readonly IRpcController _rpcController;
@@ -222,10 +224,28 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             if (string.IsNullOrWhiteSpace(fqdn))
                 continue;
 
-            var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
-            var connectionStatus = lastHandshakeAgo < TimeSpan.FromMinutes(5)
-                ? AgentConnectionStatus.Green
-                : AgentConnectionStatus.Yellow;
+            var connectionStatus = AgentConnectionStatus.Healthy;
+
+            if (agent.LastHandshake != null && agent.LastHandshake.ToDateTime() != default && agent.LastHandshake.ToDateTime() < DateTime.UtcNow)
+            {
+                // For compatibility with older deployments, we assume that if the
+                // last ping is null, the agent is healthy.
+                var isLatencyAcceptable = agent.LastPing == null || agent.LastPing.Latency.ToTimeSpan() < HealthyPingThreshold;
+
+                var lastHandshakeAgo = DateTime.UtcNow.Subtract(agent.LastHandshake.ToDateTime());
+
+                if (lastHandshakeAgo > TimeSpan.FromMinutes(5))
+                    connectionStatus = AgentConnectionStatus.NoRecentHandshake;
+                else if (!isLatencyAcceptable)
+                    connectionStatus = AgentConnectionStatus.Unhealthy;
+            }
+            else
+            {
+                // If the last handshake is not correct (null, default or in the future),
+                // we assume the agent is connecting (yellow status icon).
+                connectionStatus = AgentConnectionStatus.Connecting;
+            }
+
             workspacesWithAgents.Add(agent.WorkspaceId);
             var workspace = rpcModel.Workspaces.FirstOrDefault(w => w.Id == agent.WorkspaceId);
 
@@ -236,7 +256,12 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
                 _hostnameSuffixGetter.GetCachedSuffix(),
                 connectionStatus,
                 credentialModel.CoderUrl,
-                workspace?.Name));
+                workspace?.Name,
+                agent.LastPing?.DidP2P,
+                agent.LastPing?.PreferredDerp,
+                agent.LastPing?.Latency?.ToTimeSpan(),
+                agent.LastPing?.PreferredDerpLatency?.ToTimeSpan(),
+                agent.LastHandshake != null && agent.LastHandshake.ToDateTime() != default ? agent.LastHandshake?.ToDateTime() : null));
         }
 
         // For every stopped workspace that doesn't have any agents, add a
@@ -253,7 +278,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
                 // conflict with any agent IDs.
                 uuid,
                 _hostnameSuffixGetter.GetCachedSuffix(),
-                AgentConnectionStatus.Gray,
+                AgentConnectionStatus.Offline,
                 credentialModel.CoderUrl,
                 workspace.Name));
         }
@@ -268,7 +293,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
 
         if (Agents.Count < MaxAgents) ShowAllAgents = false;
 
-        var firstOnlineAgent = agents.FirstOrDefault(a => a.ConnectionStatus != AgentConnectionStatus.Gray);
+        var firstOnlineAgent = agents.FirstOrDefault(a => a.ConnectionStatus != AgentConnectionStatus.Offline);
         if (firstOnlineAgent is null)
             _hasExpandedAgent = false;
         if (!_hasExpandedAgent && firstOnlineAgent is not null)
@@ -433,7 +458,7 @@ public partial class TrayWindowViewModel : ObservableObject, IAgentExpanderHost
             case Workspace.Types.Status.Stopping:
             case Workspace.Types.Status.Stopped:
                 return true;
-            // TODO: should we include and show a different color than Gray for workspaces that are
+            // TODO: should we include and show a different color than Offline for workspaces that are
             // failed, canceled or deleting?
             default:
                 return false;

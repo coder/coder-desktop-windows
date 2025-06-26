@@ -137,22 +137,27 @@
                                             x:Key="StatusColor"
                                             SelectedKey="{x:Bind Path=ConnectionStatus, Mode=OneWay}">
 
-                                            <converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem Key="Offline">
                                                 <converters:StringToBrushSelectorItem.Value>
                                                     <SolidColorBrush Color="#8e8e93" />
                                                 </converters:StringToBrushSelectorItem.Value>
                                             </converters:StringToBrushSelectorItem>
-                                            <converters:StringToBrushSelectorItem Key="Red">
+                                            <converters:StringToBrushSelectorItem Key="NoRecentHandshake">
                                                 <converters:StringToBrushSelectorItem.Value>
                                                     <SolidColorBrush Color="#ff3b30" />
                                                 </converters:StringToBrushSelectorItem.Value>
                                             </converters:StringToBrushSelectorItem>
-                                            <converters:StringToBrushSelectorItem Key="Yellow">
+                                            <converters:StringToBrushSelectorItem Key="Unhealthy">
                                                 <converters:StringToBrushSelectorItem.Value>
                                                     <SolidColorBrush Color="#ffcc01" />
                                                 </converters:StringToBrushSelectorItem.Value>
                                             </converters:StringToBrushSelectorItem>
-                                            <converters:StringToBrushSelectorItem Key="Green">
+                                            <converters:StringToBrushSelectorItem Key="Connecting">
+                                                <converters:StringToBrushSelectorItem.Value>
+                                                    <SolidColorBrush Color="#ffcc01" />
+                                                </converters:StringToBrushSelectorItem.Value>
+                                            </converters:StringToBrushSelectorItem>
+                                            <converters:StringToBrushSelectorItem Key="Healthy">
                                                 <converters:StringToBrushSelectorItem.Value>
                                                     <SolidColorBrush Color="#34c759" />
                                                 </converters:StringToBrushSelectorItem.Value>
@@ -189,6 +194,7 @@
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center"
                                         Height="14" Width="14"
+                                        ToolTipService.ToolTip="{x:Bind ConnectionTooltip, Mode=OneWay}"
                                         Margin="0,1,0,0">
 
                                         <Ellipse
