@@ -24,6 +24,7 @@
         <Product>Coder Desktop</Product>
         <Copyright>© Coder Technologies Inc.</Copyright>
         <ApplicationIcon>coder.ico</ApplicationIcon>
+        <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="$(Configuration) == 'Release'">
