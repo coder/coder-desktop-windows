@@ -9,6 +9,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
 using System.Collections.Generic;
@@ -35,8 +36,8 @@ public sealed partial class TrayWindow : Window
     private int _lastWindowHeight;
     private Storyboard? _currentSb;
 
-    private VpnLifecycle prevVpnLifecycle = VpnLifecycle.Stopped;
-    private RpcLifecycle prevRpcLifecycle = RpcLifecycle.Disconnected;
+    private VpnLifecycle curVpnLifecycle = VpnLifecycle.Stopped;
+    private RpcLifecycle curRpcLifecycle = RpcLifecycle.Disconnected;
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
@@ -151,54 +152,54 @@ public sealed partial class TrayWindow : Window
         }
     }
 
-    private void NotifyUser(RpcModel rpcModel)
+    private void MaybeNotifyUser(RpcModel rpcModel)
     {
         // This method is called when the state changes, but we don't want to notify
         // the user if the state hasn't changed.
-        var isRpcLifecycleChanged = rpcModel.RpcLifecycle == RpcLifecycle.Disconnected && prevRpcLifecycle != rpcModel.RpcLifecycle;
-        var isVpnLifecycleChanged = (rpcModel.VpnLifecycle == VpnLifecycle.Started || rpcModel.VpnLifecycle == VpnLifecycle.Stopped) && prevVpnLifecycle != rpcModel.VpnLifecycle;
+        var isRpcLifecycleChanged = rpcModel.RpcLifecycle == RpcLifecycle.Disconnected && curRpcLifecycle != rpcModel.RpcLifecycle;
+        var isVpnLifecycleChanged = (rpcModel.VpnLifecycle == VpnLifecycle.Started || rpcModel.VpnLifecycle == VpnLifecycle.Stopped) && curVpnLifecycle != rpcModel.VpnLifecycle;
 
         if (!isRpcLifecycleChanged && !isVpnLifecycleChanged)
         {
             return;
         }
-        var message = string.Empty;
-        // Compose the message based on the lifecycle changes
-        if (isRpcLifecycleChanged)
-            message += rpcModel.RpcLifecycle switch
-            {
-                RpcLifecycle.Disconnected => "Disconnected from Coder background service.",
-                _ => "" // This will never be hit.
-            };
 
-        if (message.Length > 0 && isVpnLifecycleChanged)
-            message += " ";
+        var oldRpcLifeycle = curRpcLifecycle;
+        var oldVpnLifecycle = curVpnLifecycle;
+        curRpcLifecycle = rpcModel.RpcLifecycle;
+        curVpnLifecycle = rpcModel.VpnLifecycle;
 
-        if (isVpnLifecycleChanged)
-            message += rpcModel.VpnLifecycle switch
-            {
-                VpnLifecycle.Started => "Coder Connect started.",
-                VpnLifecycle.Stopped => "Coder Connect stopped.",
-                _ => "" // This will never be hit.
-            };
+        var messages = new List<string>();
 
-        // Save state for the next notification check
-        prevRpcLifecycle = rpcModel.RpcLifecycle;
-        prevVpnLifecycle = rpcModel.VpnLifecycle;
-
-        if (_aw.IsVisible)
+        if (oldRpcLifeycle != RpcLifecycle.Disconnected && curRpcLifecycle == RpcLifecycle.Disconnected)
         {
-            return; // No need to notify if the window is not visible.
+            messages.Add("Disconnected from Coder background service.");
         }
 
-        // Trigger notification
+        if (oldVpnLifecycle != curVpnLifecycle)
+        {
+            switch (curVpnLifecycle)
+            {
+                case VpnLifecycle.Started:
+                    messages.Add("Coder Connect started.");
+                    break;
+                case VpnLifecycle.Stopped:
+                    messages.Add("Coder Connect stopped.");
+                    break;
+            }
+        }
+
+        if (messages.Count == 0) return;
+        if (_aw.IsVisible) return;
+
+        var message = string.Join(" ", messages);
         _userNotifier.ShowActionNotification(message, string.Empty, null, null, CancellationToken.None);
     }
 
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
         SetPageByState(model, _credentialManager.GetCachedCredentials(), _syncSessionController.GetState());
-        NotifyUser(model);
+        MaybeNotifyUser(model);
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)

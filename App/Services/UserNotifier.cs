@@ -21,12 +21,23 @@ public interface IUserNotifier : INotificationHandler, IAsyncDisposable
     public void UnregisterHandler(string name);
 
     public Task ShowErrorNotification(string title, string message, CancellationToken ct = default);
+    /// <summary>
+    /// This method allows to display a Windows-native notification with an action defined in
+    /// <paramref name="handlerName"/> and provided <paramref name="args"/>.
+    /// </summary>
+    /// <param name="title">Title of the notification.</param>
+    /// <param name="message">Message to be displayed in the notification body.</param>
+    /// <param name="handlerName">Handler should be e.g. <c>nameof(Handler)</c> where <c>Handler</c>
+    /// implements <see cref="Coder.Desktop.App.Services.INotificationHandler" />.
+    /// If handler is <c>null</c> the action will open Coder Desktop.</param>
+    /// <param name="args">Arguments to be provided to the handler when executing the action.</param>
     public Task ShowActionNotification(string title, string message, string? handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default);
 }
 
 public class UserNotifier : IUserNotifier
 {
     private const string CoderNotificationHandler = "CoderNotificationHandler";
+    private const string DefaultNotificationHandler = "DefaultNotificationHandler";
 
     private readonly AppNotificationManager _notificationManager = AppNotificationManager.Default;
     private readonly ILogger<UserNotifier> _logger;
@@ -34,11 +45,14 @@ public class UserNotifier : IUserNotifier
 
     private ConcurrentDictionary<string, INotificationHandler> Handlers { get; } = new();
 
-    public UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager dispatcherQueueManager)
+    public UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager dispatcherQueueManager,
+        INotificationHandler notificationHandler)
     {
         _logger = logger;
         _dispatcherQueueManager = dispatcherQueueManager;
-        Handlers.TryAdd(nameof(DefaultNotificationHandler), new DefaultNotificationHandler());
+        var defaultHandlerAdded = Handlers.TryAdd(DefaultNotificationHandler, notificationHandler);
+        if (!defaultHandlerAdded)
+            throw new Exception($"UserNotifier failed to be initialized with {nameof(DefaultNotificationHandler)}");
     }
 
     public ValueTask DisposeAsync()
@@ -60,6 +74,8 @@ public class UserNotifier : IUserNotifier
 
     public void UnregisterHandler(string name)
     {
+        if (name == nameof(DefaultNotificationHandler))
+            throw new InvalidOperationException($"You cannot remove '{name}'.");
         if (!Handlers.TryRemove(name, out _))
             throw new InvalidOperationException($"No handler with the name '{name}' is registered.");
     }
@@ -74,16 +90,11 @@ public class UserNotifier : IUserNotifier
     public Task ShowActionNotification(string title, string message, string? handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default)
     {
         if (handlerName == null)
-        {
-            // Use default handler if no handler name is provided
-            handlerName = nameof(DefaultNotificationHandler);
-        }
-        else
-        {
-            if (!Handlers.TryGetValue(handlerName, out _))
-                throw new InvalidOperationException($"No action handler with the name '{handlerName}' is registered. Use null for default");
-        }
+            handlerName = nameof(DefaultNotificationHandler); // Use default handler if no handler name is provided
 
+        if (!Handlers.TryGetValue(handlerName, out _))
+            throw new InvalidOperationException($"No action handler with the name '{handlerName}' is registered.");
+        
         var builder = new AppNotificationBuilder()
             .AddText(title)
             .AddText(message)
@@ -123,17 +134,5 @@ public class UserNotifier : IUserNotifier
                 _logger.LogWarning(ex, "could not handle activation for notification with handler '{HandlerName}", handlerName);
             }
         });
-    }
-}
-
-public class DefaultNotificationHandler : INotificationHandler
-{
-    public void HandleNotificationActivation(IDictionary<string, string> _)
-    {
-        var app = (App)Microsoft.UI.Xaml.Application.Current;
-        if (app != null && app.TrayWindow != null)
-        {
-            app.TrayWindow.Tray_Open();
-        }
     }
 }
