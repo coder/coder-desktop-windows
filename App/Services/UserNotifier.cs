@@ -94,7 +94,7 @@ public class UserNotifier : IUserNotifier
 
         if (!Handlers.TryGetValue(handlerName, out _))
             throw new InvalidOperationException($"No action handler with the name '{handlerName}' is registered.");
-        
+
         var builder = new AppNotificationBuilder()
             .AddText(title)
             .AddText(message)
