@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Coder.Desktop.App.Views;
 using Microsoft.Extensions.Logging;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
@@ -20,16 +21,39 @@ public interface IUserNotifier : INotificationHandler, IAsyncDisposable
     public void UnregisterHandler(string name);
 
     public Task ShowErrorNotification(string title, string message, CancellationToken ct = default);
-    public Task ShowActionNotification(string title, string message, string handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default);
+    /// <summary>
+    /// This method allows to display a Windows-native notification with an action defined in
+    /// <paramref name="handlerName"/> and provided <paramref name="args"/>.
+    /// </summary>
+    /// <param name="title">Title of the notification.</param>
+    /// <param name="message">Message to be displayed in the notification body.</param>
+    /// <param name="handlerName">Handler should be e.g. <c>nameof(Handler)</c> where <c>Handler</c>
+    /// implements <see cref="Coder.Desktop.App.Services.INotificationHandler" />.
+    /// If handler is <c>null</c> the action will open Coder Desktop.</param>
+    /// <param name="args">Arguments to be provided to the handler when executing the action.</param>
+    public Task ShowActionNotification(string title, string message, string? handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default);
 }
 
-public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager dispatcherQueueManager) : IUserNotifier
+public class UserNotifier : IUserNotifier
 {
     private const string CoderNotificationHandler = "CoderNotificationHandler";
+    private const string DefaultNotificationHandler = "DefaultNotificationHandler";
 
     private readonly AppNotificationManager _notificationManager = AppNotificationManager.Default;
+    private readonly ILogger<UserNotifier> _logger;
+    private readonly IDispatcherQueueManager _dispatcherQueueManager;
 
     private ConcurrentDictionary<string, INotificationHandler> Handlers { get; } = new();
+
+    public UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager dispatcherQueueManager,
+        INotificationHandler notificationHandler)
+    {
+        _logger = logger;
+        _dispatcherQueueManager = dispatcherQueueManager;
+        var defaultHandlerAdded = Handlers.TryAdd(DefaultNotificationHandler, notificationHandler);
+        if (!defaultHandlerAdded)
+            throw new Exception($"UserNotifier failed to be initialized with {nameof(DefaultNotificationHandler)}");
+    }
 
     public ValueTask DisposeAsync()
     {
@@ -50,6 +74,8 @@ public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager 
 
     public void UnregisterHandler(string name)
     {
+        if (name == nameof(DefaultNotificationHandler))
+            throw new InvalidOperationException($"You cannot remove '{name}'.");
         if (!Handlers.TryRemove(name, out _))
             throw new InvalidOperationException($"No handler with the name '{name}' is registered.");
     }
@@ -61,8 +87,11 @@ public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager 
         return Task.CompletedTask;
     }
 
-    public Task ShowActionNotification(string title, string message, string handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default)
+    public Task ShowActionNotification(string title, string message, string? handlerName, IDictionary<string, string>? args = null, CancellationToken ct = default)
     {
+        if (handlerName == null)
+            handlerName = nameof(DefaultNotificationHandler); // Use default handler if no handler name is provided
+
         if (!Handlers.TryGetValue(handlerName, out _))
             throw new InvalidOperationException($"No action handler with the name '{handlerName}' is registered.");
 
@@ -90,11 +119,11 @@ public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager 
 
         if (!Handlers.TryGetValue(handlerName, out var handler))
         {
-            logger.LogWarning("no action handler '{HandlerName}' found for notification activation, ignoring", handlerName);
+            _logger.LogWarning("no action handler '{HandlerName}' found for notification activation, ignoring", handlerName);
             return;
         }
 
-        dispatcherQueueManager.RunInUiThread(() =>
+        _dispatcherQueueManager.RunInUiThread(() =>
         {
             try
             {
@@ -102,7 +131,7 @@ public class UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager 
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "could not handle activation for notification with handler '{HandlerName}", handlerName);
+                _logger.LogWarning(ex, "could not handle activation for notification with handler '{HandlerName}", handlerName);
             }
         });
     }

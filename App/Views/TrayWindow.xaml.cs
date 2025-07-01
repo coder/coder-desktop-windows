@@ -9,9 +9,12 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.System;
@@ -33,17 +36,23 @@ public sealed partial class TrayWindow : Window
     private int _lastWindowHeight;
     private Storyboard? _currentSb;
 
+    private VpnLifecycle curVpnLifecycle = VpnLifecycle.Stopped;
+    private RpcLifecycle curRpcLifecycle = RpcLifecycle.Disconnected;
+
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
     private readonly ISyncSessionController _syncSessionController;
     private readonly IUpdateController _updateController;
+    private readonly IUserNotifier _userNotifier;
     private readonly TrayWindowLoadingPage _loadingPage;
     private readonly TrayWindowDisconnectedPage _disconnectedPage;
     private readonly TrayWindowLoginRequiredPage _loginRequiredPage;
     private readonly TrayWindowMainPage _mainPage;
 
-    public TrayWindow(IRpcController rpcController, ICredentialManager credentialManager,
+    public TrayWindow(
+        IRpcController rpcController, ICredentialManager credentialManager,
         ISyncSessionController syncSessionController, IUpdateController updateController,
+        IUserNotifier userNotifier,
         TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
@@ -52,6 +61,7 @@ public sealed partial class TrayWindow : Window
         _credentialManager = credentialManager;
         _syncSessionController = syncSessionController;
         _updateController = updateController;
+        _userNotifier = userNotifier;
         _loadingPage = loadingPage;
         _disconnectedPage = disconnectedPage;
         _loginRequiredPage = loginRequiredPage;
@@ -142,9 +152,54 @@ public sealed partial class TrayWindow : Window
         }
     }
 
+    private void MaybeNotifyUser(RpcModel rpcModel)
+    {
+        // This method is called when the state changes, but we don't want to notify
+        // the user if the state hasn't changed.
+        var isRpcLifecycleChanged = rpcModel.RpcLifecycle == RpcLifecycle.Disconnected && curRpcLifecycle != rpcModel.RpcLifecycle;
+        var isVpnLifecycleChanged = (rpcModel.VpnLifecycle == VpnLifecycle.Started || rpcModel.VpnLifecycle == VpnLifecycle.Stopped) && curVpnLifecycle != rpcModel.VpnLifecycle;
+
+        if (!isRpcLifecycleChanged && !isVpnLifecycleChanged)
+        {
+            return;
+        }
+
+        var oldRpcLifeycle = curRpcLifecycle;
+        var oldVpnLifecycle = curVpnLifecycle;
+        curRpcLifecycle = rpcModel.RpcLifecycle;
+        curVpnLifecycle = rpcModel.VpnLifecycle;
+
+        var messages = new List<string>();
+
+        if (oldRpcLifeycle != RpcLifecycle.Disconnected && curRpcLifecycle == RpcLifecycle.Disconnected)
+        {
+            messages.Add("Disconnected from Coder background service.");
+        }
+
+        if (oldVpnLifecycle != curVpnLifecycle)
+        {
+            switch (curVpnLifecycle)
+            {
+                case VpnLifecycle.Started:
+                    messages.Add("Coder Connect started.");
+                    break;
+                case VpnLifecycle.Stopped:
+                    messages.Add("Coder Connect stopped.");
+                    break;
+            }
+        }
+
+        if (messages.Count == 0) return;
+        if (_aw.IsVisible) return;
+
+        var message = string.Join(" ", messages);
+        _userNotifier.ShowActionNotification(message, string.Empty, null, null, CancellationToken.None);
+    }
+
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
         SetPageByState(model, _credentialManager.GetCachedCredentials(), _syncSessionController.GetState());
+        MaybeNotifyUser(model);
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)
@@ -297,7 +352,7 @@ public sealed partial class TrayWindow : Window
     }
 
     [RelayCommand]
-    private void Tray_Open()
+    public void Tray_Open()
     {
         MoveResizeAndActivate();
     }
