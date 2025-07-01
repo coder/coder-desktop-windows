@@ -15,6 +15,12 @@ public interface INotificationHandler
     public void HandleNotificationActivation(IDictionary<string, string> args);
 }
 
+// This interface is meant to protect the default
+// notification handler from being overriden by DI.
+public interface IDefaultNotificationHandler : INotificationHandler
+{
+}
+
 public interface IUserNotifier : INotificationHandler, IAsyncDisposable
 {
     public void RegisterHandler(string name, INotificationHandler handler);
@@ -46,7 +52,7 @@ public class UserNotifier : IUserNotifier
     private ConcurrentDictionary<string, INotificationHandler> Handlers { get; } = new();
 
     public UserNotifier(ILogger<UserNotifier> logger, IDispatcherQueueManager dispatcherQueueManager,
-        INotificationHandler notificationHandler)
+        IDefaultNotificationHandler notificationHandler)
     {
         _logger = logger;
         _dispatcherQueueManager = dispatcherQueueManager;
