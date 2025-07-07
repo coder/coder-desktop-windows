@@ -337,9 +337,8 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         dispatcherQueue.TryEnqueue(action);
     }
 
-    public void HandleNotificationActivation(IDictionary<string, string> args)
+    public void HandleNotificationActivation(IDictionary<string, string> _)
     {
-        var app = (App)Current;
-        app.TrayWindow?.Tray_Open();
+        TrayWindow?.Tray_Open();
     }
 }
