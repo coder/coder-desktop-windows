@@ -152,10 +152,13 @@ public sealed partial class TrayWindow : Window
         }
     }
 
+    /// <summary>
+    /// This method is called when the state changes, but we don't want to notify
+    /// the user if the state hasn't changed.
+    /// </summary>
+    /// <param name="rpcModel"></param>
     private void MaybeNotifyUser(RpcModel rpcModel)
     {
-        // This method is called when the state changes, but we don't want to notify
-        // the user if the state hasn't changed.
         var isRpcLifecycleChanged = rpcModel.RpcLifecycle == RpcLifecycle.Disconnected && curRpcLifecycle != rpcModel.RpcLifecycle;
         var isVpnLifecycleChanged = (rpcModel.VpnLifecycle == VpnLifecycle.Started || rpcModel.VpnLifecycle == VpnLifecycle.Stopped) && curVpnLifecycle != rpcModel.VpnLifecycle;
 

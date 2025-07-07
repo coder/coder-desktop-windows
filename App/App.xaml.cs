@@ -27,7 +27,7 @@ using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
 namespace Coder.Desktop.App;
 
-public partial class App : Application, IDispatcherQueueManager, INotificationHandler
+public partial class App : Application, IDispatcherQueueManager, IDefaultNotificationHandler
 {
     private const string MutagenControllerConfigSection = "MutagenController";
     private const string UpdaterConfigSection = "Updater";
@@ -91,7 +91,7 @@ public partial class App : Application, IDispatcherQueueManager, INotificationHa
         services.AddSingleton<IAgentApiClientFactory, AgentApiClientFactory>();
 
         services.AddSingleton<IDispatcherQueueManager>(_ => this);
-        services.AddSingleton<INotificationHandler>(_ => this);
+        services.AddSingleton<IDefaultNotificationHandler>(_ => this);
         services.AddSingleton<ICredentialBackend>(_ =>
             new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
@@ -337,12 +337,8 @@ public partial class App : Application, IDispatcherQueueManager, INotificationHa
         dispatcherQueue.TryEnqueue(action);
     }
 
-    public void HandleNotificationActivation(IDictionary<string, string> args)
+    public void HandleNotificationActivation(IDictionary<string, string> _)
     {
-        var app = (App)Current;
-        if (app != null && app.TrayWindow != null)
-        {
-            app.TrayWindow.Tray_Open();
-        }
+        TrayWindow?.Tray_Open();
     }
 }
