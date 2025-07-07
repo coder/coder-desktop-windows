@@ -13,6 +13,7 @@ public sealed partial class SettingsWindow : WindowEx
     public SettingsWindow(SettingsViewModel viewModel)
     {
         ViewModel = viewModel;
+        ViewModel.Initialize(this);
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
 

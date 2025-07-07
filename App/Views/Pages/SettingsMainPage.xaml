@@ -11,6 +11,7 @@
     xmlns:ui="using:CommunityToolkit.WinUI"
     xmlns:win="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:controls="using:CommunityToolkit.WinUI.Controls"
+    xmlns:models="using:Coder.Desktop.App.Models"
     mc:Ignorable="d">
 
     <Page.Resources>
@@ -44,6 +45,28 @@
                                        >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
                 </controls:SettingsCard>
+                <controls:SettingsExpander Description="The SettingsExpander can use ItemsSource to define its Items."
+                                   Header="Settings Expander with ItemsSource"
+                                   HeaderIcon="{ui:FontIcon Glyph=&#xEA37;}"
+                                   ItemsSource="{x:Bind ViewModel.PortForwards}">
+                    <controls:SettingsExpander.ItemTemplate>
+                        <DataTemplate x:DataType="models:PortForward">
+                            <controls:SettingsCard Description="{x:Bind LocalPort}"
+                                           Header="{x:Bind Workspace}">
+                            </controls:SettingsCard>
+                        </DataTemplate>
+                    </controls:SettingsExpander.ItemTemplate>
+                    <controls:SettingsExpander.ItemsFooter>
+                        <controls:SettingsCard Header="Add mapping"
+                                       Style="{StaticResource DefaultSettingsExpanderItemStyle}">
+                            <HyperlinkButton
+                                Command="{x:Bind ViewModel.AddPortForwardCommand}">
+                                <TextBlock Text="Add new port forward" />
+                            </HyperlinkButton>
+                        </controls:SettingsCard>
+                    </controls:SettingsExpander.ItemsFooter>
+                </controls:SettingsExpander>
+
             </StackPanel>
         </Grid>
     </ScrollViewer>

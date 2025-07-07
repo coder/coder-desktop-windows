@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Coder.Desktop.App.Models;
 
 public interface ISettings<T> : ICloneable<T>
@@ -34,6 +36,8 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
     /// </summary>
     public bool ConnectOnLaunch { get; set; }
 
+    public List<PortForward> PortForwards { get; set; } = [];
+
     /// <summary>
     /// CoderConnect current settings version. Increment this when the settings schema changes.
     /// In future iterations we will be able to handle migrations when the user has
@@ -59,4 +63,11 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
     {
         return new CoderConnectSettings(Version, ConnectOnLaunch);
     }
+}
+
+public class PortForward
+{
+    public string Workspace { get; set; } = string.Empty;
+    public int LocalPort { get; set; }
+    public int RemotePort { get; set; }
 }
