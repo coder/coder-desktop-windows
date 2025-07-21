@@ -44,6 +44,12 @@
                                        >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
                 </controls:SettingsCard>
+                <controls:SettingsCard Description="This setting controls whether Coder Connect should bypass VPN loop preventation mechanism. Turn this ON only when dealing with a Coder deployment behind a corporate VPN."
+                       Header="Disable corporate VPN loop protection"
+                       HeaderIcon="{ui:FontIcon Glyph=&#xE8AF;}"
+                       >
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.DisableTailscaleLoopProtection, Mode=TwoWay}" />
+                </controls:SettingsCard>
             </StackPanel>
         </Grid>
     </ScrollViewer>
