@@ -92,6 +92,7 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
 
         services.AddSingleton<IDispatcherQueueManager>(_ => this);
         services.AddSingleton<IDefaultNotificationHandler>(_ => this);
+        services.AddSingleton<ISettingsManager<CoderConnectSettings>, SettingsManager<CoderConnectSettings>>();
         services.AddSingleton<ICredentialBackend>(_ =>
             new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
@@ -120,7 +121,6 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         // FileSyncListMainPage is created by FileSyncListWindow.
         services.AddTransient<FileSyncListWindow>();
 
-        services.AddSingleton<ISettingsManager<CoderConnectSettings>, SettingsManager<CoderConnectSettings>>();
         services.AddSingleton<IStartupManager, StartupManager>();
         // SettingsWindow views and view models
         services.AddTransient<SettingsViewModel>();

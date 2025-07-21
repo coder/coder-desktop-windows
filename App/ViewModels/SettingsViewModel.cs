@@ -14,6 +14,9 @@ public partial class SettingsViewModel : ObservableObject
     public partial bool ConnectOnLaunch { get; set; }
 
     [ObservableProperty]
+    public partial bool DisableTailscaleLoopProtection { get; set; }
+
+    [ObservableProperty]
     public partial bool StartOnLoginDisabled { get; set; }
 
     [ObservableProperty]
@@ -31,6 +34,7 @@ public partial class SettingsViewModel : ObservableObject
         _connectSettings = settingsManager.Read().GetAwaiter().GetResult();
         StartOnLogin = startupManager.IsEnabled();
         ConnectOnLaunch = _connectSettings.ConnectOnLaunch;
+        DisableTailscaleLoopProtection = _connectSettings.DisableTailscaleLoopProtection;
 
         // Various policies can disable the "Start on login" option.
         // We disable the option in the UI if the policy is set.
@@ -40,6 +44,21 @@ public partial class SettingsViewModel : ObservableObject
         if (StartOnLogin != _startupManager.IsEnabled())
         {
             StartOnLogin = _startupManager.IsEnabled();
+        }
+    }
+
+    partial void OnDisableTailscaleLoopProtectionChanged(bool oldValue, bool newValue)
+    {
+        if (oldValue == newValue)
+            return;
+        try
+        {
+            _connectSettings.DisableTailscaleLoopProtection = DisableTailscaleLoopProtection;
+            _connectSettingsManager.Write(_connectSettings);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError($"Error saving Coder Connect {nameof(DisableTailscaleLoopProtection)} settings: {ex.Message}");
         }
     }
 
@@ -54,7 +73,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.LogError($"Error saving Coder Connect settings: {ex.Message}");
+            _logger.LogError($"Error saving Coder Connect {nameof(ConnectOnLaunch)} settings: {ex.Message}");
         }
     }
 

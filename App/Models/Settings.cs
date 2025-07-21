@@ -35,6 +35,11 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
     public bool ConnectOnLaunch { get; set; }
 
     /// <summary>
+    /// When this is true Coder Connect will not attempt to protect against Tailscale loopback issues.
+    /// </summary>
+    public bool DisableTailscaleLoopProtection { get; set; }
+
+    /// <summary>
     /// CoderConnect current settings version. Increment this when the settings schema changes.
     /// In future iterations we will be able to handle migrations when the user has
     /// an older version.
@@ -46,17 +51,21 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
         Version = VERSION;
 
         ConnectOnLaunch = false;
+
+        DisableTailscaleLoopProtection = false;
     }
 
-    public CoderConnectSettings(int? version, bool connectOnLaunch)
+    public CoderConnectSettings(int? version, bool connectOnLaunch, bool disableTailscaleLoopProtection)
     {
         Version = version ?? VERSION;
 
         ConnectOnLaunch = connectOnLaunch;
+
+        DisableTailscaleLoopProtection = disableTailscaleLoopProtection;
     }
 
     public CoderConnectSettings Clone()
     {
-        return new CoderConnectSettings(Version, ConnectOnLaunch);
+        return new CoderConnectSettings(Version, ConnectOnLaunch, DisableTailscaleLoopProtection);
     }
 }

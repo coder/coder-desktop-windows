@@ -69,6 +69,7 @@ public interface IRpcController : IAsyncDisposable
 public class RpcController : IRpcController
 {
     private readonly ICredentialManager _credentialManager;
+    private readonly ISettingsManager<CoderConnectSettings> _settingsManager;
 
     private readonly RaiiSemaphoreSlim _operationLock = new(1, 1);
     private Speaker<ClientMessage, ServiceMessage>? _speaker;
@@ -76,9 +77,10 @@ public class RpcController : IRpcController
     private readonly RaiiSemaphoreSlim _stateLock = new(1, 1);
     private readonly RpcModel _state = new();
 
-    public RpcController(ICredentialManager credentialManager)
+    public RpcController(ICredentialManager credentialManager, ISettingsManager<CoderConnectSettings> settingsManager)
     {
         _credentialManager = credentialManager;
+        _settingsManager = settingsManager;
     }
 
     public event EventHandler<RpcModel>? StateChanged;
@@ -155,6 +157,11 @@ public class RpcController : IRpcController
     {
         using var _ = await AcquireOperationLockNowAsync();
         AssertRpcConnected();
+
+        var coderConnectSettings = await _settingsManager.Read();
+        var disableTailscaleLoopProtection = coderConnectSettings.DisableTailscaleLoopProtection;
+        Debug.WriteLine(
+            $"Starting VPN with DisableTailscaleLoopProtection={disableTailscaleLoopProtection}");
 
         var credentials = _credentialManager.GetCachedCredentials();
         if (credentials.State != CredentialState.Valid)
