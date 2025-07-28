@@ -5,11 +5,9 @@ using Coder.Desktop.App.Utils;
 using Coder.Desktop.App.Views.Pages;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.UI;
-using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Documents;
 using Microsoft.UI.Xaml.Media.Animation;
 using System;
 using System.Collections.Generic;
@@ -19,6 +17,7 @@ using System.Threading.Tasks;
 using Windows.Graphics;
 using Windows.System;
 using Windows.UI.Core;
+using Microsoft.UI.Input;
 using WinRT.Interop;
 using WindowActivatedEventArgs = Microsoft.UI.Xaml.WindowActivatedEventArgs;
 
@@ -41,7 +40,6 @@ public sealed partial class TrayWindow : Window
 
     private readonly IRpcController _rpcController;
     private readonly ICredentialManager _credentialManager;
-    private readonly ISyncSessionController _syncSessionController;
     private readonly IUpdateController _updateController;
     private readonly IUserNotifier _userNotifier;
     private readonly TrayWindowLoadingPage _loadingPage;
@@ -51,15 +49,13 @@ public sealed partial class TrayWindow : Window
 
     public TrayWindow(
         IRpcController rpcController, ICredentialManager credentialManager,
-        ISyncSessionController syncSessionController, IUpdateController updateController,
-        IUserNotifier userNotifier,
+        IUpdateController updateController, IUserNotifier userNotifier,
         TrayWindowLoadingPage loadingPage,
         TrayWindowDisconnectedPage disconnectedPage, TrayWindowLoginRequiredPage loginRequiredPage,
         TrayWindowMainPage mainPage)
     {
         _rpcController = rpcController;
         _credentialManager = credentialManager;
-        _syncSessionController = syncSessionController;
         _updateController = updateController;
         _userNotifier = userNotifier;
         _loadingPage = loadingPage;
@@ -74,9 +70,7 @@ public sealed partial class TrayWindow : Window
 
         _rpcController.StateChanged += RpcController_StateChanged;
         _credentialManager.CredentialsChanged += CredentialManager_CredentialsChanged;
-        _syncSessionController.StateChanged += SyncSessionController_StateChanged;
-        SetPageByState(_rpcController.GetState(), _credentialManager.GetCachedCredentials(),
-            _syncSessionController.GetState());
+        SetPageByState(_rpcController.GetState(), _credentialManager.GetCachedCredentials());
 
         // Setting these directly in the .xaml doesn't seem to work for whatever reason.
         TrayIcon.OpenCommand = Tray_OpenCommand;
@@ -127,8 +121,7 @@ public sealed partial class TrayWindow : Window
         };
     }
 
-    private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel,
-        SyncSessionControllerStateModel syncSessionModel)
+    private void SetPageByState(RpcModel rpcModel, CredentialModel credentialModel)
     {
         if (credentialModel.State == CredentialState.Unknown)
         {
@@ -201,18 +194,13 @@ public sealed partial class TrayWindow : Window
 
     private void RpcController_StateChanged(object? _, RpcModel model)
     {
-        SetPageByState(model, _credentialManager.GetCachedCredentials(), _syncSessionController.GetState());
+        SetPageByState(model, _credentialManager.GetCachedCredentials());
         MaybeNotifyUser(model);
     }
 
     private void CredentialManager_CredentialsChanged(object? _, CredentialModel model)
     {
-        SetPageByState(_rpcController.GetState(), model, _syncSessionController.GetState());
-    }
-
-    private void SyncSessionController_StateChanged(object? _, SyncSessionControllerStateModel model)
-    {
-        SetPageByState(_rpcController.GetState(), _credentialManager.GetCachedCredentials(), model);
+        SetPageByState(_rpcController.GetState(), model);
     }
 
     // Sadly this is necessary because Window.Content.SizeChanged doesn't

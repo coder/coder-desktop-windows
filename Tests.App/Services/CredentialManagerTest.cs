@@ -317,7 +317,10 @@ public class CredentialManagerTest
         var loadTask = manager.LoadCredentials(ct);
         // Then fully perform a set.
         await manager.SetCredentials(TestServerUrl, TestApiToken, ct).WaitAsync(ct);
-        // The load should have been cancelled.
-        Assert.ThrowsAsync<TaskCanceledException>(() => loadTask);
+
+        // The load should complete with the new valid credentials
+        var result = await loadTask;
+        Assert.That(result.State, Is.EqualTo(CredentialState.Valid));
+        Assert.That(result.CoderUrl?.ToString(), Is.EqualTo(TestServerUrl));
     }
 }

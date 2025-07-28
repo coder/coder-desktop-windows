@@ -223,8 +223,9 @@ public class CredentialManager : ICredentialManager
             };
         }
 
-        // Grab the lock again so we can update the state.
-        using (await _opLock.LockAsync(ct))
+        // Grab the lock again so we can update the state. Don't use the CT
+        // here as it may have already been canceled.
+        using (await _opLock.LockAsync(TimeSpan.FromSeconds(5), CancellationToken.None))
         {
             // Prevent new LoadCredentials calls from returning this task.
             if (_loadCts != null)
@@ -242,11 +243,8 @@ public class CredentialManager : ICredentialManager
                 if (latestCreds is not null) return latestCreds;
             }
 
-            // If there aren't any latest credentials after a cancellation, we
-            // most likely timed out and should throw.
-            ct.ThrowIfCancellationRequested();
-
             UpdateState(model);
+            ct.ThrowIfCancellationRequested();
             return model;
         }
     }
