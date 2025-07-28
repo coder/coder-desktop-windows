@@ -9,8 +9,8 @@
     xmlns:winuiex="using:WinUIEx"
     mc:Ignorable="d"
     Title="Coder Settings"
-    Width="600" Height="450"
-    MinWidth="600" MinHeight="450">
+    Width="600" Height="500"
+    MinWidth="600" MinHeight="500">
 
     <Window.SystemBackdrop>
         <MicaBackdrop/>

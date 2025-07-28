@@ -158,11 +158,7 @@ public class RpcController : IRpcController
         using var _ = await AcquireOperationLockNowAsync();
         AssertRpcConnected();
 
-        var coderConnectSettings = await _settingsManager.Read();
-        var disableTailscaleLoopProtection = coderConnectSettings.DisableTailscaleLoopProtection;
-        Debug.WriteLine(
-            $"Starting VPN with DisableTailscaleLoopProtection={disableTailscaleLoopProtection}");
-
+        var coderConnectSettings = await _settingsManager.Read(ct);
         var credentials = _credentialManager.GetCachedCredentials();
         if (credentials.State != CredentialState.Valid)
             throw new RpcOperationException(
@@ -182,6 +178,7 @@ public class RpcController : IRpcController
                 {
                     CoderUrl = credentials.CoderUrl?.ToString(),
                     ApiToken = credentials.ApiToken,
+                    TunnelUseSoftNetIsolation = coderConnectSettings.EnableCorporateVpnSupport,
                 },
             }, ct);
         }

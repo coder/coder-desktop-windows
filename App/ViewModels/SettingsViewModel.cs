@@ -34,7 +34,7 @@ public partial class SettingsViewModel : ObservableObject
         _connectSettings = settingsManager.Read().GetAwaiter().GetResult();
         StartOnLogin = startupManager.IsEnabled();
         ConnectOnLaunch = _connectSettings.ConnectOnLaunch;
-        DisableTailscaleLoopProtection = _connectSettings.DisableTailscaleLoopProtection;
+        DisableTailscaleLoopProtection = _connectSettings.EnableCorporateVpnSupport;
 
         // Various policies can disable the "Start on login" option.
         // We disable the option in the UI if the policy is set.
@@ -53,7 +53,7 @@ public partial class SettingsViewModel : ObservableObject
             return;
         try
         {
-            _connectSettings.DisableTailscaleLoopProtection = DisableTailscaleLoopProtection;
+            _connectSettings.EnableCorporateVpnSupport = DisableTailscaleLoopProtection;
             _connectSettingsManager.Write(_connectSettings);
         }
         catch (Exception ex)

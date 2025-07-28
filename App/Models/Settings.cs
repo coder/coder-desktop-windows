@@ -37,7 +37,7 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
     /// <summary>
     /// When this is true Coder Connect will not attempt to protect against Tailscale loopback issues.
     /// </summary>
-    public bool DisableTailscaleLoopProtection { get; set; }
+    public bool EnableCorporateVpnSupport { get; set; }
 
     /// <summary>
     /// CoderConnect current settings version. Increment this when the settings schema changes.
@@ -52,20 +52,20 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
 
         ConnectOnLaunch = false;
 
-        DisableTailscaleLoopProtection = false;
+        EnableCorporateVpnSupport = false;
     }
 
-    public CoderConnectSettings(int? version, bool connectOnLaunch, bool disableTailscaleLoopProtection)
+    public CoderConnectSettings(int? version, bool connectOnLaunch, bool enableCorporateVpnSupport)
     {
         Version = version ?? VERSION;
 
         ConnectOnLaunch = connectOnLaunch;
 
-        DisableTailscaleLoopProtection = disableTailscaleLoopProtection;
+        EnableCorporateVpnSupport = enableCorporateVpnSupport;
     }
 
     public CoderConnectSettings Clone()
     {
-        return new CoderConnectSettings(Version, ConnectOnLaunch, DisableTailscaleLoopProtection);
+        return new CoderConnectSettings(Version, ConnectOnLaunch, EnableCorporateVpnSupport);
     }
 }

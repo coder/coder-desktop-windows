@@ -44,9 +44,9 @@
                                        >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.ConnectOnLaunch, Mode=TwoWay}" />
                 </controls:SettingsCard>
-                <controls:SettingsCard Description="This setting controls whether Coder Connect should bypass VPN loop preventation mechanism. Turn this ON only when dealing with a Coder deployment behind a corporate VPN."
-                       Header="Disable corporate VPN loop protection"
-                       HeaderIcon="{ui:FontIcon Glyph=&#xE8AF;}"
+                <controls:SettingsCard Description="This setting loosens some VPN loop protection checks in Coder Connect, allowing traffic to flow to a Coder deployment behind a corporate VPN. We only recommend enabling this option if Coder Connect doesn't work with your Coder deployment behind a corporate VPN."
+                       Header="Enable support for corporate VPNs"
+                       HeaderIcon="{ui:FontIcon Glyph=&#xE705;}"
                        >
                     <ToggleSwitch IsOn="{x:Bind ViewModel.DisableTailscaleLoopProtection, Mode=TwoWay}" />
                 </controls:SettingsCard>
