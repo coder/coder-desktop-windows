@@ -172,6 +172,10 @@ public class Manager : IManager
                 if (reply.MsgCase != TunnelMessage.MsgOneofCase.Start)
                     throw new InvalidOperationException("Tunnel did not reply with a Start response");
 
+                // If the tunnel failed to start, stop the subprocess.
+                if (!reply.Start.Success)
+                    await _tunnelSupervisor.StopAsync(ct);
+
                 await BroadcastStatus(reply.Start.Success ? TunnelStatus.Started : TunnelStatus.Stopped, ct);
                 return reply.Start;
             }
