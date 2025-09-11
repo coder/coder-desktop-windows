@@ -361,6 +361,7 @@
 
         <HyperlinkButton
             Command="{x:Bind ViewModel.SignOutCommand, Mode=OneWay}"
+            IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}, Mode=OneWay}"
             Margin="-12,-4,-12,-4"
             HorizontalAlignment="Stretch"
             HorizontalContentAlignment="Left">
