@@ -27,8 +27,8 @@ function Download-File([string] $url, [string] $outputPath, [string] $etagFile) 
 
 # Download the Windows App Sdk binary from Microsoft for this platform if we don't have
 # it yet (or it's different).
-$windowsAppSdkMajorVersion = "1.6"
-$windowsAppSdkFullVersion = "1.6.250228001"
+$windowsAppSdkMajorVersion = "1.8"
+$windowsAppSdkFullVersion = "1.8.250907003"
 $windowsAppSdkPath = Join-Path $PSScriptRoot "files\windows-app-sdk-$($arch).exe"
 $windowsAppSdkUri = "https://aka.ms/windowsappsdk/$($windowsAppSdkMajorVersion)/$($windowsAppSdkFullVersion)/windowsappruntimeinstall-$($arch).exe"
 $windowsAppSdkEtagFile = $windowsAppSdkPath + ".etag"

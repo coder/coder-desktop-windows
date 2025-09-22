@@ -42,7 +42,7 @@ jobs:
           $ErrorActionPreference = "Stop"
 
           $filename = ".\WindowsAppRuntimeInstall-x64.exe"
-          $url = "https://download.microsoft.com/download/7a3a6a44-b07e-4ca5-8b63-2de185769dbc/WindowsAppRuntimeInstall-x64.exe" # 1.6.5 (1.6.250205002)
+          $url = "https://aka.ms/windowsappsdk/1.8/1.8.250907003/windowsappruntimeinstall-x64.exe" # 1.8.0 (1.8.250907003)
           & curl.exe --progress-bar --show-error --fail --location --output $filename $url
           if ($LASTEXITCODE -ne 0) { throw "Failed to download Windows App SDK" }
 
