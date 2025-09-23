@@ -228,13 +228,21 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         var attemptCoderConnection = settingsTask.Result?.ConnectOnLaunch ?? false;
         if (dependenciesLoaded && attemptCoderConnection)
         {
-            try
+            var rpcModel = rpcController.GetState();
+            if (rpcModel.VpnLifecycle == VpnLifecycle.Stopped)
             {
-                await rpcController.StartVpn(cancellationToken);
+                try
+                {
+                    await rpcController.StartVpn(cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to connect on launch");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                _logger.LogError(ex, "Failed to connect on launch");
+                _logger.LogInformation($"Not connecting on launch, VPN lifecycle is {rpcModel.VpnLifecycle}");
             }
         }
 
