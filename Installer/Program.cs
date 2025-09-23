@@ -116,9 +116,6 @@ public class BootstrapperOptions : SharedOptions
     [Option('m', "msi-path", Required = true, HelpText = "Path to the MSI package to embed")]
     public string MsiPath { get; set; }
 
-    [Option('w', "windows-app-sdk-path", Required = true, HelpText = "Path to the Windows App Sdk package to embed")]
-    public string WindowsAppSdkPath { get; set; }
-
     [Option('t', "theme-xml-path", Required = false, HelpText = "Path to the theme .xml file to use for the installer")]
     public string ThemeXmlPath { get; set; }
 
@@ -130,9 +127,6 @@ public class BootstrapperOptions : SharedOptions
             throw new ArgumentException($"Logo PNG file not found at '{LogoPng}'", nameof(LogoPng));
         if (!SystemFile.Exists(MsiPath))
             throw new ArgumentException($"MSI package not found at '{MsiPath}'", nameof(MsiPath));
-        if (!SystemFile.Exists(WindowsAppSdkPath))
-            throw new ArgumentException($"Windows App Sdk package not found at '{WindowsAppSdkPath}'",
-                nameof(WindowsAppSdkPath));
         if (ThemeXmlPath != null && !SystemFile.Exists(ThemeXmlPath))
             throw new ArgumentException($"Theme XML file not found at '{ThemeXmlPath}'", nameof(ThemeXmlPath));
     }
@@ -373,27 +367,6 @@ public class Program
                 // available, and the user can install it themselves.
                 Vital = false,
                 Payloads = [dotNetRuntimePayload],
-            },
-            // TODO: right now we are including the Windows App Sdk in the bundle
-            //       and always install it
-            //       Microsoft makes it difficult to check if it exists from a regular installer:
-            //       https://learn.microsoft.com/en-us/windows/apps/windows-app-sdk/check-windows-app-sdk-versions
-            //       https://github.com/microsoft/WindowsAppSDK/discussions/2437
-            new ExePackage // Windows App Sdk
-            {
-                PerMachine = true,
-                Permanent = true,
-                Cache = PackageCacheAction.remove,
-                // There is no license agreement for this SDK.
-                InstallArguments = "--quiet",
-                Vital = false,
-                Payloads =
-                [
-                    new ExePackagePayload
-                    {
-                        SourceFile = opts.WindowsAppSdkPath,
-                    },
-                ],
             },
             new MsiPackage(opts.MsiPath)
             {
