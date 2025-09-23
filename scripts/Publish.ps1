@@ -119,7 +119,7 @@ $servicePublishDir = Join-Path $buildPath "service"
 & dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir /p:Version=$version
 if ($LASTEXITCODE -ne 0) { throw "Failed to build Vpn.Service" }
 # App needs to be built with msbuild
-$appPublishDir = Join-Path $buildPath "app"
+$appPublishDir = Join-Path $buildPath "app\"
 $msbuildBinary = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe
 if ($LASTEXITCODE -ne 0) { throw "Failed to find MSBuild" }
 if (-not (Test-Path $msbuildBinary)) { throw "Failed to find MSBuild at $msbuildBinary" }
@@ -175,10 +175,6 @@ Copy-Item $mutagenAgentsSrcPath $mutagenAgentsDestPath
 if ($LASTEXITCODE -ne 0) { throw "Failed to build MSI" }
 Add-CoderSignature $msiOutputPath
 
-$getWindowsAppSdk = Join-Path $scriptRoot "Get-WindowsAppSdk.ps1"
-& $getWindowsAppSdk -arch $arch
-$windowsAppSdkPath = Join-Path $scriptRoot "files\windows-app-sdk-$($arch).exe"
-
 # Build the bootstrapper
 & dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
     build-bootstrapper `
@@ -188,7 +184,6 @@ $windowsAppSdkPath = Join-Path $scriptRoot "files\windows-app-sdk-$($arch).exe"
     --output-path $outputPath `
     --icon-file "App\coder.ico" `
     --msi-path $msiOutputPath `
-    --windows-app-sdk-path $windowsAppSdkPath `
     --theme-xml-path "scripts\files\RtfThemeLarge.xml" `
     --logo-png "scripts\files\logo.png"
 if ($LASTEXITCODE -ne 0) { throw "Failed to build bootstrapper" }
