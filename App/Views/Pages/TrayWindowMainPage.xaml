@@ -74,7 +74,6 @@
                 Margin="0,6,0,6"
                 TextWrapping="Wrap" />
         </ScrollViewer>
-        
         <TextBlock
             Text="Enable Coder Connect to view your workspaces."
             TextWrapping="Wrap"
