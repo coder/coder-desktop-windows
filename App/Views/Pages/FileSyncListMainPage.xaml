@@ -50,6 +50,7 @@
                 <TextBlock
                     Margin="0,0,0,20"
                     Foreground="Red"
+                    IsTextSelectionEnabled="True"
                     TextWrapping="Wrap"
                     Text="{x:Bind ViewModel.Error, Mode=OneWay}" />
             </ScrollView>
