@@ -73,7 +73,6 @@
                 IsTextSelectionEnabled="True"
                 Margin="0,6,0,6"
                 TextWrapping="Wrap" />
-
         </ScrollViewer>
         
         <TextBlock
