@@ -53,6 +53,7 @@
             <TextBlock
                 Grid.Column="1"
                 Grid.Row="1"
+                IsTextSelectionEnabled="True"
                 Text="{x:Bind ViewModel.CoderUrlError, Mode=OneWay}"
                 Foreground="Red" />
         </Grid>

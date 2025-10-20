@@ -70,6 +70,7 @@
             <TextBlock
                 Text="{x:Bind ViewModel.VpnFailedMessage, Mode=OneWay}"
                 Foreground="Red"
+                IsTextSelectionEnabled="True"
                 Margin="0,6,0,6"
                 TextWrapping="Wrap" />
 
