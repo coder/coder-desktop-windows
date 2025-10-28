@@ -13,7 +13,7 @@ public class TestHttpServer : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Func<HttpListenerContext, Task> _handler;
     private readonly HttpListener _listener;
-    private readonly Thread _listenerThread;
+    private readonly Task _listenerTask;
 
     public string BaseUrl { get; private set; }
 
@@ -60,29 +60,43 @@ public class TestHttpServer : IDisposable
             throw new InvalidOperationException("Could not find a free port to listen on");
         BaseUrl = $"http://localhost:{port}";
 
-        _listenerThread = new Thread(() =>
-        {
-            while (!_cts.Token.IsCancellationRequested)
-                try
-                {
-                    var context = _listener.GetContext();
-                    Task.Run(() => HandleRequest(context));
-                }
-                catch (HttpListenerException) when (_cts.Token.IsCancellationRequested)
-                {
-                    break;
-                }
-        });
-
-        _listenerThread.Start();
+        _listenerTask = RequestLoop();
     }
 
     public void Dispose()
     {
         _cts.Cancel();
         _listener.Stop();
-        _listenerThread.Join();
+        try
+        {
+            _listenerTask.GetAwaiter().GetResult();
+        }
+        catch (TaskCanceledException)
+        {
+            // Ignore
+        }
         GC.SuppressFinalize(this);
+    }
+
+    private async Task RequestLoop()
+    {
+        while (!_cts.Token.IsCancellationRequested)
+            try
+            {
+                var contextTask = _listener.GetContextAsync();
+                // Wait with a cancellation token.
+                await contextTask.WaitAsync(_cts.Token);
+                // Get the context or throw if there was an error.
+                var context = await contextTask;
+                // Run the handler in the background.
+                _ = Task.Run(() => HandleRequest(context));
+            }
+            catch (HttpListenerException) when (_cts.Token.IsCancellationRequested)
+            {
+                // Ignore, we expect the listener to throw an exception when
+                // it's stopped
+                break;
+            }
     }
 
     private async Task HandleRequest(HttpListenerContext context)
