@@ -62,16 +62,7 @@ public class TestHttpServer : IDisposable
 
         _listenerThread = new Thread(() =>
         {
-            while (!_cts.Token.IsCancellationRequested)
-                try
-                {
-                    var context = _listener.GetContext();
-                    Task.Run(() => HandleRequest(context));
-                }
-                catch (HttpListenerException) when (_cts.Token.IsCancellationRequested)
-                {
-                    break;
-                }
+            RequestLoop().GetAwaiter().GetResult();
         });
 
         _listenerThread.Start();
@@ -81,8 +72,45 @@ public class TestHttpServer : IDisposable
     {
         _cts.Cancel();
         _listener.Stop();
-        _listenerThread.Join();
+        try
+        {
+            _listenerThread.Join();
+        }
+        catch (ThreadStateException)
+        {
+            // Ignore if the listener thread is already dead
+        }
+        catch (ThreadInterruptedException)
+        {
+            // Ignore interrupted listener thread, it's now closed anyway
+        }
         GC.SuppressFinalize(this);
+    }
+
+    private async Task RequestLoop()
+    {
+        while (!_cts.Token.IsCancellationRequested)
+            try
+            {
+                var contextTask = _listener.GetContextAsync();
+                // Wait with a cancellation token.
+                await contextTask.WaitAsync(_cts.Token);
+                // Get the context or throw if there was an error.
+                var context = await contextTask;
+                // Run the handler in the background.
+                _ = Task.Run(() => HandleRequest(context));
+            }
+            catch (HttpListenerException) when (_cts.Token.IsCancellationRequested)
+            {
+                // Ignore, we expect the listener to throw an exception when
+                // it's stopped
+                break;
+            }
+            catch (TaskCanceledException)
+            {
+                // Ignore, the CTS was cancelled
+                break;
+            }
     }
 
     private async Task HandleRequest(HttpListenerContext context)
