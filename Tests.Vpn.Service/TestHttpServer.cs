@@ -13,7 +13,7 @@ public class TestHttpServer : IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly Func<HttpListenerContext, Task> _handler;
     private readonly HttpListener _listener;
-    private readonly Thread _listenerThread;
+    private readonly Task _listenerTask;
 
     public string BaseUrl { get; private set; }
 
@@ -60,12 +60,7 @@ public class TestHttpServer : IDisposable
             throw new InvalidOperationException("Could not find a free port to listen on");
         BaseUrl = $"http://localhost:{port}";
 
-        _listenerThread = new Thread(() =>
-        {
-            RequestLoop().GetAwaiter().GetResult();
-        });
-
-        _listenerThread.Start();
+        _listenerTask = RequestLoop();
     }
 
     public void Dispose()
@@ -74,15 +69,11 @@ public class TestHttpServer : IDisposable
         _listener.Stop();
         try
         {
-            _listenerThread.Join();
+            _listenerTask.GetAwaiter().GetResult();
         }
-        catch (ThreadStateException)
+        catch (TaskCanceledException)
         {
-            // Ignore if the listener thread is already dead
-        }
-        catch (ThreadInterruptedException)
-        {
-            // Ignore interrupted listener thread, it's now closed anyway
+            // Ignore
         }
         GC.SuppressFinalize(this);
     }
@@ -104,11 +95,6 @@ public class TestHttpServer : IDisposable
             {
                 // Ignore, we expect the listener to throw an exception when
                 // it's stopped
-                break;
-            }
-            catch (TaskCanceledException)
-            {
-                // Ignore, the CTS was cancelled
                 break;
             }
     }
