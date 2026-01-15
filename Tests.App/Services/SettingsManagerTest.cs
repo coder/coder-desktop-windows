@@ -2,6 +2,7 @@ using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
 
 namespace Coder.Desktop.Tests.App.Services;
+
 [TestFixture]
 public sealed class SettingsManagerTests
 {

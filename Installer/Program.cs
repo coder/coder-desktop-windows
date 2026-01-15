@@ -227,10 +227,10 @@ public class Program
             RestartServiceDelayInSeconds = 30,
             ResetPeriodInDays = 1,
             PreShutdownDelay = 1000 * 60 * 3, // default
-            // This matches Tailscale's service dependencies.
+            // This matches Tailscale's service dependencies, with one omission: iphlpsvc. We do not
+            // use any of the IPv6 transition technologies provided by that service.
             DependsOn =
             [
-                new ServiceDependency("iphlpsvc"), // IP Helper
                 new ServiceDependency("netprofm"), // Network List Service
                 new ServiceDependency("WinHttpAutoProxySvc"), // WinHTTP Web Proxy Auto-Discovery Service
             ],
