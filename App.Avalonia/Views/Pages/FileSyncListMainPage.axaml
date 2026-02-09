@@ -1,0 +1,211 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.FileSyncListMainPage"
+             x:DataType="vm:FileSyncListViewModel">
+
+    <UserControl.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <converters:FriendlyByteConverter x:Key="FriendlyByteConverter" />
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Unavailable -->
+        <StackPanel IsVisible="{CompiledBinding ShowUnavailable}"
+                    Margin="60"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+
+            <TextBlock HorizontalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Text="{CompiledBinding UnavailableMessage}" />
+        </StackPanel>
+
+        <!-- Loading -->
+        <StackPanel IsVisible="{CompiledBinding ShowLoading}"
+                    Margin="60"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="10">
+
+            <ProgressBar Width="200"
+                         IsIndeterminate="True"
+                         HorizontalAlignment="Center" />
+
+            <TextBlock HorizontalAlignment="Center"
+                       Text="Loading sync sessions..." />
+        </StackPanel>
+
+        <!-- Error -->
+        <Grid IsVisible="{CompiledBinding ShowError}"
+              Margin="20"
+              RowDefinitions="*,Auto">
+
+            <ScrollViewer Grid.Row="0">
+                <TextBox Margin="0,0,0,20"
+                         Foreground="Red"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         Text="{CompiledBinding Error}" />
+            </ScrollViewer>
+
+            <Button Grid.Row="1"
+                    Content="Reload"
+                    HorizontalAlignment="Left"
+                    Command="{CompiledBinding ReloadSessionsCommand}" />
+        </Grid>
+
+        <!-- Sessions -->
+        <Grid IsVisible="{CompiledBinding ShowSessions}"
+              RowDefinitions="Auto,*">
+
+            <!-- Header -->
+            <StackPanel Grid.Row="0"
+                        Orientation="Vertical"
+                        Margin="30,15,30,0"
+                        Spacing="5">
+
+                <Grid ColumnDefinitions="43,2*,1*,2*,1*,1*"
+                      Margin="0,0,0,5">
+                    <TextBlock Grid.Column="1" Text="Local Path" />
+                    <TextBlock Grid.Column="2" Text="Workspace" />
+                    <TextBlock Grid.Column="3" Text="Remote Path" />
+                    <TextBlock Grid.Column="4" Text="Status" />
+                    <TextBlock Grid.Column="5" Text="Size" />
+                </Grid>
+
+                <Border Height="1"
+                        Background="#33000000"
+                        Margin="0,0,0,5" />
+            </StackPanel>
+
+            <!-- Content -->
+            <ScrollViewer Grid.Row="1">
+                <StackPanel Orientation="Vertical"
+                            Margin="30,0,30,15"
+                            Spacing="10">
+
+                    <ItemsControl ItemsSource="{CompiledBinding Sessions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Vertical" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SyncSessionViewModel">
+                                <Grid ColumnDefinitions="43,2*,1*,2*,1*,1*"
+                                      Margin="0,10">
+
+                                    <StackPanel Grid.Column="0"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Spacing="5">
+
+                                        <Button Content="{CompiledBinding Icon}"
+                                                Command="{CompiledBinding PauseOrResumeSessionCommand}"
+                                                Padding="4,0" />
+
+                                        <Button Content="✖"
+                                                Command="{CompiledBinding TerminateSessionCommand}"
+                                                Padding="4,0" />
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Column="1"
+                                               Text="{Binding Model.AlphaPath}"
+                                               TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock Grid.Column="2"
+                                               Text="{Binding Model.BetaName}"
+                                               TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock Grid.Column="3"
+                                               Text="{Binding Model.BetaPath}"
+                                               TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock Grid.Column="4"
+                                               Text="{Binding Model.StatusString}"
+                                               ToolTip.Tip="{CompiledBinding StatusToolTip}"
+                                               TextTrimming="CharacterEllipsis" />
+
+                                    <TextBlock Grid.Column="5"
+                                               Text="{Binding Model.AlphaSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
+                                               ToolTip.Tip="{CompiledBinding SizeToolTip}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- "New Sync" button -->
+                    <Button Content="New Sync"
+                            HorizontalAlignment="Left"
+                            Command="{CompiledBinding StartCreatingNewSessionCommand}"
+                            IsVisible="{CompiledBinding CreatingNewSession, Converter={StaticResource InverseBoolConverter}}" />
+
+                    <!-- New item form -->
+                    <Grid IsVisible="{CompiledBinding CreatingNewSession}"
+                          ColumnDefinitions="43,2*,1*,2*,2*"
+                          Margin="0,10">
+
+                        <StackPanel Grid.Column="0"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Spacing="5">
+
+                            <Button Content="✔"
+                                    IsEnabled="{CompiledBinding NewSessionCreateEnabled}"
+                                    Command="{CompiledBinding ConfirmNewSessionCommand}"
+                                    Padding="4,0" />
+
+                            <Button Content="✖"
+                                    Command="{CompiledBinding CancelNewSessionCommand}"
+                                    Padding="4,0" />
+                        </StackPanel>
+
+                        <Grid Grid.Column="1"
+                              ColumnDefinitions="*,Auto">
+
+                            <TextBox Grid.Column="0"
+                                     Margin="0,0,5,0"
+                                     IsEnabled="{CompiledBinding OperationInProgress, Converter={StaticResource InverseBoolConverter}}"
+                                     Text="{CompiledBinding NewSessionLocalPath, Mode=TwoWay}" />
+
+                            <Button Grid.Column="1"
+                                    Content="…"
+                                    IsEnabled="{CompiledBinding CanOpenLocalPath}"
+                                    Command="{CompiledBinding OpenLocalPathSelectDialogCommand}" />
+                        </Grid>
+
+                        <ComboBox Grid.Column="2"
+                                  IsEnabled="{CompiledBinding NewSessionRemoteHostEnabled}"
+                                  ItemsSource="{CompiledBinding AvailableHosts}"
+                                  SelectedItem="{CompiledBinding NewSessionRemoteHost, Mode=TwoWay}" />
+
+                        <Grid Grid.Column="3"
+                              ColumnDefinitions="*,Auto">
+
+                            <TextBox Grid.Column="0"
+                                     Margin="0,0,5,0"
+                                     IsEnabled="{CompiledBinding NewSessionRemotePathDialogEnabled}"
+                                     Text="{CompiledBinding NewSessionRemotePath, Mode=TwoWay}" />
+
+                            <Button Grid.Column="1"
+                                    Content="…"
+                                    IsEnabled="{CompiledBinding NewSessionRemotePathDialogEnabled}"
+                                    Command="{CompiledBinding OpenRemotePathSelectDialogCommand}" />
+                        </Grid>
+
+                        <TextBlock Grid.Column="4"
+                                   Text="{CompiledBinding NewSessionStatus}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</UserControl>
