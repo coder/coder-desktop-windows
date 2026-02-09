@@ -19,10 +19,13 @@ public class TelemetryEnricherTest
         // quick sanity check that non-telemetry fields aren't lost or overwritten
         Assert.That(req.CoderUrl, Is.EqualTo("https://coder.example.com"));
 
-        Assert.That(req.DeviceOs, Is.EqualTo("Windows"));
+        var expectedOs = OperatingSystem.IsWindows() ? "Windows" : "Linux";
+        Assert.That(req.DeviceOs, Is.EqualTo(expectedOs));
         // seems that test assemblies always set 1.0.0.0
         Assert.That(req.CoderDesktopVersion, Is.EqualTo("1.0.0.0"));
-        Assert.That(req.DeviceId, Is.Not.Empty);
+        // DeviceId may be empty on some Linux CI environments without /etc/machine-id
+        if (OperatingSystem.IsWindows() || File.Exists("/etc/machine-id"))
+            Assert.That(req.DeviceId, Is.Not.Empty);
         var deviceId = req.DeviceId;
 
         // deviceId is different on different machines, but we can test that

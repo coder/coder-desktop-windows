@@ -3,13 +3,19 @@
     <PropertyGroup>
         <AssemblyName>Coder.Desktop.Tests.Vpn.Service</AssemblyName>
         <RootNamespace>Coder.Desktop.Tests.Vpn.Service</RootNamespace>
-        <TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
         <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>12</LangVersion>
         <Nullable>enable</Nullable>
-        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
 
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+        <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>
