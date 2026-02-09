@@ -1,14 +1,20 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+#if WINDOWS
 using System.Formats.Asn1;
+#endif
 using System.Net;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
+#if WINDOWS
 using System.Security.Cryptography.X509Certificates;
+#endif
 using Coder.Desktop.Vpn.Utilities;
 using Microsoft.Extensions.Logging;
+#if WINDOWS
 using Microsoft.Security.Extensions;
+#endif
 
 namespace Coder.Desktop.Vpn.Service;
 
@@ -38,6 +44,7 @@ public class NullDownloadValidator : IDownloadValidator
     }
 }
 
+#if WINDOWS
 /// <summary>
 ///     Ensures the downloaded binary is signed by the expected authenticode organization.
 /// </summary>
@@ -180,6 +187,7 @@ public class AuthenticodeDownloadValidator : IDownloadValidator
             throw new Exception("Failed certificate parse assertion: " + message);
     }
 }
+#endif
 
 public class AssemblyVersionDownloadValidator : IDownloadValidator
 {
