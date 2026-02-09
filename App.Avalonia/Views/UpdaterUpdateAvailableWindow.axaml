@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:pages="clr-namespace:Coder.Desktop.App.Views.Pages"
+        x:Class="Coder.Desktop.App.Views.UpdaterUpdateAvailableWindow"
+        Title="Update Available"
+        Width="600" Height="500"
+        MinWidth="600" MinHeight="500"
+        WindowStartupLocation="CenterScreen">
+
+    <pages:UpdaterUpdateAvailableMainPage />
+</Window>

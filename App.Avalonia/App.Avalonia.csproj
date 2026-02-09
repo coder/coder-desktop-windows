@@ -34,4 +34,8 @@
   <ItemGroup>
     <ProjectReference Include="..\App.Shared\App.Shared.csproj" Aliases="global,AppShared" />
   </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\\**" />
+  </ItemGroup>
 </Project>
