@@ -32,6 +32,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\App.Shared\App.Shared.csproj" />
+    <ProjectReference Include="..\App.Shared\App.Shared.csproj" Aliases="global,AppShared" />
   </ItemGroup>
 </Project>

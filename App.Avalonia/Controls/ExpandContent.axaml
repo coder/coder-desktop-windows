@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Coder.Desktop.App.Controls.ExpandContent">
+
+    <Grid x:Name="CollapsiblePanel"
+          Opacity="0"
+          IsVisible="False"
+          MaxHeight="0"
+          ClipToBounds="True">
+
+        <Grid.Transitions>
+            <Transitions>
+                <DoubleTransition Property="MaxHeight" Duration="0:0:0.16" />
+                <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+            </Transitions>
+        </Grid.Transitions>
+
+        <Grid.RenderTransform>
+            <TranslateTransform Y="-16">
+                <TranslateTransform.Transitions>
+                    <Transitions>
+                        <DoubleTransition Property="Y" Duration="0:0:0.16" />
+                    </Transitions>
+                </TranslateTransform.Transitions>
+            </TranslateTransform>
+        </Grid.RenderTransform>
+    </Grid>
+</UserControl>
