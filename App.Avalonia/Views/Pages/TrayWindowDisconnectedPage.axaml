@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Coder.Desktop.App.Controls"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.TrayWindowDisconnectedPage"
+             x:DataType="vm:TrayWindowDisconnectedViewModel">
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <TextBlock Text="Coder Connect"
+                   FontSize="18"
+                   VerticalAlignment="Center" />
+
+        <TextBlock TextWrapping="Wrap"
+                   Text="Could not connect to the Coder Connect system service." />
+
+        <TextBlock TextWrapping="Wrap"
+                   Margin="0,0,0,10"
+                   Text="Please ensure the system service is running. Refer to the documentation for troubleshooting instructions." />
+
+        <controls:HorizontalRule />
+
+        <TextBlock FontWeight="SemiBold"
+                   TextWrapping="Wrap"
+                   Foreground="Red"
+                   IsVisible="{CompiledBinding ReconnectFailed}"
+                   Text="Reconnect failed" />
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      MaxHeight="500"
+                      IsVisible="{CompiledBinding ReconnectFailed}">
+
+            <TextBox TextWrapping="Wrap"
+                     Margin="0,0,0,10"
+                     Foreground="Red"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     IsReadOnly="True"
+                     Text="{CompiledBinding ErrorMessage}" />
+        </ScrollViewer>
+
+        <Button Content="Reconnect now"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ReconnectCommand}"
+                IsEnabled="{CompiledBinding ReconnectButtonEnabled}" />
+    </StackPanel>
+</UserControl>

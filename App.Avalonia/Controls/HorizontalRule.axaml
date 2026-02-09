@@ -1,0 +1,9 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Coder.Desktop.App.Controls.HorizontalRule">
+
+    <Border Height="1"
+            HorizontalAlignment="Stretch"
+            Background="{DynamicResource SystemControlForegroundBaseHighBrush}"
+            Opacity="0.3" />
+</UserControl>

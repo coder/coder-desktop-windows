@@ -1,0 +1,21 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Coder.Desktop.App.Views.Pages.TrayWindowLoadingPage">
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <TextBlock Text="Coder Connect"
+                   FontSize="18"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Text="Please wait..."
+                   Margin="0,0,0,10" />
+
+        <ProgressBar IsIndeterminate="True"
+                     HorizontalAlignment="Stretch" />
+    </StackPanel>
+</UserControl>

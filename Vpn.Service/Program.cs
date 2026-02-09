@@ -1,7 +1,7 @@
+using Coder.Desktop.Vpn;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Win32;
 using Serilog;
 using ILogger = Serilog.ILogger;
 
@@ -9,18 +9,11 @@ namespace Coder.Desktop.Vpn.Service;
 
 public static class Program
 {
-    // These values are the service name and the prefix on registry value names.
-    // They should not be changed without backwards compatibility
-    // considerations. If changed here, they should also be changed in the
-    // installer.
 #if !DEBUG
     private const string ServiceName = "Coder Desktop";
-    private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\VpnService";
     private const string DefaultLogLevel = "Information";
 #else
-    // This value matches Create-Service.ps1.
     private const string ServiceName = "Coder Desktop (Debug)";
-    private const string ConfigSubKey = @"SOFTWARE\Coder Desktop\DebugVpnService";
     private const string DefaultLogLevel = "Debug";
 #endif
 
@@ -30,7 +23,6 @@ public static class Program
 
     public static async Task<int> Main(string[] args)
     {
-        // This logger will only be used until we load our full logging configuration and replace it.
         Log.Logger = new LoggerConfiguration().MinimumLevel.Debug().WriteTo.Console()
             .CreateLogger();
         MainLogger.Information("Application is starting");
@@ -59,12 +51,11 @@ public static class Program
         // Configuration sources
         builder.Configuration.Sources.Clear();
         AddDefaultConfig(configBuilder);
-        configBuilder.Add(
-            new RegistryConfigurationSource(Registry.LocalMachine, ConfigSubKey));
+        AddPlatformConfig(configBuilder);
         builder.Configuration.AddEnvironmentVariables("CODER_MANAGER_");
         builder.Configuration.AddCommandLine(args);
 
-        // Options types (these get registered as IOptions<T> singletons)
+        // Options types
         builder.Services.AddOptions<ManagerConfig>()
             .Bind(builder.Configuration.GetSection(ManagerConfigSection))
             .ValidateDataAnnotations();
@@ -74,6 +65,9 @@ public static class Program
         {
             loggerConfig.ReadFrom.Configuration(builder.Configuration);
         });
+
+        // Platform-specific services
+        RegisterPlatformServices(builder);
 
         // Singletons
         builder.Services.AddSingleton<IDownloader, Downloader>();
@@ -86,17 +80,6 @@ public static class Program
         builder.Services.AddHostedService<ManagerService>();
         builder.Services.AddHostedService<ManagerRpcService>();
 
-        // Either run as a Windows service or a console application
-        if (!Environment.UserInteractive)
-        {
-            MainLogger.Information("Running as a windows service");
-            builder.Services.AddWindowsService(options => { options.ServiceName = ServiceName; });
-        }
-        else
-        {
-            MainLogger.Information("Running as a console application");
-        }
-
         var host = builder.Build();
         Log.Logger = (ILogger)host.Services.GetService(typeof(ILogger))!;
         MainLogger.Information("Application is starting");
@@ -104,8 +87,76 @@ public static class Program
         await host.RunAsync();
     }
 
+    private static void AddPlatformConfig(IConfigurationBuilder builder)
+    {
+#if WINDOWS
+        if (OperatingSystem.IsWindows())
+        {
+#if !DEBUG
+            const string configSubKey = @"SOFTWARE\Coder Desktop\VpnService";
+#else
+            const string configSubKey = @"SOFTWARE\Coder Desktop\DebugVpnService";
+#endif
+            builder.Add(new RegistryConfigurationSource(
+                Microsoft.Win32.Registry.LocalMachine, configSubKey));
+        }
+#else
+        if (OperatingSystem.IsLinux())
+        {
+            builder.AddJsonFile("/etc/coder-desktop/config.json", optional: true, reloadOnChange: false);
+        }
+#endif
+    }
+
+    private static void RegisterPlatformServices(HostApplicationBuilder builder)
+    {
+#if WINDOWS
+        if (OperatingSystem.IsWindows())
+        {
+            if (!Environment.UserInteractive)
+            {
+                MainLogger.Information("Running as a Windows service");
+                builder.Services.AddWindowsService(options => { options.ServiceName = ServiceName; });
+            }
+            else
+            {
+                MainLogger.Information("Running as a console application");
+            }
+
+            // Register Windows named pipe transport
+            builder.Services.AddSingleton<IRpcServerTransport>(sp =>
+            {
+                var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ManagerConfig>>().Value;
+                return new NamedPipeServerTransport(config.ServiceRpcPipeName);
+            });
+        }
+#else
+#pragma warning disable CA1416 // Platform compatibility - guarded by OperatingSystem.IsLinux() at runtime
+        if (OperatingSystem.IsLinux())
+        {
+            MainLogger.Information("Running as a systemd service");
+            builder.Services.AddSystemd();
+
+            // Register Unix socket transport
+            builder.Services.AddSingleton<IRpcServerTransport>(sp =>
+            {
+                var config = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ManagerConfig>>().Value;
+                var socketPath = string.IsNullOrEmpty(config.ServiceRpcSocketPath)
+                    ? "/run/coder-desktop/vpn.sock"
+                    : config.ServiceRpcSocketPath;
+                return new UnixSocketServerTransport(socketPath);
+            });
+        }
+#pragma warning restore CA1416
+#endif
+    }
+
     private static void AddDefaultConfig(IConfigurationBuilder builder)
     {
+        var logPath = OperatingSystem.IsWindows()
+            ? @"C:\coder-desktop-service.log"
+            : "/var/log/coder-desktop-service.log";
+
         builder.AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["Serilog:Using:0"] = "Serilog.Sinks.File",
@@ -115,7 +166,7 @@ public static class Program
             ["Serilog:Enrich:0"] = "FromLogContext",
 
             ["Serilog:WriteTo:0:Name"] = "File",
-            ["Serilog:WriteTo:0:Args:path"] = @"C:\coder-desktop-service.log",
+            ["Serilog:WriteTo:0:Args:path"] = logPath,
             ["Serilog:WriteTo:0:Args:outputTemplate"] =
                 "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext} - {Message:lj}{NewLine}{Exception}",
             ["Serilog:WriteTo:0:Args:rollingInterval"] = "Day",

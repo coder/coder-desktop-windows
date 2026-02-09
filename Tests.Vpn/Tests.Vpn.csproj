@@ -3,10 +3,10 @@
     <PropertyGroup>
         <AssemblyName>Coder.Desktop.Tests.Vpn</AssemblyName>
         <RootNamespace>Coder.Desktop.Tests.Vpn</RootNamespace>
-        <TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+        <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
 
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>

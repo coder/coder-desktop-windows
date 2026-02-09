@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.SignInUrlPage"
+             x:DataType="vm:SignInViewModel">
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <TextBlock Text="Coder Desktop"
+                   FontSize="24"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Center" />
+
+        <Grid ColumnDefinitions="Auto,*"
+              RowDefinitions="Auto,Auto">
+
+            <TextBlock Grid.Column="0"
+                       Grid.Row="0"
+                       Text="Server URL"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0" />
+
+            <TextBox Grid.Column="1"
+                     Grid.Row="0"
+                     HorizontalAlignment="Stretch"
+                     Watermark="https://coder.example.com"
+                     AttachedToVisualTree="CoderUrlTextBox_AttachedToVisualTree"
+                     LostFocus="CoderUrlTextBox_LostFocus"
+                     Text="{CompiledBinding CoderUrl, Mode=TwoWay}"
+                     KeyDown="CoderUrlTextBox_KeyDown" />
+
+            <TextBlock Grid.Column="1"
+                       Grid.Row="1"
+                       Foreground="Red"
+                       Text="{CompiledBinding CoderUrlError}" />
+        </Grid>
+
+        <Button Content="Next"
+                HorizontalAlignment="Center"
+                Command="{CompiledBinding UrlPage_NextCommand}" />
+    </StackPanel>
+</UserControl>

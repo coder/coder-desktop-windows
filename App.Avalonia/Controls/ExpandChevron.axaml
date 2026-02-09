@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Coder.Desktop.App.Controls.ExpandChevron">
+
+    <Grid>
+        <PathIcon x:Name="ChevronIcon"
+                  Width="16"
+                  Height="16"
+                  Margin="0,0,8,0"
+                  RenderTransformOrigin="0.5,0.5"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                  Data="M 6,3 L 10.5,8 L 6,13 L 7.4,14.4 L 13.8,8 L 7.4,1.6 Z">
+
+            <PathIcon.RenderTransform>
+                <RotateTransform Angle="0">
+                    <RotateTransform.Transitions>
+                        <Transitions>
+                            <DoubleTransition Property="Angle" Duration="0:0:0.15" />
+                        </Transitions>
+                    </RotateTransform.Transitions>
+                </RotateTransform>
+            </PathIcon.RenderTransform>
+        </PathIcon>
+    </Grid>
+</UserControl>

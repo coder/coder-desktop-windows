@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:pages="clr-namespace:Coder.Desktop.App.Views.Pages"
+        x:Class="Coder.Desktop.App.Views.SettingsWindow"
+        Title="Settings"
+        Width="600" Height="350"
+        MinWidth="600" MinHeight="350"
+        WindowStartupLocation="CenterScreen">
+
+    <pages:SettingsMainPage />
+</Window>

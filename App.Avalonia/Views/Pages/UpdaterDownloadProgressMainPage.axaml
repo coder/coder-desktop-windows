@@ -1,0 +1,32 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.UpdaterDownloadProgressMainPage"
+             x:DataType="vm:UpdaterDownloadProgressViewModel">
+
+    <StackPanel Orientation="Vertical" Margin="24" Spacing="16">
+        <TextBlock Text="{CompiledBinding DownloadingTitle}"
+                   FontSize="16"
+                   Margin="0,0,0,8" />
+
+        <ProgressBar Value="{CompiledBinding DownloadProgressValue}"
+                     Maximum="100"
+                     IsIndeterminate="{CompiledBinding DownloadProgressIndeterminate}"
+                     Margin="0,0,0,8"
+                     HorizontalAlignment="Stretch" />
+
+        <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="{CompiledBinding UserReadableDownloadProgress}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="0,0,24,0" />
+
+            <Button Grid.Column="1"
+                    Content="{CompiledBinding ActionButtonTitle}"
+                    IsEnabled="{CompiledBinding IsActionButtonEnabled}"
+                    HorizontalAlignment="Right"
+                    Click="ActionButton_Click" />
+        </Grid>
+    </StackPanel>
+</UserControl>
