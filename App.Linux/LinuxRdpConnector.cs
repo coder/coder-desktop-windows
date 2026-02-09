@@ -46,12 +46,13 @@ public class LinuxRdpConnector : IRdpConnector
             psi.ArgumentList.Add("/dynamic-resolution");
             psi.ArgumentList.Add("+clipboard");
 
-            if (_lastCredentials != null && _lastFqdn == fqdn)
+            if (_lastCredentials.HasValue && _lastFqdn == fqdn)
             {
-                if (!string.IsNullOrEmpty(_lastCredentials.Username))
-                    psi.ArgumentList.Add($"/u:{_lastCredentials.Username}");
-                if (!string.IsNullOrEmpty(_lastCredentials.Password))
-                    psi.ArgumentList.Add($"/p:{_lastCredentials.Password}");
+                var lastCredentials = _lastCredentials.Value;
+                if (!string.IsNullOrEmpty(lastCredentials.Username))
+                    psi.ArgumentList.Add($"/u:{lastCredentials.Username}");
+                if (!string.IsNullOrEmpty(lastCredentials.Password))
+                    psi.ArgumentList.Add($"/p:{lastCredentials.Password}");
             }
         }
         else
