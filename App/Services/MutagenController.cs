@@ -12,6 +12,7 @@ using Coder.Desktop.MutagenSdk.Proto.Service.Daemon;
 using Coder.Desktop.MutagenSdk.Proto.Service.Prompting;
 using Coder.Desktop.MutagenSdk.Proto.Service.Synchronization;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization;
+using Coder.Desktop.MutagenSdk.Proto.Synchronization.Core;
 using Coder.Desktop.MutagenSdk.Proto.Synchronization.Core.Ignore;
 using Coder.Desktop.MutagenSdk.Proto.Url;
 using Coder.Desktop.Vpn.Utilities;
@@ -106,6 +107,11 @@ public class MutagenControllerConfig
 {
     // This is set to "[INSTALLFOLDER]\vpn\mutagen.exe" by the installer.
     [Required] public string MutagenExecutablePath { get; set; } = @"c:\mutagen.exe";
+
+    // The default permissions for new files and directories created on the
+    // remote endpoint. These default to 0644 and 0755 respectively.
+    public uint DefaultFileMode { get; set; } = 0x1a4; // 0644
+    public uint DefaultDirectoryMode { get; set; } = 0x1ed; // 0755
 }
 
 /// <summary>
@@ -139,6 +145,8 @@ public sealed class MutagenController : ISyncSessionController
     private bool _disposing;
 
     private readonly string _mutagenExecutablePath;
+    private readonly uint _defaultFileMode;
+    private readonly uint _defaultDirectoryMode;
 
     private readonly string _mutagenDataDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
@@ -150,6 +158,8 @@ public sealed class MutagenController : ISyncSessionController
     public MutagenController(IOptions<MutagenControllerConfig> config, ILogger<MutagenController> logger)
     {
         _mutagenExecutablePath = config.Value.MutagenExecutablePath;
+        _defaultFileMode = config.Value.DefaultFileMode;
+        _defaultDirectoryMode = config.Value.DefaultDirectoryMode;
         _logger = logger;
     }
 
@@ -157,6 +167,8 @@ public sealed class MutagenController : ISyncSessionController
     {
         _mutagenExecutablePath = executablePath;
         _mutagenDataDirectory = dataDirectory;
+        _defaultFileMode = 0x1a4;     // 0644
+        _defaultDirectoryMode = 0x1ed; // 0755
         var builder = Host.CreateApplicationBuilder();
         builder.Services.AddSerilog();
         _logger = (ILogger<MutagenController>)builder.Build().Services.GetService(typeof(ILogger<MutagenController>))!;
@@ -233,6 +245,9 @@ public sealed class MutagenController : ISyncSessionController
                 Configuration = new Configuration
                 {
                     IgnoreVCSMode = IgnoreVCSMode.Ignore,
+                    PermissionsMode = PermissionsMode.Portable,
+                    DefaultFileMode = _defaultFileMode,
+                    DefaultDirectoryMode = _defaultDirectoryMode,
                 },
                 ConfigurationAlpha = new Configuration(),
                 ConfigurationBeta = new Configuration(),
