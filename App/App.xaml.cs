@@ -312,6 +312,8 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         builder.AddInMemoryCollection(new Dictionary<string, string?>
         {
             [MutagenControllerConfigSection + ":MutagenExecutablePath"] = @"C:\mutagen.exe",
+            [MutagenControllerConfigSection + ":DefaultFileMode"] = "420", // 0644
+            [MutagenControllerConfigSection + ":DefaultDirectoryMode"] = "493", // 0755
 
             ["Serilog:Using:0"] = "Serilog.Sinks.File",
             ["Serilog:MinimumLevel"] = DefaultLogLevel,
