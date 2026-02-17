@@ -273,7 +273,9 @@ public class Program
 
             // Add registry values that are consumed by the App MutagenController. See App/Services/MutagenController.cs
             new RegValue(RegistryHive, AppConfigRegistryKey, "MutagenController:MutagenExecutablePath",
-                @"[INSTALLFOLDER]vpn\mutagen.exe")
+                @"[INSTALLFOLDER]vpn\mutagen.exe"),
+            new RegValue(RegistryHive, AppConfigRegistryKey, "MutagenController:DefaultFileMode", "420"),
+            new RegValue(RegistryHive, AppConfigRegistryKey, "MutagenController:DefaultDirectoryMode", "493")
         );
 
         // Note: most of this control panel info will not be visible as this
