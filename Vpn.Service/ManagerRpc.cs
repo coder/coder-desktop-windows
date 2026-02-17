@@ -1,10 +1,7 @@
 using System.Collections.Concurrent;
-using System.IO.Pipes;
-using System.Security.AccessControl;
-using System.Security.Principal;
+using Coder.Desktop.Vpn;
 using Coder.Desktop.Vpn.Proto;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Coder.Desktop.Vpn.Service;
 
@@ -22,28 +19,26 @@ public interface IManagerRpc : IAsyncDisposable
     event OnReceiveHandler? OnReceive;
 
     Task StopAsync(CancellationToken cancellationToken);
-
     Task ExecuteAsync(CancellationToken stoppingToken);
-
     Task BroadcastAsync(ServiceMessage message, CancellationToken ct = default);
 }
 
 /// <summary>
-///     Provides a named pipe server for communication between multiple RpcRole.Client and RpcRole.Manager.
+///     Provides an RPC server for communication between multiple clients and the Manager.
+///     Uses IRpcServerTransport for platform-specific transport (Named Pipes on Windows, Unix Sockets on Linux).
 /// </summary>
 public class ManagerRpc : IManagerRpc
 {
     private readonly ConcurrentDictionary<ulong, ManagerRpcClient> _activeClients = new();
-    private readonly ManagerConfig _config;
     private readonly CancellationTokenSource _cts = new();
     private readonly ILogger<ManagerRpc> _logger;
+    private readonly IRpcServerTransport _transport;
     private ulong _lastClientId;
 
-    // ReSharper disable once ConvertToPrimaryConstructor
-    public ManagerRpc(IOptions<ManagerConfig> config, ILogger<ManagerRpc> logger)
+    public ManagerRpc(IRpcServerTransport transport, ILogger<ManagerRpc> logger)
     {
         _logger = logger;
-        _config = config.Value;
+        _transport = transport;
     }
 
     public event IManagerRpc.OnReceiveHandler? OnReceive;
@@ -60,6 +55,7 @@ public class ManagerRpc : IManagerRpc
         {
         }
 
+        await _transport.DisposeAsync();
         _cts.Dispose();
         GC.SuppressFinalize(this);
     }
@@ -71,87 +67,61 @@ public class ManagerRpc : IManagerRpc
     }
 
     /// <summary>
-    ///     Starts the named pipe server, listens for incoming connections and starts handling them asynchronously.
+    ///     Starts the RPC server, listens for incoming connections and starts handling them asynchronously.
     /// </summary>
     public async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation(@"Starting continuous named pipe RPC server at \\.\pipe\{PipeName}",
-            _config.ServiceRpcPipeName);
+        _logger.LogInformation("Starting RPC server");
 
-        // Allow everyone to connect to the named pipe
-        var pipeSecurity = new PipeSecurity();
-        pipeSecurity.AddAccessRule(new PipeAccessRule(
-            new SecurityIdentifier(WellKnownSidType.WorldSid, null),
-            PipeAccessRights.FullControl,
-            AccessControlType.Allow));
-
-        // Starting a named pipe server is not like a TCP server where you can
-        // continuously accept new connections. You need to recreate the server
-        // after accepting a connection in order to accept new connections.
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken, _cts.Token);
         while (!linkedCts.IsCancellationRequested)
         {
-            var pipeServer = NamedPipeServerStreamAcl.Create(_config.ServiceRpcPipeName, PipeDirection.InOut,
-                NamedPipeServerStream.MaxAllowedServerInstances, PipeTransmissionMode.Byte, PipeOptions.Asynchronous, 0,
-                0, pipeSecurity);
-
+            Stream stream;
             try
             {
-                _logger.LogDebug("Waiting for new named pipe client connection");
-                await pipeServer.WaitForConnectionAsync(linkedCts.Token);
-
-                var clientId = Interlocked.Add(ref _lastClientId, 1);
-                _logger.LogInformation("Handling named pipe client connection for client {ClientId}", clientId);
-                var speaker = new Speaker<ServiceMessage, ClientMessage>(pipeServer);
-                var clientTask = HandleRpcClientAsync(clientId, speaker, linkedCts.Token);
-                _activeClients.TryAdd(clientId, new ManagerRpcClient(speaker, clientTask));
-                _ = clientTask.ContinueWith(task =>
-                {
-                    if (task.IsFaulted)
-                        _logger.LogWarning(task.Exception, "Client {ClientId} RPC task faulted", clientId);
-                    _activeClients.TryRemove(clientId, out _);
-                }, CancellationToken.None);
+                _logger.LogDebug("Waiting for new client connection");
+                stream = await _transport.AcceptAsync(linkedCts.Token);
             }
             catch (OperationCanceledException)
             {
-                await pipeServer.DisposeAsync();
                 throw;
             }
             catch (Exception e)
             {
-                _logger.LogWarning(e, "Failed to accept named pipe client");
-                await pipeServer.DisposeAsync();
+                _logger.LogWarning(e, "Failed to accept client connection");
+                continue;
             }
+
+            var clientId = Interlocked.Add(ref _lastClientId, 1);
+            _logger.LogInformation("Handling client connection for client {ClientId}", clientId);
+            var speaker = new Speaker<ServiceMessage, ClientMessage>(stream);
+            var clientTask = HandleRpcClientAsync(clientId, speaker, linkedCts.Token);
+            _activeClients.TryAdd(clientId, new ManagerRpcClient(speaker, clientTask));
+            _ = clientTask.ContinueWith(task =>
+            {
+                if (task.IsFaulted)
+                    _logger.LogWarning(task.Exception, "Client {ClientId} RPC task faulted", clientId);
+                _activeClients.TryRemove(clientId, out _);
+            }, CancellationToken.None);
         }
     }
 
     public async Task BroadcastAsync(ServiceMessage message, CancellationToken ct)
     {
-        // Sends messages to all clients simultaneously and waits for them all
-        // to send or fail/timeout.
-        //
-        // Looping over a ConcurrentDictionary is exception-safe, but any items
-        // added or removed during the loop may or may not be included.
         await Task.WhenAll(_activeClients.Select(async item =>
         {
             try
             {
-                // Enforce upper bound in case a CT with a timeout wasn't
-                // supplied.
                 using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 cts.CancelAfter(TimeSpan.FromSeconds(2));
                 await item.Value.Speaker.SendMessage(message, cts.Token);
             }
             catch (ObjectDisposedException)
             {
-                // The speaker was likely closed while we were iterating.
             }
             catch (Exception e)
             {
                 _logger.LogWarning(e, "Failed to send message to client {ClientId}", item.Key);
-                // TODO: this should probably kill the client, but due to the
-                //       async nature of the client handling, calling Dispose
-                //       will not remove the client from the active clients list
             }
         }));
     }

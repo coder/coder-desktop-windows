@@ -403,7 +403,7 @@ public class Manager : IManager
     }
 
     /// <summary>
-    ///     Fetches the "/bin/coder-windows-{architecture}.exe" binary from the given base URL and writes it to the
+    ///     Fetches the "/bin/coder-{os}-{architecture}" binary from the given base URL and writes it to the
     ///     destination path after validating the signature and checksum.
     /// </summary>
     /// <param name="baseUrl">Server base URL to download the binary from</param>
@@ -420,7 +420,9 @@ public class Manager : IManager
             url = new Uri(baseUrl, UriKind.Absolute);
             if (url.PathAndQuery != "/")
                 throw new ArgumentException("Base URL must not contain a path", nameof(baseUrl));
-            url = new Uri(url, $"/bin/coder-windows-{architecture}.exe");
+            var osName = OperatingSystem.IsWindows() ? "windows" : "linux";
+            var extension = OperatingSystem.IsWindows() ? ".exe" : "";
+            url = new Uri(url, $"/bin/coder-{osName}-{architecture}{extension}");
         }
         catch (Exception e)
         {
@@ -434,9 +436,18 @@ public class Manager : IManager
         var validators = new CombinationDownloadValidator();
         if (!string.IsNullOrEmpty(_config.TunnelBinarySignatureSigner))
         {
-            _logger.LogDebug("Adding Authenticode signature validator for signer '{Signer}'",
-                _config.TunnelBinarySignatureSigner);
-            validators.Add(new AuthenticodeDownloadValidator(_config.TunnelBinarySignatureSigner));
+            if (OperatingSystem.IsWindows())
+            {
+#if WINDOWS
+                _logger.LogDebug("Adding Authenticode signature validator for signer '{Signer}'",
+                    _config.TunnelBinarySignatureSigner);
+                validators.Add(new AuthenticodeDownloadValidator(_config.TunnelBinarySignatureSigner));
+#endif
+            }
+            else
+            {
+                _logger.LogDebug("Authenticode validation is only available on Windows, skipping");
+            }
         }
         else
         {

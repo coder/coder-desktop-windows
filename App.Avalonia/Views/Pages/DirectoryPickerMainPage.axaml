@@ -1,0 +1,139 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.DirectoryPickerMainPage"
+             x:DataType="vm:DirectoryPickerViewModel">
+
+    <UserControl.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </UserControl.Resources>
+
+    <Grid>
+        <!-- Initial loading -->
+        <StackPanel IsVisible="{CompiledBinding ShowLoadingScreen}"
+                    Margin="60"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="10">
+
+            <ProgressBar Width="200"
+                         IsIndeterminate="True"
+                         HorizontalAlignment="Center" />
+
+            <TextBlock HorizontalAlignment="Center"
+                       Text="Loading home directory..." />
+        </StackPanel>
+
+        <!-- Initial error -->
+        <Grid IsVisible="{CompiledBinding ShowErrorScreen}"
+              Margin="20"
+              RowDefinitions="*,Auto">
+
+            <ScrollViewer Grid.Row="0">
+                <TextBox Margin="0,0,0,20"
+                         Foreground="Red"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap"
+                         Text="{CompiledBinding InitialLoadError}" />
+            </ScrollViewer>
+
+            <Button Grid.Row="1"
+                    Content="Reload"
+                    HorizontalAlignment="Left"
+                    Command="{CompiledBinding RetryLoadCommand}" />
+        </Grid>
+
+        <!-- Main list -->
+        <Grid IsVisible="{CompiledBinding ShowListScreen}"
+              Margin="20"
+              RowDefinitions="Auto,Auto,*,Auto">
+
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="*,Auto">
+
+                <TextBlock Grid.Column="0"
+                           Text="{Binding AgentFqdn}"
+                           FontSize="16"
+                           TextTrimming="CharacterEllipsis"
+                           Margin="0,0,0,10" />
+
+                <ProgressBar Grid.Column="1"
+                             Width="80"
+                             Height="6"
+                             Margin="10,0"
+                             VerticalAlignment="Center"
+                             IsIndeterminate="True"
+                             IsVisible="{CompiledBinding NavigatingLoading}" />
+            </Grid>
+
+            <!-- Breadcrumbs -->
+            <ItemsControl Grid.Row="1"
+                          Margin="0,0,0,15"
+                          ItemsSource="{CompiledBinding Breadcrumbs}">
+
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DirectoryPickerBreadcrumb">
+                        <StackPanel Orientation="Horizontal"
+                                    Spacing="4">
+
+                            <TextBlock Text=">"
+                                       IsVisible="{CompiledBinding IsFirst, Converter={StaticResource InverseBoolConverter}}"
+                                       VerticalAlignment="Center" />
+
+                            <Button Content="{CompiledBinding Name}"
+                                    Command="{Binding DataContext.ListPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{CompiledBinding AbsolutePathSegments}"
+                                    Padding="4,0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Items -->
+            <ScrollViewer Grid.Row="2"
+                          Margin="0,0,0,15">
+
+                <ItemsControl ItemsSource="{CompiledBinding Items}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Vertical" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:DirectoryPickerItem">
+                            <Button Content="{CompiledBinding Name}"
+                                    IsEnabled="{CompiledBinding Selectable}"
+                                    Command="{Binding DataContext.ListPathCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                    CommandParameter="{CompiledBinding AbsolutePathSegments}"
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Left" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="3"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Spacing="10">
+
+                <Button Content="Cancel"
+                        Command="{CompiledBinding CancelCommand}" />
+
+                <Button Content="Use This Directory"
+                        IsEnabled="{CompiledBinding IsSelectable}"
+                        Command="{CompiledBinding SelectCommand}" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

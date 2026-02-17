@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:pages="clr-namespace:Coder.Desktop.App.Views.Pages"
+        x:Class="Coder.Desktop.App.Views.UpdaterDownloadProgressWindow"
+        Title="Downloading Update"
+        Width="500" Height="190"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+
+    <pages:UpdaterDownloadProgressMainPage />
+</Window>

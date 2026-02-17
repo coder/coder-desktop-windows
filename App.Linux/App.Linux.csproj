@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <AssemblyName>Coder.Desktop.App.Linux</AssemblyName>
+        <RootNamespace>Coder.Desktop.App</RootNamespace>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+
+    <ItemGroup>
+        <ProjectReference Include="..\App.Shared\App.Shared.csproj" />
+    </ItemGroup>
+
+</Project>

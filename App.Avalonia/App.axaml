@@ -1,0 +1,41 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             x:Class="Coder.Desktop.App.App"
+             RequestedThemeVariant="Default">
+
+    <!--
+        Note: pages are implemented in parallel tasks (T5/T6). We register
+        converters here so future pages can reference them via StaticResource.
+    -->
+    <Application.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <converters:BoolToObjectConverter x:Key="BoolToObjectConverter" />
+        <converters:FriendlyByteConverter x:Key="FriendlyByteConverter" />
+        <converters:VpnLifecycleToBoolConverter x:Key="VpnLifecycleToBoolConverter" />
+        <converters:StringToBrushSelector x:Key="StringToBrushSelector" />
+        <converters:StringToStringSelector x:Key="StringToStringSelector" />
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+
+    <TrayIcon.Icons>
+        <TrayIcons>
+            <TrayIcon Icon="/Assets/coder.ico"
+                      ToolTipText="Coder Desktop"
+                      Command="{Binding ShowWindowCommand}">
+                <TrayIcon.Menu>
+                    <NativeMenu>
+                        <NativeMenuItem Header="Show" Command="{Binding ShowWindowCommand}" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Check for Updates" />
+                        <NativeMenuItemSeparator />
+                        <NativeMenuItem Header="Exit" Command="{Binding ExitCommand}" />
+                    </NativeMenu>
+                </TrayIcon.Menu>
+            </TrayIcon>
+        </TrayIcons>
+    </TrayIcon.Icons>
+</Application>
