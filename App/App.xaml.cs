@@ -258,6 +258,19 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         {
             _logger.LogError($"Failed to refresh sync session state {ex.Message}", ex);
         }
+
+        // If the user is not signed in, automatically show the sign-in window.
+        // This ensures new users see a clear next step instead of the app
+        // silently minimizing to the system tray.
+        var credentialModel = credentialManager.GetCachedCredentials();
+        if (credentialModel.State == CredentialState.Invalid)
+        {
+            TrayWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                var signInWindow = _services.GetRequiredService<SignInWindow>();
+                signInWindow.Activate();
+            });
+        }
     }
 
     public void OnActivated(object? sender, AppActivationArguments args)
