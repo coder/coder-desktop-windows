@@ -258,8 +258,45 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         {
             _logger.LogError($"Failed to refresh sync session state {ex.Message}", ex);
         }
+
+        // If the user is not signed in and we haven't shown the sign-in
+        // window before, show it automatically. This ensures new users see a
+        // clear next step on first launch instead of the app silently
+        // minimizing to the system tray. A marker file is written so the
+        // window is only shown once.
+        try
+        {
+            var credentialModel = credentialManager.GetCachedCredentials();
+            if (credentialModel.State == CredentialState.Invalid && !SignInPromptMarkerExists())
+            {
+                WriteSignInPromptMarker();
+                TrayWindow?.DispatcherQueue.TryEnqueue(() =>
+                {
+                    var signInWindow = _services.GetRequiredService<SignInWindow>();
+                    signInWindow.Activate();
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to show sign-in window on first launch");
+        }
+
     }
 
+    private static string SignInPromptMarkerPath => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CoderDesktop",
+        ".sign-in-prompt-shown");
+
+    private static bool SignInPromptMarkerExists() => File.Exists(SignInPromptMarkerPath);
+
+    private static void WriteSignInPromptMarker()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(SignInPromptMarkerPath)!);
+        File.WriteAllBytes(SignInPromptMarkerPath, Array.Empty<byte>());
+    }
+    
     public void OnActivated(object? sender, AppActivationArguments args)
     {
         switch (args.Kind)
