@@ -227,12 +227,13 @@ public class Program
             RestartServiceDelayInSeconds = 30,
             ResetPeriodInDays = 1,
             PreShutdownDelay = 1000 * 60 * 3, // default
-            // This matches Tailscale's service dependencies, with one omission: iphlpsvc. We do not
-            // use any of the IPv6 transition technologies provided by that service.
+            // This is based on Tailscale's service dependencies, with two omissions:
+            // - iphlpsvc: we do not use any of the IPv6 transition technologies provided by that service.
+            // - WinHttpAutoProxySvc: in our Tailscale fork, we've patched out the requirement on WPAD
+            //   (WinHTTP Web Proxy Auto-Discovery), so we don't need to depend on this service.
             DependsOn =
             [
                 new ServiceDependency("netprofm"), // Network List Service
-                new ServiceDependency("WinHttpAutoProxySvc"), // WinHTTP Web Proxy Auto-Discovery Service
             ],
         };
         var shortcut = new FileShortcut("Coder Desktop", "%StartMenuFolder%")
