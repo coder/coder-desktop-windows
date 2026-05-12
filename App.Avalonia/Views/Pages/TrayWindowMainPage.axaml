@@ -1,0 +1,179 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Coder.Desktop.App.Controls"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.TrayWindowMainPage"
+             x:DataType="vm:TrayWindowViewModel">
+
+    <UserControl.Resources>
+        <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter"
+                                                Unknown="True"
+                                                Starting="True"
+                                                Stopping="True" />
+        <converters:VpnLifecycleToBoolConverter x:Key="NotConnectingBoolConverter"
+                                                Started="True"
+                                                Stopped="True" />
+
+        <converters:BoolToObjectConverter x:Key="ShowMoreLessTextConverter"
+                                          TrueValue="Show less"
+                                          FalseValue="Show more" />
+
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <Grid ColumnDefinitions="*,Auto,Auto">
+            <TextBlock Grid.Column="0"
+                       Text="Coder Connect"
+                       FontSize="18"
+                       VerticalAlignment="Center" />
+
+            <ProgressBar Grid.Column="1"
+                         Width="80"
+                         Height="6"
+                         Margin="10,0"
+                         VerticalAlignment="Center"
+                         IsVisible="{CompiledBinding VpnLifecycle, Converter={StaticResource ConnectingBoolConverter}}"
+                         IsIndeterminate="{CompiledBinding VpnStartProgressIsIndeterminate}"
+                         Value="{CompiledBinding VpnStartProgressValueOrDefault}"
+                         Maximum="100" />
+
+            <ToggleSwitch Grid.Column="2"
+                          IsChecked="{CompiledBinding VpnSwitchActive, Mode=TwoWay}"
+                          IsEnabled="{CompiledBinding VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}}"
+                          HorizontalAlignment="Right" />
+        </Grid>
+
+        <controls:HorizontalRule />
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      MaxHeight="500"
+                      IsVisible="{CompiledBinding ShowFailedSection}">
+
+            <TextBox Text="{CompiledBinding VpnFailedMessage}"
+                     Foreground="Red"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap" />
+        </ScrollViewer>
+
+        <TextBlock Text="Enable Coder Connect to view your workspaces."
+                   TextWrapping="Wrap"
+                   IsVisible="{CompiledBinding ShowEnableSection}" />
+
+        <TextBlock Text="{CompiledBinding VpnStartProgressMessageOrDefault}"
+                   TextWrapping="Wrap"
+                   IsVisible="{CompiledBinding ShowVpnStartProgressSection}" />
+
+        <TextBlock Text="Workspaces"
+                   FontWeight="SemiBold"
+                   IsVisible="{CompiledBinding ShowWorkspacesHeader}" />
+
+        <TextBlock Text="There are no workspace agents to display."
+                   TextWrapping="Wrap"
+                   IsVisible="{CompiledBinding ShowNoAgentsSection}" />
+
+        <ItemsControl ItemsSource="{CompiledBinding VisibleAgents}"
+                      IsVisible="{CompiledBinding ShowAgentsSection}">
+
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AgentViewModel">
+                    <Expander IsExpanded="{CompiledBinding IsExpanded, Mode=TwoWay}">
+                        <Expander.Header>
+                            <Grid ColumnDefinitions="*,Auto"
+                                  VerticalAlignment="Center">
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{CompiledBinding FullyQualifiedDomainName}"
+                                           TextTrimming="CharacterEllipsis" />
+
+                                <Button Grid.Column="1"
+                                        Content="Copy"
+                                        Command="{CompiledBinding CopyHostnameCommand}"
+                                        Margin="8,0,0,0" />
+                            </Grid>
+                        </Expander.Header>
+
+                        <StackPanel Spacing="6"
+                                    Margin="0,6,0,0">
+
+                            <TextBlock Text="{CompiledBinding ExpandAppsMessage}"
+                                       IsVisible="{CompiledBinding ShowExpandAppsMessage}"
+                                       TextWrapping="Wrap" />
+
+                            <ItemsControl ItemsSource="{CompiledBinding VisibleApps}"
+                                          IsVisible="{CompiledBinding ShowExpandAppsMessage, Converter={StaticResource InverseBoolConverter}}">
+
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:AgentAppViewModel">
+                                        <Button Content="{CompiledBinding Name}"
+                                                Command="{CompiledBinding OpenAppCommand}"
+                                                ToolTip.Tip="{CompiledBinding Details}"
+                                                Margin="0,0,4,0" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Expander>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                IsVisible="{CompiledBinding ShowAgentOverflowButton}"
+                Command="{CompiledBinding ToggleShowAllAgentsCommand}"
+                Content="{CompiledBinding ShowAllAgents, Converter={StaticResource ShowMoreLessTextConverter}}" />
+
+        <controls:HorizontalRule />
+
+        <Button Content="File sync"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ShowFileSyncListWindowCommand}" />
+
+        <controls:HorizontalRule />
+
+        <Button Content="Create workspace"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="CreateWorkspaceButton_Click" />
+
+        <controls:HorizontalRule />
+
+        <Button Content="Settings"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ShowSettingsWindowCommand}" />
+
+        <Button Content="Sign out"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                IsEnabled="{CompiledBinding VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}}"
+                Command="{CompiledBinding SignOutCommand}" />
+
+        <Button Content="Exit"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ExitCommand}" />
+    </StackPanel>
+</UserControl>

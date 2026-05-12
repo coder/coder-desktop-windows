@@ -1,0 +1,52 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.SettingsMainPage"
+             x:DataType="vm:SettingsViewModel">
+
+    <UserControl.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </UserControl.Resources>
+
+    <ScrollViewer>
+        <StackPanel Margin="20"
+                    MaxWidth="1000"
+                    HorizontalAlignment="Stretch"
+                    Spacing="12">
+
+            <TextBlock Text="Coder Desktop"
+                       FontWeight="SemiBold"
+                       Margin="0,10,0,0" />
+
+            <Border BorderThickness="1"
+                    BorderBrush="#33000000"
+                    Padding="12">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Start on login"
+                               FontWeight="SemiBold" />
+                    <TextBlock TextWrapping="Wrap"
+                               Text="This setting controls whether the Coder Desktop app starts on Windows startup." />
+                    <ToggleSwitch IsChecked="{CompiledBinding StartOnLogin, Mode=TwoWay}"
+                                  IsEnabled="{CompiledBinding StartOnLoginDisabled, Converter={StaticResource InverseBoolConverter}}" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Coder Connect"
+                       FontWeight="SemiBold"
+                       Margin="0,20,0,0" />
+
+            <Border BorderThickness="1"
+                    BorderBrush="#33000000"
+                    Padding="12">
+                <StackPanel Spacing="6">
+                    <TextBlock Text="Connect on launch"
+                               FontWeight="SemiBold" />
+                    <TextBlock TextWrapping="Wrap"
+                               Text="This setting controls whether Coder Connect automatically starts with Coder Desktop." />
+                    <ToggleSwitch IsChecked="{CompiledBinding ConnectOnLaunch, Mode=TwoWay}" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

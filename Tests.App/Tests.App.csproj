@@ -4,6 +4,7 @@
         <AssemblyName>Coder.Desktop.Tests.App</AssemblyName>
         <RootNamespace>Coder.Desktop.Tests.App</RootNamespace>
         <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
         <LangVersion>preview</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
