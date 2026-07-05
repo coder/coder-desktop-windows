@@ -64,6 +64,10 @@ public class TunnelSupervisor : ITunnelSupervisor
     private Speaker<ManagerMessage, TunnelMessage>? _speaker;
     private Process? _subprocess;
 
+    private const int MaxRecentStderrLines = 6;
+    private readonly Queue<string> _recentStderrLines = new();
+    private readonly object _recentStderrLock = new();
+
     // ReSharper disable once ConvertToPrimaryConstructor
     public TunnelSupervisor(ILogger<TunnelSupervisor> logger)
     {
@@ -83,6 +87,7 @@ public class TunnelSupervisor : ITunnelSupervisor
         try
         {
             await CleanupAsync(ct);
+            ClearRecentStderr();
 
             _outPipe = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
             _inPipe = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
@@ -108,7 +113,10 @@ public class TunnelSupervisor : ITunnelSupervisor
             _subprocess.ErrorDataReceived += (_, args) =>
             {
                 if (!string.IsNullOrWhiteSpace(args.Data))
+                {
+                    RecordStderrLine(args.Data);
                     _logger.LogInformation("stderr: {Data}", args.Data);
+                }
             };
 
             // Pass the other end of the pipes to the subprocess and dispose
@@ -142,7 +150,7 @@ public class TunnelSupervisor : ITunnelSupervisor
             }
             catch (Exception e)
             {
-                throw new Exception("Failed to start RPC Speaker on pipes to subprocess", e);
+                throw CreateSpeakerStartupException(e);
             }
         }
         catch (Exception e)
@@ -243,6 +251,70 @@ public class TunnelSupervisor : ITunnelSupervisor
         {
             _operationLock.Release();
         }
+    }
+
+    private void ClearRecentStderr()
+    {
+        lock (_recentStderrLock)
+        {
+            _recentStderrLines.Clear();
+        }
+    }
+
+    private void RecordStderrLine(string line)
+    {
+        lock (_recentStderrLock)
+        {
+            _recentStderrLines.Enqueue(line.Trim());
+            while (_recentStderrLines.Count > MaxRecentStderrLines)
+                _recentStderrLines.Dequeue();
+        }
+    }
+
+    private string? GetRecentStderrSummary()
+    {
+        lock (_recentStderrLock)
+        {
+            if (_recentStderrLines.Count == 0)
+                return null;
+            return string.Join(" | ", _recentStderrLines);
+        }
+    }
+
+    private int? GetExitCodeIfExited()
+    {
+        try
+        {
+            if (_subprocess?.HasExited == true)
+                return _subprocess.ExitCode;
+        }
+        catch
+        {
+            // ignored (process may no longer be associated)
+        }
+
+        return null;
+    }
+
+    private Exception CreateSpeakerStartupException(Exception inner)
+    {
+        var recentStderr = GetRecentStderrSummary();
+        if (!string.IsNullOrWhiteSpace(recentStderr) &&
+            recentStderr.Contains("vpn-daemon subcommand is not supported on this platform",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return new PlatformNotSupportedException(
+                "The downloaded Coder CLI reports that vpn-daemon is not supported on this platform for this deployment build.",
+                inner);
+        }
+
+        var exitCode = GetExitCodeIfExited();
+        var exitCodeSuffix = exitCode != null ? $" (exit code {exitCode})" : string.Empty;
+        var stderrSuffix = !string.IsNullOrWhiteSpace(recentStderr)
+            ? $" Last stderr: {recentStderr}"
+            : string.Empty;
+
+        return new Exception($"Failed to start RPC Speaker on pipes to subprocess{exitCodeSuffix}.{stderrSuffix}", inner);
     }
 
     /// <summary>

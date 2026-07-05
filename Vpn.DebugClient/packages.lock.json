@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net8.0-windows7.0": {
+    "net8.0": {
       "Google.Protobuf": {
         "type": "Transitive",
         "resolved": "3.29.3",
@@ -49,6 +49,12 @@
           "Microsoft.Extensions.Configuration": "[9.0.1, )",
           "Semver": "[3.0.0, )",
           "System.IO.Pipelines": "[9.0.1, )"
+        }
+      },
+      "Coder.Desktop.Vpn.Linux": {
+        "type": "Project",
+        "dependencies": {
+          "Coder.Desktop.Vpn": "[1.0.0, )"
         }
       },
       "Coder.Desktop.Vpn.Proto": {

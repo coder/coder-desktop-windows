@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.SignInTokenPage"
+             x:DataType="vm:SignInViewModel">
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <TextBlock Text="Coder Desktop"
+                   FontSize="24"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Center" />
+
+        <Grid ColumnDefinitions="Auto,*"
+              RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+
+            <TextBlock Grid.Column="0"
+                       Grid.Row="0"
+                       Text="Server URL"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0" />
+
+            <TextBlock Grid.Column="1"
+                       Grid.Row="0"
+                       VerticalAlignment="Center"
+                       Text="{CompiledBinding CoderUrl}" />
+
+            <TextBlock Grid.Column="0"
+                       Grid.Row="2"
+                       Text="Session Token"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+                       Margin="0,0,10,0" />
+
+            <TextBox Grid.Column="1"
+                     Grid.Row="2"
+                     HorizontalAlignment="Stretch"
+                     Watermark="Paste your token here"
+                     PasswordChar="•"
+                     KeyDown="ApiTokenTextBox_KeyDown"
+                     LostFocus="ApiTokenTextBox_LostFocus"
+                     Text="{CompiledBinding ApiToken, Mode=TwoWay}" />
+
+            <TextBlock Grid.Column="1"
+                       Grid.Row="3"
+                       Foreground="Red"
+                       Text="{CompiledBinding ApiTokenError}" />
+
+            <Button Grid.Column="1"
+                    Grid.Row="4"
+                    HorizontalAlignment="Left"
+                    Content="Generate a token via the Web UI"
+                    Click="GenerateTokenButton_Click" />
+        </Grid>
+
+        <StackPanel Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Spacing="10">
+
+            <Button Content="Back"
+                    Command="{CompiledBinding TokenPage_BackCommand}" />
+
+            <Button Content="Sign In"
+                    Command="{CompiledBinding TokenPage_SignInCommand}" />
+        </StackPanel>
+    </StackPanel>
+</UserControl>

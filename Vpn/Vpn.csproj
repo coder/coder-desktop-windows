@@ -3,7 +3,7 @@
     <PropertyGroup>
         <AssemblyName>Coder.Desktop.Vpn</AssemblyName>
         <RootNamespace>Coder.Desktop.Vpn</RootNamespace>
-        <TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
@@ -11,6 +11,12 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
+    </ItemGroup>
+
+    <!-- Windows-only sources are excluded from the cross-platform net8.0 build. -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'net8.0-windows'">
+        <Compile Remove="RegistryConfigurationSource.cs" />
+        <Compile Remove="NamedPipeServerTransport.cs" />
     </ItemGroup>
 
     <ItemGroup>

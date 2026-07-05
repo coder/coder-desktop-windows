@@ -1,0 +1,68 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.UpdaterUpdateAvailableMainPage"
+             x:DataType="vm:UpdaterUpdateAvailableViewModel">
+
+    <UserControl.Resources>
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+    </UserControl.Resources>
+
+    <Grid Margin="24"
+          RowDefinitions="Auto,Auto,Auto,*,Auto">
+
+        <TextBlock Grid.Row="0"
+                   Text="Updates available"
+                   FontSize="16"
+                   Margin="0,0,0,16" />
+
+        <TextBlock Grid.Row="1"
+                   Text="{CompiledBinding MainText}"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,24" />
+
+        <TextBlock Grid.Row="2"
+                   Text="Release notes:"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,8" />
+
+        <!-- WebView2 replacement: show text-based release notes. -->
+        <Border Grid.Row="3"
+                BorderThickness="1"
+                BorderBrush="#33000000"
+                Padding="8"
+                Margin="0,0,0,16"
+                IsVisible="{CompiledBinding ReleaseNotesVisible}">
+
+            <ScrollViewer>
+                <TextBox Text="{CompiledBinding CurrentItem.Description}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         IsReadOnly="True"
+                         TextWrapping="Wrap" />
+            </ScrollViewer>
+        </Border>
+
+        <Grid Grid.Row="4"
+              ColumnDefinitions="Auto,*,Auto,Auto">
+
+            <Button Grid.Column="0"
+                    Content="Skip this version"
+                    IsEnabled="{CompiledBinding MissingCriticalUpdate, Converter={StaticResource InverseBoolConverter}}"
+                    IsVisible="{CompiledBinding SkipButtonVisible}"
+                    Click="SkipButton_Click" />
+
+            <Button Grid.Column="2"
+                    Content="Remind me later"
+                    IsEnabled="{CompiledBinding MissingCriticalUpdate, Converter={StaticResource InverseBoolConverter}}"
+                    IsVisible="{CompiledBinding RemindMeLaterButtonVisible}"
+                    Click="RemindMeLaterButton_Click"
+                    Margin="0,0,8,0" />
+
+            <Button Grid.Column="3"
+                    Content="Install update"
+                    Click="InstallButton_Click" />
+        </Grid>
+    </Grid>
+</UserControl>

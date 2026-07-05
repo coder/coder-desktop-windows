@@ -1,0 +1,6 @@
+<Project>
+    <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+        <!-- Allow restoring/building net8.0-windows target frameworks on non-Windows hosts. -->
+        <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    </PropertyGroup>
+</Project>

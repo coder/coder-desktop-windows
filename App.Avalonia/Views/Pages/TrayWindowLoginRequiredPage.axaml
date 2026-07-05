@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Coder.Desktop.App.Controls"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.TrayWindowLoginRequiredPage"
+             x:DataType="vm:TrayWindowLoginRequiredViewModel">
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <TextBlock Text="Coder Connect"
+                   FontSize="18"
+                   VerticalAlignment="Center" />
+
+        <TextBlock Text="Please sign in to use Coder Connect."
+                   Margin="0,0,0,10" />
+
+        <controls:HorizontalRule />
+
+        <Button Content="Sign in"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding LoginCommand}" />
+
+        <Button Content="Exit"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ExitCommand}" />
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,354 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:Coder.Desktop.App.Controls"
+             xmlns:converters="clr-namespace:Coder.Desktop.App.Converters"
+             xmlns:vm="clr-namespace:Coder.Desktop.App.ViewModels;assembly=Coder.Desktop.App.Shared"
+             x:Class="Coder.Desktop.App.Views.Pages.TrayWindowMainPage"
+             x:DataType="vm:TrayWindowViewModel">
+
+    <UserControl.Resources>
+        <converters:VpnLifecycleToBoolConverter x:Key="ConnectingBoolConverter"
+                                                Unknown="True"
+                                                Starting="True"
+                                                Stopping="True" />
+        <converters:VpnLifecycleToBoolConverter x:Key="NotConnectingBoolConverter"
+                                                Started="True"
+                                                Stopped="True" />
+
+        <converters:BoolToObjectConverter x:Key="ShowMoreLessTextConverter"
+                                          TrueValue="Show less"
+                                          FalseValue="Show more" />
+
+        <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+        <converters:AgentConnectionStatusToBrushConverter x:Key="AgentStatusBrushConverter" />
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="Button.flat-menu">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,6" />
+        </Style>
+
+        <Style Selector="Button.flat-menu:pointerover">
+            <Setter Property="Background" Value="#1FFFFFFF" />
+        </Style>
+
+        <Style Selector="Button.flat-menu:pressed">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.flat-menu:disabled">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Opacity" Value="0.52" />
+        </Style>
+
+        <Style Selector="PathIcon.menu-icon">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+            <Setter Property="Foreground" Value="#DCE5F5" />
+        </Style>
+
+        <Style Selector="Button.action-icon">
+            <Setter Property="Width" Value="24" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style Selector="Button.action-icon:pointerover">
+            <Setter Property="Background" Value="#1FFFFFFF" />
+        </Style>
+
+        <Style Selector="Button.action-icon:pressed">
+            <Setter Property="Background" Value="#33FFFFFF" />
+        </Style>
+
+        <Style Selector="PathIcon.action-icon-glyph">
+            <Setter Property="Width" Value="12" />
+            <Setter Property="Height" Value="12" />
+            <Setter Property="Foreground" Value="#C9D3E3" />
+        </Style>
+
+        <Style Selector="Button.workspace-toggle">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Padding" Value="4,2" />
+        </Style>
+
+        <Style Selector="Button.workspace-toggle:pointerover">
+            <Setter Property="Background" Value="#14FFFFFF" />
+        </Style>
+
+        <Style Selector="Button.workspace-toggle:pressed">
+            <Setter Property="Background" Value="#24FFFFFF" />
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel Orientation="Vertical"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Top"
+                Margin="20"
+                Spacing="10">
+
+        <Grid RowDefinitions="Auto,Auto"
+              ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Row="0"
+                       Grid.Column="0"
+                       Text="Coder Connect"
+                       FontSize="18"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+
+            <ToggleSwitch Grid.Row="0"
+                          Grid.Column="1"
+                          IsChecked="{CompiledBinding VpnSwitchActive, Mode=TwoWay}"
+                          IsEnabled="{CompiledBinding VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}}"
+                          OnContent=""
+                          OffContent=""
+                          MinWidth="44"
+                          HorizontalAlignment="Right" />
+
+            <ProgressBar Grid.Row="1"
+                         Grid.Column="0"
+                         Grid.ColumnSpan="2"
+                         Width="120"
+                         Height="3"
+                         Margin="0,6,0,0"
+                         HorizontalAlignment="Left"
+                         IsVisible="{CompiledBinding VpnLifecycle, Converter={StaticResource ConnectingBoolConverter}}"
+                         IsIndeterminate="{CompiledBinding VpnStartProgressIsIndeterminate}"
+                         Value="{CompiledBinding VpnStartProgressValueOrDefault}"
+                         Maximum="100" />
+        </Grid>
+
+        <controls:HorizontalRule />
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                      MaxHeight="500"
+                      IsVisible="{CompiledBinding ShowFailedSection}">
+
+            <TextBox Text="{CompiledBinding VpnFailedMessage}"
+                     Foreground="Red"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     IsReadOnly="True"
+                     TextWrapping="Wrap" />
+        </ScrollViewer>
+
+        <TextBlock Text="Enable Coder Connect to view your workspaces."
+                   TextWrapping="Wrap"
+                   IsVisible="{CompiledBinding ShowEnableSection}" />
+
+        <TextBlock Text="{CompiledBinding VpnStartProgressMessageOrDefault}"
+                   TextWrapping="Wrap"
+                   IsVisible="{CompiledBinding ShowVpnStartProgressSection}" />
+
+        <TextBlock Text="Workspaces"
+                   FontWeight="SemiBold"
+                   IsVisible="{CompiledBinding ShowWorkspacesHeader}" />
+
+        <TextBlock Text="There are no workspace agents to display."
+                   TextWrapping="Wrap"
+                   IsVisible="{CompiledBinding ShowNoAgentsSection}" />
+
+        <ItemsControl ItemsSource="{CompiledBinding VisibleAgents}"
+                      IsVisible="{CompiledBinding ShowAgentsSection}">
+
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Vertical"
+                                Spacing="6" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AgentViewModel">
+                    <StackPanel Orientation="Vertical"
+                                Spacing="4"
+                                HorizontalAlignment="Stretch">
+
+                        <Grid ColumnDefinitions="*,Auto,Auto"
+                              HorizontalAlignment="Stretch">
+
+                            <Button Grid.Column="0"
+                                    Classes="workspace-toggle"
+                                    Command="{CompiledBinding ToggleExpandedCommand}">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+
+                                    <controls:ExpandChevron Grid.Column="0"
+                                                            Width="24"
+                                                            Height="16"
+                                                            Margin="0,0,2,0"
+                                                            Foreground="#D9FFFFFF"
+                                                            IsOpen="{CompiledBinding IsExpanded}"
+                                                            VerticalAlignment="Center" />
+
+                                    <TextBlock Grid.Column="1"
+                                               VerticalAlignment="Center"
+                                               TextTrimming="CharacterEllipsis"
+                                               TextWrapping="NoWrap">
+                                        <Run Text="{CompiledBinding ViewableHostname}" />
+                                        <Run Text="{CompiledBinding ViewableHostnameSuffix}"
+                                             Foreground="#AEB7C8" />
+                                    </TextBlock>
+
+                                    <Canvas Grid.Column="2"
+                                            Width="14"
+                                            Height="14"
+                                            Margin="6,1,0,0"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Center"
+                                            ToolTip.Tip="{CompiledBinding ConnectionTooltip}">
+                                        <Ellipse Width="14"
+                                                 Height="14"
+                                                 Opacity="0.2"
+                                                 Fill="{CompiledBinding ConnectionStatus, Converter={StaticResource AgentStatusBrushConverter}}" />
+                                        <Ellipse Width="8"
+                                                 Height="8"
+                                                 Canvas.Left="3"
+                                                 Canvas.Top="3"
+                                                 Fill="{CompiledBinding ConnectionStatus, Converter={StaticResource AgentStatusBrushConverter}}" />
+                                    </Canvas>
+                                </Grid>
+                            </Button>
+
+                            <Button Grid.Column="1"
+                                    Classes="action-icon"
+                                    Margin="1,0,0,0"
+                                    ToolTip.Tip="Copy hostname to clipboard"
+                                    Command="{CompiledBinding CopyHostnameCommand}">
+                                <PathIcon Classes="action-icon-glyph"
+                                          Data="M 5 5 H 12 V 12 H 5 Z M 3 3 H 10 V 4 H 4 V 10 H 3 Z" />
+                            </Button>
+
+                            <Button Grid.Column="2"
+                                    Classes="action-icon"
+                                    Margin="1,0,0,0"
+                                    ToolTip.Tip="Open workspace in dashboard"
+                                    Click="OpenWorkspaceButton_Click">
+                                <PathIcon Classes="action-icon-glyph"
+                                          Data="M 4 4 H 8 V 5.5 H 5.5 V 12 H 12 V 9.5 H 13.5 V 13.5 H 4 Z M 8.5 2.5 H 13.5 V 7.5 H 12 V 5.1 L 7 10.1 L 5.9 9 L 10.9 4 H 8.5 Z" />
+                            </Button>
+                        </Grid>
+
+                        <Border IsVisible="{CompiledBinding IsExpanded}"
+                                Margin="24,0,0,0">
+                            <StackPanel Spacing="6">
+
+                                <TextBlock Text="{CompiledBinding ExpandAppsMessage}"
+                                           IsVisible="{CompiledBinding ShowExpandAppsMessage}"
+                                           TextWrapping="Wrap" />
+
+                                <ItemsControl ItemsSource="{CompiledBinding VisibleApps}"
+                                              IsVisible="{CompiledBinding ShowExpandAppsMessage, Converter={StaticResource InverseBoolConverter}}">
+
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"
+                                                       ItemWidth="30"
+                                                       ItemHeight="30" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:AgentAppViewModel">
+                                            <Button Classes="action-icon"
+                                                    Command="{CompiledBinding OpenAppCommand}"
+                                                    ToolTip.Tip="{CompiledBinding Name}">
+                                                <controls:AgentAppIcon IconUrl="{CompiledBinding IconUrl}" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Button Classes="flat-menu"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                IsVisible="{CompiledBinding ShowAgentOverflowButton}"
+                Command="{CompiledBinding ToggleShowAllAgentsCommand}"
+                Content="{CompiledBinding ShowAllAgents, Converter={StaticResource ShowMoreLessTextConverter}}" />
+
+        <controls:HorizontalRule />
+
+        <Button Classes="flat-menu"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ShowFileSyncListWindowCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8">
+                <PathIcon Classes="menu-icon"
+                          Data="M 2.5 5 H 13.5 V 12.5 H 2.5 Z M 3.5 6 H 12.5 V 7.5 H 3.5 Z M 3.5 8.5 H 8.5 V 11.5 H 3.5 Z M 9.5 8.5 H 12.5 V 11.5 H 9.5 Z" />
+                <TextBlock Text="File sync" />
+            </StackPanel>
+        </Button>
+
+        <controls:HorizontalRule />
+
+        <Button Classes="flat-menu"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Click="CreateWorkspaceButton_Click">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8">
+                <PathIcon Classes="menu-icon"
+                          Data="M 7.5 2.5 H 8.5 V 7.5 H 13.5 V 8.5 H 8.5 V 13.5 H 7.5 V 8.5 H 2.5 V 7.5 H 7.5 Z" />
+                <TextBlock Text="Create workspace" />
+            </StackPanel>
+        </Button>
+
+        <controls:HorizontalRule />
+
+        <Button Classes="flat-menu"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ShowSettingsWindowCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8">
+                <PathIcon Classes="menu-icon"
+                          Data="M 8 5.2 A 2.8 2.8 0 1 0 8 10.8 A 2.8 2.8 0 1 0 8 5.2 Z M 8 2.2 L 9.2 2.2 L 9.6 3.6 C 9.9 3.7 10.2 3.9 10.5 4.1 L 11.9 3.6 L 12.5 4.7 L 11.4 5.6 C 11.5 5.9 11.6 6.3 11.6 6.6 L 13 7.2 L 13 8.4 L 11.6 8.9 C 11.6 9.3 11.5 9.6 11.4 10 L 12.5 10.9 L 11.9 12 L 10.5 11.5 C 10.2 11.7 9.9 11.8 9.6 12 L 9.2 13.4 L 8 13.4 L 7.6 12 C 7.3 11.8 7 11.7 6.7 11.5 L 5.3 12 L 4.7 10.9 L 5.8 10 C 5.7 9.6 5.6 9.3 5.6 8.9 L 4.2 8.4 L 4.2 7.2 L 5.6 6.6 C 5.6 6.3 5.7 5.9 5.8 5.6 L 4.7 4.7 L 5.3 3.6 L 6.7 4.1 C 7 3.9 7.3 3.7 7.6 3.6 Z" />
+                <TextBlock Text="Settings" />
+            </StackPanel>
+        </Button>
+
+        <Button Classes="flat-menu"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                IsEnabled="{CompiledBinding VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}}"
+                Command="{CompiledBinding SignOutCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8">
+                <PathIcon Classes="menu-icon"
+                          Data="M 3 3.5 H 8.2 V 4.7 H 4.2 V 11.3 H 8.2 V 12.5 H 3 Z M 9.2 5.2 L 13 8 L 9.2 10.8 V 9 H 5.8 V 7.8 H 9.2 Z" />
+                <TextBlock Text="Sign out" />
+            </StackPanel>
+        </Button>
+
+        <Button Classes="flat-menu"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Left"
+                Command="{CompiledBinding ExitCommand}">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="8">
+                <PathIcon Classes="menu-icon"
+                          Data="M 3 3.5 H 13 V 12.5 H 3 Z M 5.3 5.3 L 10.7 10.7 M 10.7 5.3 L 5.3 10.7" />
+                <TextBlock Text="Exit" />
+            </StackPanel>
+        </Button>
+    </StackPanel>
+</UserControl>

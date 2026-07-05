@@ -1,0 +1,73 @@
+pkgname=coder-desktop
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Coder Desktop VPN service and tray app for Linux"
+arch=('x86_64' 'aarch64')
+url='https://github.com/coder/coder-desktop-linux'
+license=('AGPL-3.0-only')
+depends=('dotnet-runtime-8.0' 'libnotify' 'libsecret' 'systemd')
+makedepends=('dotnet-sdk-8.0')
+optdepends=('freerdp: RDP client' 'remmina: Alternative RDP client')
+backup=('etc/coder-desktop/config.json')
+install='coder-desktop.install'
+source=('coder-desktop.service' 'coder-desktop.desktop')
+sha256sums=('SKIP' 'SKIP')
+
+build() {
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1
+
+  local rid='linux-x64'
+  if [[ "${CARCH}" == 'aarch64' ]]; then
+    rid='linux-arm64'
+  fi
+
+  local repo_root="${startdir}/.."
+
+  dotnet publish "${repo_root}/App.Avalonia" \
+    -r "${rid}" \
+    -c Release \
+    -o "${srcdir}/build/app"
+
+  dotnet publish "${repo_root}/Vpn.Service" \
+    -r "${rid}" \
+    -c Release \
+    -o "${srcdir}/build/service"
+}
+
+package() {
+  local repo_root="${startdir}/.."
+
+  install -d "${pkgdir}/usr/lib/coder-desktop/app"
+  install -d "${pkgdir}/usr/lib/coder-desktop/service"
+  install -d "${pkgdir}/usr/bin"
+  install -d "${pkgdir}/usr/share/applications"
+  install -d "${pkgdir}/usr/share/pixmaps"
+  install -d "${pkgdir}/usr/lib/systemd/system"
+  install -d "${pkgdir}/etc/coder-desktop"
+
+  cp -a "${srcdir}/build/app/." "${pkgdir}/usr/lib/coder-desktop/app/"
+  cp -a "${srcdir}/build/service/." "${pkgdir}/usr/lib/coder-desktop/service/"
+
+  cat > "${pkgdir}/usr/bin/coder-desktop" <<'WRAPPER'
+#!/bin/bash
+exec "/usr/lib/coder-desktop/app/Coder Desktop" "$@"
+WRAPPER
+  chmod 755 "${pkgdir}/usr/bin/coder-desktop"
+
+  ln -sf "/usr/lib/coder-desktop/service/CoderVpnService" "${pkgdir}/usr/bin/coder-vpn-service"
+
+  install -m 644 "${srcdir}/coder-desktop.desktop" "${pkgdir}/usr/share/applications/coder-desktop.desktop"
+  install -m 644 "${srcdir}/coder-desktop.service" "${pkgdir}/usr/lib/systemd/system/coder-desktop.service"
+  install -m 644 "${repo_root}/App.Avalonia/Assets/coder.ico" "${pkgdir}/usr/share/pixmaps/coder-desktop.ico"
+
+  cat > "${pkgdir}/etc/coder-desktop/config.json" <<'CONFIG'
+{
+  "Manager": {
+    "ServiceRpcSocketPath": "/run/coder-desktop/vpn.sock",
+    "TunnelBinaryPath": "/usr/lib/coder-desktop/coder-vpn",
+    "TunnelBinarySignatureSigner": "",
+    "TunnelBinaryAllowVersionMismatch": false
+  }
+}
+CONFIG
+}

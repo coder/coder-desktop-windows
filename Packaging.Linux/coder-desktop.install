@@ -1,0 +1,17 @@
+post_install() {
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable --now coder-desktop.service >/dev/null 2>&1 || true
+}
+
+post_upgrade() {
+  post_install
+}
+
+pre_remove() {
+  systemctl stop coder-desktop.service >/dev/null 2>&1 || true
+  systemctl disable coder-desktop.service >/dev/null 2>&1 || true
+}
+
+post_remove() {
+  systemctl daemon-reload >/dev/null 2>&1 || true
+}

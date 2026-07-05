@@ -1,0 +1,114 @@
+name: release-linux
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.2.3)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve_version.outputs.version }}
+    steps:
+      - name: Resolve version
+        id: resolve_version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            version="${{ inputs.version }}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+)*$ ]]; then
+            echo "Invalid version: $version" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  package:
+    runs-on: ubuntu-latest
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install packaging dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm dpkg-dev
+          sudo gem install --no-document fpm
+
+      - name: Build release packages
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          OUT_DIR: ${{ github.workspace }}/dist
+        run: |
+          chmod +x Packaging.Linux/*.sh
+          ./Packaging.Linux/build-release-packages.sh "${{ matrix.arch }}"
+
+      - name: Upload package artifacts (${{ matrix.arch }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages-${{ matrix.arch }}
+          path: dist/*
+
+  aur-source:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build AUR source archive
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+          OUT_DIR: ${{ github.workspace }}/dist
+        run: |
+          chmod +x Packaging.Linux/*.sh
+          ./Packaging.Linux/build-aur-source.sh
+
+      - name: Upload AUR source artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages-aur
+          path: dist/*
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [prepare, package, aur-source]
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: linux-packages-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.prepare.outputs.version }}
+          generate_release_notes: true
+          files: |
+            release-assets/*

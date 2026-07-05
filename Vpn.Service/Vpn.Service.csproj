@@ -3,11 +3,11 @@
     <PropertyGroup>
         <RootNamespace>Coder.Desktop.Vpn.Service</RootNamespace>
         <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-        <LangVersion>13</LangVersion>
+        <LangVersion>preview</LangVersion>
 
         <AssemblyName>CoderVpnService</AssemblyName>
         <ApplicationIcon>coder.ico</ApplicationIcon>
@@ -26,14 +26,24 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
-        <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.4" />
         <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.4" />
-        <PackageReference Include="Microsoft.Security.Extensions" Version="1.3.0" />
         <PackageReference Include="Semver" Version="3.0.0" />
         <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
         <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    </ItemGroup>
+
+    <!-- Windows-only dependencies (Windows service hosting, Authenticode validation). -->
+    <ItemGroup Condition="'$(TargetFramework)' == 'net8.0-windows'">
+        <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.4" />
+        <PackageReference Include="Microsoft.Security.Extensions" Version="1.3.0" />
+    </ItemGroup>
+
+    <!-- Cross-platform (Linux) dependencies (systemd hosting, Unix socket transport). -->
+    <ItemGroup Condition="'$(TargetFramework)' != 'net8.0-windows'">
+        <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="9.0.4" />
+        <ProjectReference Include="..\Vpn.Linux\Vpn.Linux.csproj" />
     </ItemGroup>
 
     <ItemGroup>

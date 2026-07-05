@@ -38,7 +38,7 @@ public class UuidTest
     [Test(Description = "Invalid length")]
     public void InvalidLength()
     {
-        var ex = Assert.Throws<ArgumentException>(() => _ = new Uuid([]));
+        var ex = Assert.Throws<ArgumentException>(() => _ = new Uuid(Array.Empty<byte>()));
         Assert.That(ex.Message, Does.Contain("UUID must be 16 bytes, but was 0 bytes"));
         ex = Assert.Throws<ArgumentException>(() => _ = new Uuid(UuidBytes.AsSpan(..^1)));
         Assert.That(ex.Message, Does.Contain("UUID must be 16 bytes, but was 15 bytes"));

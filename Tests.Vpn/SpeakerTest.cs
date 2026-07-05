@@ -253,15 +253,29 @@ public class SpeakerTest
         var (stream1, stream2) = BidirectionalPipe.NewInMemory();
         var failStream = new FailableStream(stream1, null, null);
 
+        // Once we start shutting down, the peer's receive loop will see the
+        // pipe close and may report an error before its own disposal, so stop
+        // asserting on errors at that point.
+        var shuttingDown = false;
+
         await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(failStream);
         speaker1.Receive += msg => Assert.Fail($"speaker1 received message: {msg}");
-        speaker1.Error += ex => Assert.Fail($"speaker1 error: {ex}");
+        speaker1.Error += ex =>
+        {
+            if (!Volatile.Read(ref shuttingDown)) Assert.Fail($"speaker1 error: {ex}");
+        };
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
         speaker2.Receive += msg => Assert.Fail($"speaker2 received message: {msg}");
-        speaker2.Error += ex => Assert.Fail($"speaker2 error: {ex}");
+        speaker2.Error += ex =>
+        {
+            if (!Volatile.Read(ref shuttingDown)) Assert.Fail($"speaker2 error: {ex}");
+        };
         await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         var writeEx = new IOException("Test write error");
+        // The write failure can tear down the pipe, so stop asserting on
+        // error events from this point onwards.
+        Volatile.Write(ref shuttingDown, true);
         failStream.SetWriteException(writeEx);
 
         var gotEx = Assert.ThrowsAsync<IOException>(() => speaker1.SendMessage(new ManagerMessage

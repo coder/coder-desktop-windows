@@ -4,6 +4,7 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Coder.Desktop.Vpn.Service;
 using Microsoft.Extensions.Logging.Abstractions;
+using System.Runtime.InteropServices;
 
 namespace Coder.Desktop.Tests.Vpn.Service;
 
@@ -22,7 +23,9 @@ public class TestDownloadValidator : IDownloadValidator
     }
 }
 
+#if WINDOWS
 [TestFixture]
+[Platform("Win", Reason = "AuthenticodeDownloadValidator requires Windows Authenticode APIs")]
 public class AuthenticodeDownloadValidatorTest
 {
     [Test(Description = "Test an unsigned binary")]
@@ -127,8 +130,10 @@ public class AuthenticodeDownloadValidatorTest
         }
     }
 }
+#endif
 
 [TestFixture]
+[Platform("Win", Reason = "AssemblyVersionDownloadValidator tests use Windows PE test binaries")]
 public class AssemblyVersionDownloadValidatorTest
 {
     [Test(Description = "No version on binary")]

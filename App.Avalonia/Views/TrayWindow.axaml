@@ -1,0 +1,34 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:animations="clr-namespace:Avalonia.Animation;assembly=Avalonia.Base"
+        x:Class="Coder.Desktop.App.Views.TrayWindow"
+        Width="300"
+        SizeToContent="Height"
+        CanResize="False"
+        SystemDecorations="None"
+        Topmost="True"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Background="Transparent"
+        RequestedThemeVariant="Dark"
+        TransparencyLevelHint="AcrylicBlur,Blur"
+        TransparencyBackgroundFallback="#FF1E1E1E">
+
+    <Border Background="#CC1E1E1E"
+            BorderBrush="#40FFFFFF"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="12">
+
+        <!--
+            Host for swapping TrayWindow pages (Loading/Disconnected/LoginRequired/Main).
+            Let content size naturally so expanded sections can grow/shrink without clipping.
+        -->
+        <TransitioningContentControl x:Name="PageHost"
+                                    VerticalAlignment="Top">
+            <TransitioningContentControl.PageTransition>
+                <animations:CrossFade Duration="0:0:0.12" />
+            </TransitioningContentControl.PageTransition>
+        </TransitioningContentControl>
+    </Border>
+</Window>
