@@ -1,0 +1,18 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Coder.Desktop.App.Controls.AgentAppIcon">
+
+    <Grid>
+        <Image x:Name="IconImage"
+               Width="15"
+               Height="15"
+               Stretch="Uniform"
+               IsVisible="False" />
+
+        <PathIcon x:Name="FallbackIcon"
+                  Width="15"
+                  Height="15"
+                  Foreground="#ECF0F7"
+                  Data="M 3 3.5 H 13 V 12.5 H 3 Z M 4 4.5 H 12 V 6 H 4 Z M 4 7 H 8 V 11.5 H 4 Z M 9 7 H 12 V 11.5 H 9 Z" />
+    </Grid>
+</UserControl>

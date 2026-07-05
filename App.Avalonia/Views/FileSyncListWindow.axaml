@@ -1,0 +1,11 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:pages="clr-namespace:Coder.Desktop.App.Views.Pages"
+        x:Class="Coder.Desktop.App.Views.FileSyncListWindow"
+        Title="File Sync"
+        Width="1000" Height="300"
+        MinWidth="1000" MinHeight="300"
+        WindowStartupLocation="CenterScreen">
+
+    <pages:FileSyncListMainPage />
+</Window>

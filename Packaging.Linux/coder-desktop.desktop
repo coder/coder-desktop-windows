@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Coder Desktop
+Comment=Connect to Coder workspaces
+Exec=/usr/bin/coder-desktop %u
+Icon=/usr/share/pixmaps/coder-desktop.ico
+Categories=Network;Development;
+MimeType=x-scheme-handler/coder;
+StartupNotify=true

@@ -1,0 +1,14 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="Coder.Desktop.App.Controls.ExpandChevron">
+
+    <Grid>
+        <PathIcon x:Name="ChevronIcon"
+                  Width="16"
+                  Height="16"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                  Data="M 5,3 L 11,8 L 5,13 L 6.4,14.4 L 13,8 L 6.4,1.6 Z" />
+    </Grid>
+</UserControl>
