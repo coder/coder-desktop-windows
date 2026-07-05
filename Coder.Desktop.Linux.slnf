@@ -1,0 +1,21 @@
+{
+  "solution": {
+    "path": "Coder.Desktop.sln",
+    "projects": [
+      "App.Avalonia\\App.Avalonia.csproj",
+      "App.Linux\\App.Linux.csproj",
+      "App.Shared\\App.Shared.csproj",
+      "CoderSdk\\CoderSdk.csproj",
+      "MutagenSdk\\MutagenSdk.csproj",
+      "Tests.CoderSdk\\Tests.CoderSdk.csproj",
+      "Tests.Vpn.Proto\\Tests.Vpn.Proto.csproj",
+      "Tests.Vpn.Service\\Tests.Vpn.Service.csproj",
+      "Tests.Vpn\\Tests.Vpn.csproj",
+      "Vpn.DebugClient\\Vpn.DebugClient.csproj",
+      "Vpn.Linux\\Vpn.Linux.csproj",
+      "Vpn.Proto\\Vpn.Proto.csproj",
+      "Vpn.Service\\Vpn.Service.csproj",
+      "Vpn\\Vpn.csproj"
+    ]
+  }
+}

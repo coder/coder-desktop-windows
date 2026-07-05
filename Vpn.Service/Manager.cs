@@ -160,6 +160,8 @@ public class Manager : IManager
 
                 await DownloadTunnelBinaryAsync(message.Start.CoderUrl, serverVersion.SemVersion, ct);
 
+                EnsureTunnelBinaryExecutable();
+
                 await BroadcastStartProgress(StartProgressStage.Finalizing, cancellationToken: ct);
                 await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
                     HandleTunnelRpcError,
@@ -186,7 +188,7 @@ public class Manager : IManager
                 return new StartResponse
                 {
                     Success = false,
-                    ErrorMessage = e.ToString(),
+                    ErrorMessage = BuildClientErrorMessage(e),
                 };
             }
         }
@@ -373,7 +375,7 @@ public class Manager : IManager
         {
             Architecture.X64 => "amd64",
             Architecture.Arm64 => "arm64",
-            // We only support amd64 and arm64 on Windows currently.
+            // Coder only supports amd64 and arm64 currently.
             _ => throw new PlatformNotSupportedException(
                 $"Unsupported architecture '{RuntimeInformation.ProcessArchitecture}'. Coder only supports amd64 and arm64."),
         };
@@ -403,7 +405,7 @@ public class Manager : IManager
     }
 
     /// <summary>
-    ///     Fetches the "/bin/coder-windows-{architecture}.exe" binary from the given base URL and writes it to the
+    ///     Fetches the "/bin/coder-{os}-{architecture}" binary from the given base URL and writes it to the
     ///     destination path after validating the signature and checksum.
     /// </summary>
     /// <param name="baseUrl">Server base URL to download the binary from</param>
@@ -420,7 +422,9 @@ public class Manager : IManager
             url = new Uri(baseUrl, UriKind.Absolute);
             if (url.PathAndQuery != "/")
                 throw new ArgumentException("Base URL must not contain a path", nameof(baseUrl));
-            url = new Uri(url, $"/bin/coder-windows-{architecture}.exe");
+            var osName = OperatingSystem.IsWindows() ? "windows" : "linux";
+            var extension = OperatingSystem.IsWindows() ? ".exe" : "";
+            url = new Uri(url, $"/bin/coder-{osName}-{architecture}{extension}");
         }
         catch (Exception e)
         {
@@ -434,9 +438,16 @@ public class Manager : IManager
         var validators = new CombinationDownloadValidator();
         if (!string.IsNullOrEmpty(_config.TunnelBinarySignatureSigner))
         {
+#if WINDOWS
             _logger.LogDebug("Adding Authenticode signature validator for signer '{Signer}'",
                 _config.TunnelBinarySignatureSigner);
             validators.Add(new AuthenticodeDownloadValidator(_config.TunnelBinarySignatureSigner));
+#else
+            // Fail fast rather than silently skipping a configured signature
+            // check in a build without Authenticode support.
+            throw new InvalidOperationException(
+                "TunnelBinarySignatureSigner is set, but Authenticode validation is only available in Windows builds");
+#endif
         }
         else
         {
@@ -445,9 +456,17 @@ public class Manager : IManager
 
         if (!_config.TunnelBinaryAllowVersionMismatch)
         {
-            _logger.LogDebug("Adding version validator for version '{ExpectedVersion}'", expectedVersion);
-            validators.Add(new AssemblyVersionDownloadValidator((int)expectedVersion.Major, (int)expectedVersion.Minor,
-                (int)expectedVersion.Patch));
+            if (OperatingSystem.IsWindows())
+            {
+                _logger.LogDebug("Adding version validator for version '{ExpectedVersion}'", expectedVersion);
+                validators.Add(new AssemblyVersionDownloadValidator((int)expectedVersion.Major, (int)expectedVersion.Minor,
+                    (int)expectedVersion.Patch));
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Skipping tunnel binary version validation: ProductVersion validation is only supported on Windows binaries");
+            }
         }
         else
         {
@@ -498,6 +517,42 @@ public class Manager : IManager
         // We don't send a broadcast here as we immediately send one in the
         // parent routine.
         _logger.LogInformation("Completed downloading VPN binary");
+    }
+
+    private static string BuildClientErrorMessage(Exception e)
+    {
+        var parts = new List<string>();
+        Exception? cursor = e;
+        while (cursor != null)
+        {
+            if (!string.IsNullOrWhiteSpace(cursor.Message))
+                parts.Add(cursor.Message.Trim());
+            cursor = cursor.InnerException;
+        }
+
+        if (parts.Count == 0)
+            return "Unknown error";
+
+        return string.Join(" -> ", parts);
+    }
+
+    private void EnsureTunnelBinaryExecutable()
+    {
+        if (!OperatingSystem.IsLinux())
+            return;
+
+        if (!File.Exists(_config.TunnelBinaryPath))
+            throw new FileNotFoundException("Tunnel binary does not exist", _config.TunnelBinaryPath);
+
+        var mode = File.GetUnixFileMode(_config.TunnelBinaryPath);
+        var executeBits = UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+        if ((mode & executeBits) == executeBits)
+            return;
+
+        var updatedMode = mode | executeBits;
+        File.SetUnixFileMode(_config.TunnelBinaryPath, updatedMode);
+        _logger.LogDebug("Set executable mode on tunnel binary '{TunnelBinaryPath}' ({OldMode} -> {NewMode})",
+            _config.TunnelBinaryPath, mode, updatedMode);
     }
 
     private async Task BroadcastStartProgress(StartProgressStage stage, StartProgressDownloadProgress? downloadProgress = null, CancellationToken cancellationToken = default)

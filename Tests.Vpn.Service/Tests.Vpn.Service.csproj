@@ -3,7 +3,7 @@
     <PropertyGroup>
         <AssemblyName>Coder.Desktop.Tests.Vpn.Service</AssemblyName>
         <RootNamespace>Coder.Desktop.Tests.Vpn.Service</RootNamespace>
-        <TargetFramework>net8.0-windows</TargetFramework>
+        <TargetFrameworks>net8.0;net8.0-windows</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

@@ -11,7 +11,7 @@ on:
 jobs:
   fmt:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -23,11 +23,11 @@ jobs:
       - name: dotnet restore
         run: dotnet restore --locked-mode /p:BuildWithNetFrameworkHostedCompiler=true
       - name: dotnet format
-        run: dotnet format --verify-no-changes --no-restore
+        run: dotnet format Coder.Desktop.sln --verify-no-changes --no-restore
 
-  test:
+  test-windows:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -44,16 +44,45 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-windows
           retention-days: 1
           path: |
             ./**/bin
             ./**/obj
             ./**/TestResults
 
-  build:
+  test-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - name: dotnet restore
+        run: dotnet restore Coder.Desktop.Linux.slnf --locked-mode
+      - name: dotnet build
+        run: dotnet build Coder.Desktop.Linux.slnf -c Release --no-restore
+      - name: dotnet test
+        run: |
+          dotnet test Tests.CoderSdk/Tests.CoderSdk.csproj -c Release --no-build -f net8.0
+          dotnet test Tests.Vpn.Proto/Tests.Vpn.Proto.csproj -c Release --no-build
+          dotnet test Tests.Vpn/Tests.Vpn.csproj -c Release --no-build -f net8.0
+          dotnet test Tests.Vpn.Service/Tests.Vpn.Service.csproj -c Release --no-build -f net8.0
+      - name: Upload TestResults
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-linux
+          retention-days: 1
+          path: ./**/TestResults
+
+  build-windows:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - name: Setup dotnet
@@ -68,7 +97,7 @@ jobs:
       # projects we care about building. Doing a full publish includes test
       # libraries and stuff which is pointless.
       - name: dotnet publish Coder.Desktop.Vpn.Service
-        run: dotnet publish .\Vpn.Service\Vpn.Service.csproj --configuration Release --output .\publish\Vpn.Service
+        run: dotnet publish .\Vpn.Service\Vpn.Service.csproj --configuration Release -f net8.0-windows --output .\publish\Vpn.Service
       - name: dotnet publish Coder.Desktop.App
         run: dotnet publish .\App\App.csproj --configuration Release --output .\publish\App
       - name: Upload artifact
@@ -76,3 +105,26 @@ jobs:
         with:
           name: publish
           path: .\publish\
+
+  build-linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - name: dotnet restore
+        run: dotnet restore Coder.Desktop.Linux.slnf --locked-mode
+      - name: dotnet publish Coder.Desktop.Vpn.Service
+        run: dotnet publish Vpn.Service/Vpn.Service.csproj --configuration Release -f net8.0 --output ./publish/Vpn.Service
+      - name: dotnet publish Coder.Desktop.App.Avalonia
+        run: dotnet publish App.Avalonia/App.Avalonia.csproj --configuration Release --output ./publish/App.Avalonia
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-linux
+          path: ./publish/

@@ -1,4 +1,5 @@
 using System.IO.Pipes;
+using System.Net.Sockets;
 using Coder.Desktop.Vpn.Proto;
 
 namespace Coder.Desktop.Vpn.DebugClient;
@@ -54,11 +55,25 @@ public static class Program
 
     private static void Connect()
     {
-        var client = new NamedPipeClientStream(".", "Coder.Desktop.Vpn", PipeDirection.InOut, PipeOptions.Asynchronous);
-        client.Connect();
-        Console.WriteLine("Connected to named pipe.");
+        Stream stream;
+        if (OperatingSystem.IsWindows())
+        {
+            var client = new NamedPipeClientStream(".", "Coder.Desktop.Vpn", PipeDirection.InOut, PipeOptions.Asynchronous);
+            client.Connect();
+            stream = client;
+        }
+        else if (OperatingSystem.IsLinux())
+        {
+            var transport = new UnixSocketClientTransport();
+            stream = transport.ConnectAsync(CancellationToken.None).GetAwaiter().GetResult();
+        }
+        else
+        {
+            throw new PlatformNotSupportedException();
+        }
+        Console.WriteLine("Connected to RPC server.");
 
-        _speaker = new Speaker<ClientMessage, ServiceMessage>(client);
+        _speaker = new Speaker<ClientMessage, ServiceMessage>(stream);
         _speaker.Receive += message => { Console.WriteLine($"Received({message.Message.MsgCase}: {message.Message}"); };
         _speaker.Error += exception =>
         {
