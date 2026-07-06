@@ -194,7 +194,7 @@ public class CoderSparkleAppCastHelper(UpdateChannel? forcedChannel) : AppCastHe
 }
 
 // ReSharper disable once InconsistentNaming // the interface name is "UI", not "Ui"
-public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAvailableViewModelFactory updateAvailableViewModelFactory) : IUIFactory
+public class CoderSparkleUIFactory(ILogger<CoderSparkleUIFactory> logger, IUserNotifier userNotifier, IUpdaterUpdateAvailableViewModelFactory updateAvailableViewModelFactory) : IUIFactory
 {
     public bool ForceDisableToastMessages;
 
@@ -301,7 +301,7 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
         ((App)Application.Current).ExitApplication().Wait();
     }
 
-    private static string LoadChangelogCss()
+    private string LoadChangelogCss()
     {
         // We load the CSS from an embedded asset since it's large.
         const string cssResourceName = "Coder.Desktop.App.Assets.changelog.css";
@@ -312,9 +312,10 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd();
         }
-        catch
+        catch (Exception e)
         {
             // The changelog is still readable without the CSS.
+            logger.LogWarning(e, "failed to load changelog CSS theme from embedded asset");
             return "";
         }
     }
