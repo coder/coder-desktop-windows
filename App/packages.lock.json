@@ -660,6 +660,21 @@
           "System.Text.Encodings.Web": "9.0.9"
         }
       },
+      "Coder.Desktop.App.Shared": {
+        "type": "Project",
+        "dependencies": {
+          "Coder.Desktop.CoderSdk": "[1.0.0, )",
+          "Coder.Desktop.MutagenSdk": "[1.0.0, )",
+          "Coder.Desktop.Vpn": "[1.0.0, )",
+          "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
+          "CommunityToolkit.Mvvm": "[8.4.0, )",
+          "Microsoft.Extensions.DependencyInjection.Abstractions": "[9.0.9, )",
+          "Microsoft.Extensions.Hosting.Abstractions": "[9.0.9, )",
+          "Microsoft.Extensions.Options": "[9.0.9, )",
+          "NetSparkleUpdater.SparkleUpdater": "[3.0.3, )",
+          "Serilog.Extensions.Hosting": "[9.0.0, )"
+        }
+      },
       "Coder.Desktop.CoderSdk": {
         "type": "Project"
       },

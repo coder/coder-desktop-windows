@@ -86,7 +86,8 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\CoderSdk\CoderSdk.csproj" />
+        <ProjectReference Include="..\App.Shared\App.Shared.csproj" />
+    <ProjectReference Include="..\CoderSdk\CoderSdk.csproj" />
         <ProjectReference Include="..\MutagenSdk\MutagenSdk.csproj" />
         <ProjectReference Include="..\Vpn.Proto\Vpn.Proto.csproj" />
         <ProjectReference Include="..\Vpn\Vpn.csproj" />

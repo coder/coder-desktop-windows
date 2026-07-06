@@ -49,7 +49,7 @@
 
             <!-- We disable JS and navigation in this web view for security -->
             <WebView2 DefaultBackgroundColor="Transparent"
-                      Loaded="{x:Bind ViewModel.Changelog_Loaded}" />
+                      Loaded="Changelog_Loaded" />
         </Border>
 
         <Grid Grid.Row="4">

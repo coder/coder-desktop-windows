@@ -6,21 +6,6 @@ using Microsoft.Extensions.Logging;
 
 namespace Coder.Desktop.App.Services;
 
-public struct RdpCredentials(string username, string password)
-{
-    public readonly string Username = username;
-    public readonly string Password = password;
-}
-
-public interface IRdpConnector
-{
-    public const int DefaultPort = 3389;
-
-    public void WriteCredentials(string fqdn, RdpCredentials credentials);
-
-    public Task Connect(string fqdn, int port = DefaultPort, CancellationToken ct = default);
-}
-
 public class RdpConnector(ILogger<RdpConnector> logger) : IRdpConnector
 {
     // Remote Desktop always uses TERMSRV as the domain; RDP is a part of Windows "Terminal Services".

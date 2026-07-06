@@ -14,12 +14,28 @@ namespace Coder.Desktop.App.Views;
 
 public sealed partial class DirectoryPickerWindow : WindowEx
 {
+    private bool _closing;
+
     public DirectoryPickerWindow(DirectoryPickerViewModel viewModel)
     {
         InitializeComponent();
         TitleBarIcon.SetTitlebarIcon(this);
 
-        viewModel.Initialize(this, DispatcherQueue);
+        viewModel.CloseRequested += (_, _) =>
+        {
+            if (_closing) return;
+            _closing = true;
+            Close();
+        };
+        // If the user closes the window directly (e.g. via the title bar),
+        // let the ViewModel clean up its event handlers.
+        Closed += (_, _) =>
+        {
+            if (_closing) return;
+            _closing = true;
+            viewModel.Cancel();
+        };
+
         RootFrame.Content = new DirectoryPickerMainPage(viewModel);
 
         // This will be moved to the center of the parent window in SetParent.

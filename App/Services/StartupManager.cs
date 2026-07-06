@@ -5,28 +5,6 @@ using System.Security;
 
 namespace Coder.Desktop.App.Services;
 
-public interface IStartupManager
-{
-    /// <summary>
-    /// Adds the current executable to the per‑user Run key. Returns <c>true</c> if successful.
-    /// Fails (returns <c>false</c>) when blocked by policy or lack of permissions.
-    /// </summary>
-    bool Enable();
-    /// <summary>
-    /// Removes the value from the Run key (no-op if missing).
-    /// </summary>
-    void Disable();
-    /// <summary>
-    /// Checks whether the value exists in the Run key.
-    /// </summary>
-    bool IsEnabled();
-    /// <summary>
-    /// Detects whether group policy disables per‑user startup programs.
-    /// Mirrors <see cref="Windows.ApplicationModel.StartupTaskState.DisabledByPolicy"/>.
-    /// </summary>
-    bool IsDisabledByPolicy();
-}
-
 public class StartupManager : IStartupManager
 {
     private const string RunKey = @"Software\\Microsoft\\Windows\\CurrentVersion\\Run";

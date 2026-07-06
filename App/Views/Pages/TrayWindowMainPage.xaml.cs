@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using Coder.Desktop.App.ViewModels;
 using Microsoft.UI.Xaml;
@@ -14,7 +15,21 @@ public sealed partial class TrayWindowMainPage : Page
     {
         InitializeComponent();
         ViewModel = viewModel;
-        ViewModel.Initialize(DispatcherQueue);
+    }
+
+    // The shared AgentAppViewModel exposes UI-framework-agnostic image event
+    // handlers, which cannot be bound directly with x:Bind due to the WinUI
+    // event signatures.
+    private void AppIcon_ImageOpened(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is AgentAppViewModel viewModel)
+            viewModel.OnImageOpened(sender, EventArgs.Empty);
+    }
+
+    private void AppIcon_ImageFailed(object sender, ExceptionRoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is AgentAppViewModel viewModel)
+            viewModel.OnImageFailed(sender, EventArgs.Empty);
     }
 
     // HACK: using XAML to populate the text Runs results in an additional

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using Coder.Desktop.App.Converters;
+using Coder.Desktop.App.Utils;
 using Coder.Desktop.Vpn.Proto;
 
 namespace Coder.Desktop.App.Models;

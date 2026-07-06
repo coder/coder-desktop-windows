@@ -225,15 +225,15 @@
                                             Text="{x:Bind Model.StatusString}"
                                             TextTrimming="CharacterEllipsis"
                                             Foreground="{Binding Source={StaticResource StatusColor}, Path=SelectedObject}"
-                                            Loaded="{x:Bind OnStatusTextLoaded}"
-                                            DataContextChanged="{x:Bind OnStatusTextDataContextChanged}" />
+                                            Loaded="StatusText_Loaded"
+                                            DataContextChanged="StatusText_DataContextChanged" />
                                     </Border>
                                     <Border Grid.Column="5">
                                         <!-- Same thing happens here as it's also a computed property -->
                                         <TextBlock
                                             Text="{x:Bind Model.AlphaSize.SizeBytes, Converter={StaticResource FriendlyByteConverter}}"
-                                            Loaded="{x:Bind OnSizeTextLoaded}"
-                                            DataContextChanged="{x:Bind OnSizeTextDataContextChanged}" />
+                                            Loaded="SizeText_Loaded"
+                                            DataContextChanged="SizeText_DataContextChanged" />
                                     </Border>
                                 </Grid>
                             </DataTemplate>
