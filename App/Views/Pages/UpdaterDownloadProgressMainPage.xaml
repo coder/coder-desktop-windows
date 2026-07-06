@@ -34,7 +34,7 @@
                     Content="{x:Bind ViewModel.ActionButtonTitle, Mode=OneWay}"
                     IsEnabled="{x:Bind ViewModel.IsActionButtonEnabled, Mode=OneWay}"
                     HorizontalAlignment="Right"
-                    Click="{x:Bind ViewModel.ActionButton_Click}" />
+                    Click="ActionButton_Click" />
         </Grid>
     </StackPanel>
 </Page>

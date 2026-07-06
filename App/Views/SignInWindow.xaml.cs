@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using Windows.Graphics;
 using Coder.Desktop.App.Controls;
 using Coder.Desktop.App.Utils;
@@ -26,8 +27,14 @@ public sealed partial class SignInWindow : Window
         TitleBarIcon.SetTitlebarIcon(this);
         RootFrame.SizeChanged += RootFrame_SizeChanged;
 
-        _signInUrlPage = new SignInUrlPage(this, viewModel);
-        _signInTokenPage = new SignInTokenPage(this, viewModel);
+        _signInUrlPage = new SignInUrlPage(viewModel);
+        _signInTokenPage = new SignInTokenPage(viewModel);
+
+        // The ViewModel drives navigation between the URL and token stages,
+        // and requests the window to close after a successful sign in.
+        viewModel.PropertyChanged += ViewModel_PropertyChanged;
+        viewModel.CloseRequested += (_, _) => Close();
+        Closed += (_, _) => viewModel.PropertyChanged -= ViewModel_PropertyChanged;
 
         // Prevent the window from being resized.
         if (AppWindow.Presenter is not OverlappedPresenter presenter)
@@ -35,19 +42,20 @@ public sealed partial class SignInWindow : Window
         presenter.IsMaximizable = false;
         presenter.IsResizable = false;
 
-        NavigateToUrlPage();
+        RootFrame.SetPage(_signInUrlPage);
         ResizeWindow();
         MoveWindowToCenterOfDisplay();
     }
 
-    public void NavigateToTokenPage()
+    private void ViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        RootFrame.SetPage(_signInTokenPage);
-    }
+        if (e.PropertyName != nameof(SignInViewModel.Stage) || sender is not SignInViewModel viewModel)
+            return;
 
-    public void NavigateToUrlPage()
-    {
-        RootFrame.SetPage(_signInUrlPage);
+        if (viewModel.Stage == SignInStage.Token)
+            RootFrame.SetPage(_signInTokenPage);
+        else
+            RootFrame.SetPage(_signInUrlPage);
     }
 
     private void RootFrame_SizeChanged(object sender, SizedFrameEventArgs e)

@@ -67,6 +67,13 @@ public partial class UpdaterUpdateAvailableViewModel : ObservableObject
     [ObservableProperty]
     private bool _isDarkTheme = false;
 
+    /// <summary>
+    /// GitHub markdown CSS injected into the changelog HTML. Provided by the
+    /// UI layer since loading it (e.g. from an embedded asset) is host
+    /// specific.
+    /// </summary>
+    public string GithubMarkdownCss { get; set; } = "";
+
     public string MainText
     {
         get
@@ -150,8 +157,8 @@ public partial class UpdaterUpdateAvailableViewModel : ObservableObject
         const string themeToken = "{{THEME}}";
         const string contentToken = "{{CONTENT}}";
 
-        // TODO: Avalonia - load and provide GitHub markdown CSS from UI layer.
-        var css = "";
+        // Provided by the UI layer (e.g. loaded from an embedded asset).
+        var css = GithubMarkdownCss;
 
         // We store the changelog in the description field, rather than using
         // the release notes URL to avoid extra requests.

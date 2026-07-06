@@ -1,5 +1,5 @@
 using System;
-using Coder.Desktop.App.Converters;
+using Coder.Desktop.App.Utils;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NetSparkleUpdater.Events;
 

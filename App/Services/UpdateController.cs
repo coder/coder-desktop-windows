@@ -51,12 +51,6 @@ public class UpdaterConfig
     public UpdateChannel? ForcedChannel { get; set; } = null;
 }
 
-public interface IUpdateController : IAsyncDisposable
-{
-    // Must be called from UI thread.
-    public Task CheckForUpdatesNow();
-}
-
 public class SparkleUpdateController : IUpdateController, INotificationHandler
 {
     internal const string NotificationHandlerName = "SparkleUpdateNotification";
@@ -222,6 +216,8 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
             currentVersion,
             appName,
             isUpdateAlreadyDownloaded);
+        viewModel.IsDarkTheme = Application.Current.RequestedTheme == ApplicationTheme.Dark;
+        viewModel.GithubMarkdownCss = LoadChangelogCss();
 
         var window = new UpdaterUpdateAvailableWindow(viewModel);
         if (HideReleaseNotes)
@@ -303,5 +299,23 @@ public class CoderSparkleUIFactory(IUserNotifier userNotifier, IUpdaterUpdateAva
     void IUIFactory.Shutdown()
     {
         ((App)Application.Current).ExitApplication().Wait();
+    }
+
+    private static string LoadChangelogCss()
+    {
+        // We load the CSS from an embedded asset since it's large.
+        const string cssResourceName = "Coder.Desktop.App.Assets.changelog.css";
+        try
+        {
+            using var stream = typeof(App).Assembly.GetManifestResourceStream(cssResourceName)
+                               ?? throw new FileNotFoundException($"Embedded resource not found: {cssResourceName}");
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd();
+        }
+        catch
+        {
+            // The changelog is still readable without the CSS.
+            return "";
+        }
     }
 }

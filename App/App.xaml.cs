@@ -92,9 +92,19 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
 
         services.AddSingleton<IDispatcherQueueManager>(_ => this);
         services.AddSingleton<IDefaultNotificationHandler>(_ => this);
+
+        // WinUI implementations of the UI abstractions consumed by the shared
+        // ViewModels. The dispatcher queue is captured here since the App
+        // constructor runs on the UI thread.
+        services.AddSingleton<IDispatcher>(new WinUIDispatcher(DispatcherQueue.GetForCurrentThread()));
+        services.AddSingleton<IClipboardService, WinUIClipboardService>();
+        services.AddSingleton<ILauncherService, WindowsLauncherService>();
+        services.AddSingleton<IWindowService, WinUIWindowService>();
+
         services.AddSingleton<ICredentialBackend>(_ =>
             new WindowsCredentialBackend(WindowsCredentialBackend.CoderCredentialsTargetName));
         services.AddSingleton<ICredentialManager, CredentialManager>();
+        services.AddSingleton<IRpcClientTransport>(_ => new NamedPipeClientTransport());
         services.AddSingleton<IRpcController, RpcController>();
         services.AddSingleton<IHostnameSuffixGetter, HostnameSuffixGetter>();
 
@@ -149,6 +159,12 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         _userNotifier = _services.GetRequiredService<IUserNotifier>();
         _settingsManager = _services.GetRequiredService<ISettingsManager<CoderConnectSettings>>();
         _appLifetime = _services.GetRequiredService<IHostApplicationLifetime>();
+
+        // The shared ViewModels exit the app by calling
+        // IHostApplicationLifetime.StopApplication.
+        var dispatcherQueue = DispatcherQueue.GetForCurrentThread();
+        _appLifetime.ApplicationStopping.Register(() =>
+            dispatcherQueue.TryEnqueue(() => _ = ExitApplication()));
 
         InitializeComponent();
     }

@@ -45,8 +45,8 @@
                 Grid.Row="0"
                 HorizontalAlignment="Stretch"
                 PlaceholderText="https://coder.example.com"
-                Loaded="{x:Bind ViewModel.CoderUrl_Loaded, Mode=OneWay}"
-                LostFocus="{x:Bind ViewModel.CoderUrl_FocusLost, Mode=OneWay}"
+                Loaded="CoderUrl_Loaded"
+                LostFocus="CoderUrl_FocusLost"
                 Text="{x:Bind ViewModel.CoderUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                 KeyDown="TextBox_KeyDown"/>
 
@@ -62,7 +62,6 @@
             Content="Next"
             HorizontalAlignment="Center"
             Command="{x:Bind ViewModel.UrlPage_NextCommand, Mode=OneWay}"
-            CommandParameter="{x:Bind SignInWindow}"
             Style="{StaticResource AccentButtonStyle}" />
     </StackPanel>
 </Page>

@@ -62,7 +62,7 @@
                 HorizontalAlignment="Stretch"
                 PlaceholderText="Paste your token here"
                 KeyDown="PasswordBox_KeyDown"
-                LostFocus="{x:Bind ViewModel.ApiToken_FocusLost, Mode=OneWay}"
+                LostFocus="ApiToken_FocusLost"
                 Password="{x:Bind ViewModel.ApiToken, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
 
             <TextBlock
@@ -85,15 +85,13 @@
 
             <Button
                 Content="Back" HorizontalAlignment="Right"
-                Command="{x:Bind ViewModel.TokenPage_BackCommand, Mode=OneWay}"
-                CommandParameter="{x:Bind SignInWindow}" />
+                Command="{x:Bind ViewModel.TokenPage_BackCommand, Mode=OneWay}" />
 
             <Button
                 Content="Sign In"
                 HorizontalAlignment="Left"
                 Style="{StaticResource AccentButtonStyle}"
-                Command="{x:Bind ViewModel.TokenPage_SignInCommand, Mode=OneWay}"
-                CommandParameter="{x:Bind SignInWindow}" />
+                Command="{x:Bind ViewModel.TokenPage_SignInCommand, Mode=OneWay}" />
         </StackPanel>
     </StackPanel>
 </Page>

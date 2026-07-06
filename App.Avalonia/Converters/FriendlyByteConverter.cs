@@ -1,9 +1,7 @@
-extern alias AppShared;
-
 using System;
 using System.Globalization;
 using Avalonia.Data.Converters;
-using SharedFriendlyByteConverter = AppShared::Coder.Desktop.App.Converters.FriendlyByteConverter;
+using SharedFriendlyByteConverter = Coder.Desktop.App.Utils.FriendlyByteConverter;
 
 namespace Coder.Desktop.App.Converters;
 

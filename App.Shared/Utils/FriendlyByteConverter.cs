@@ -1,4 +1,4 @@
-namespace Coder.Desktop.App.Converters;
+namespace Coder.Desktop.App.Utils;
 
 /// <summary>
 /// Utility for human-readable byte size formatting.

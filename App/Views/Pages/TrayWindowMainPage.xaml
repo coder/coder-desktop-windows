@@ -19,6 +19,7 @@
 
         <converters:BoolToObjectConverter x:Key="ShowMoreLessTextConverter" TrueValue="Show less"
                                           FalseValue="Show more" />
+        <converters:UriToImageSourceConverter x:Key="UriToImageSourceConverter" />
     </Page.Resources>
 
     <StackPanel
@@ -55,7 +56,6 @@
                 OffContent=""
                 IsOn="{x:Bind ViewModel.VpnSwitchActive, Mode=TwoWay}"
                 IsEnabled="{x:Bind ViewModel.VpnLifecycle, Converter={StaticResource NotConnectingBoolConverter}, Mode=OneWay}"
-                Toggled="{x:Bind ViewModel.VpnSwitch_Toggled}"
                 Margin="0,0,-110,0"
                 HorizontalAlignment="Right" />
         </Grid>
@@ -225,7 +225,6 @@
                                 Grid.Column="1"
                                 x:Name="AgentHostnameCopyButton"
                                 Command="{x:Bind CopyHostnameCommand}"
-                                CommandParameter="{Binding ElementName=AgentHostnameCopyButton}"
                                 ToolTipService.ToolTip="Copy hostname to clipboard"
                                 Padding="8,0"
                                 VerticalAlignment="Stretch">
@@ -292,9 +291,9 @@
 
                                             <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
                                                 <Image
-                                                    Source="{x:Bind IconImageSource, Mode=OneWay}"
-                                                    ImageOpened="{x:Bind OnImageOpened}"
-                                                    ImageFailed="{x:Bind OnImageFailed}"
+                                                    Source="{x:Bind IconImageSource, Converter={StaticResource UriToImageSourceConverter}, Mode=OneWay}"
+                                                    ImageOpened="AppIcon_ImageOpened"
+                                                    ImageFailed="AppIcon_ImageFailed"
                                                     Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
                                                     Width="20"
                                                     Height="20"

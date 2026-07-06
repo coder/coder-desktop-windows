@@ -1,3 +1,5 @@
+using System;
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Coder.Desktop.App.ViewModels;
 
@@ -10,5 +12,10 @@ public sealed partial class UpdaterDownloadProgressMainPage : Page
     {
         ViewModel = viewModel;
         InitializeComponent();
+    }
+
+    private void ActionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ViewModel.ActionButton_Click(sender, EventArgs.Empty);
     }
 }
