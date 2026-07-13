@@ -29,6 +29,7 @@
         <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="9.0.4" />
         <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" Version="9.0.4" />
         <PackageReference Include="Microsoft.Security.Extensions" Version="1.3.0" />
+        <PackageReference Include="Microsoft.Win32.SystemEvents" Version="9.0.4" />
         <PackageReference Include="Semver" Version="3.0.0" />
         <PackageReference Include="Serilog.Extensions.Hosting" Version="9.0.0" />
         <PackageReference Include="Serilog.Settings.Configuration" Version="9.0.0" />

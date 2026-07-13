@@ -5,7 +5,8 @@ namespace Coder.Desktop.Vpn.Proto;
 /// </summary>
 public class RpcVersion
 {
-    public static readonly RpcVersion Current = new(1, 1);
+    // 1.3 adds WakeRequest and WakeResponse.
+    public static readonly RpcVersion Current = new(1, 3);
 
     public ulong Major { get; }
     public ulong Minor { get; }
@@ -60,6 +61,18 @@ public class RpcVersion
 
         // The lowest minor version from the two versions should be returned.
         return Minor < other.Minor ? this : other;
+    }
+
+    /// <summary>
+    ///     Returns true if a peer that negotiated this version supports a feature introduced in the given version.
+    ///     The major versions must match exactly, and this version's minor version must be at least the feature
+    ///     version's minor version.
+    /// </summary>
+    /// <param name="featureVersion">Version that introduced the feature</param>
+    /// <returns>Whether the feature is supported</returns>
+    public bool SupportsFeature(RpcVersion featureVersion)
+    {
+        return Major == featureVersion.Major && Minor >= featureVersion.Minor;
     }
 
     #region RpcVersion Equality

@@ -40,6 +40,18 @@ public class RpcVersionTest
         // 2.1 && 1.1 => null
         IsCompatibleWithBothWays(twoOne, new RpcVersion(1, 1), Is.Null);
     }
+
+    [Test(Description = "Check feature support against the version that introduced the feature")]
+    public void SupportsFeature()
+    {
+        var featureVersion = new RpcVersion(1, 3);
+        Assert.That(new RpcVersion(1, 3).SupportsFeature(featureVersion), Is.True);
+        Assert.That(new RpcVersion(1, 4).SupportsFeature(featureVersion), Is.True);
+        Assert.That(new RpcVersion(1, 2).SupportsFeature(featureVersion), Is.False);
+        // Major versions must match exactly.
+        Assert.That(new RpcVersion(2, 3).SupportsFeature(featureVersion), Is.False);
+        Assert.That(new RpcVersion(2, 4).SupportsFeature(featureVersion), Is.False);
+    }
 }
 
 [TestFixture]

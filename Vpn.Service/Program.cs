@@ -85,6 +85,7 @@ public static class Program
         // Services
         builder.Services.AddHostedService<ManagerService>();
         builder.Services.AddHostedService<ManagerRpcService>();
+        builder.Services.AddHostedService<SystemResumeMonitor>();
 
         // Either run as a Windows service or a console application
         if (!Environment.UserInteractive)
