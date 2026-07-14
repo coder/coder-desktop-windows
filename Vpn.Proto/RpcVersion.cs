@@ -64,12 +64,11 @@ public class RpcVersion
     }
 
     /// <summary>
-    ///     Returns true if a peer with this version supports a feature introduced in the given version. Major
-    ///     versions must match exactly.
+    ///     Returns true if this version is equal to or newer than the other version.
     /// </summary>
-    public bool SupportsFeature(RpcVersion featureVersion)
+    public bool IsAtLeast(RpcVersion other)
     {
-        return Major == featureVersion.Major && Minor >= featureVersion.Minor;
+        return Major > other.Major || (Major == other.Major && Minor >= other.Minor);
     }
 
     #region RpcVersion Equality

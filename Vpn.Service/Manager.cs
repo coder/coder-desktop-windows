@@ -92,7 +92,7 @@ public class Manager : IManager
     public async Task SendWakeRequest(CancellationToken ct = default)
     {
         var version = _tunnelSupervisor.NegotiatedVersion;
-        if (version is null || !version.SupportsFeature(WakeMinimumTunnelRpcVersion))
+        if (version is null || !version.IsAtLeast(WakeMinimumTunnelRpcVersion))
         {
             _logger.LogDebug("Skipping wake request, tunnel is not running or version {Version} does not support it",
                 version);
