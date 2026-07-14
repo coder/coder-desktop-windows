@@ -81,7 +81,8 @@ public class Manager : IManager
 
     private void HandleSystemResumed(object? sender, EventArgs e)
     {
-        // Runs on the SystemEvents broadcast thread, so send in the background.
+        // Fire-and-forget is safe: SendWakeRequest logs and swallows all
+        // failures, and must not block the SystemEvents broadcast thread.
         _ = SendWakeRequest();
     }
 
@@ -91,16 +92,16 @@ public class Manager : IManager
     /// </summary>
     public async Task SendWakeRequest(CancellationToken ct = default)
     {
-        var version = _tunnelSupervisor.NegotiatedVersion;
-        if (version is null || !version.IsAtLeast(WakeMinimumTunnelRpcVersion))
-        {
-            _logger.LogDebug("Skipping wake request, tunnel is not running or version {Version} does not support it",
-                version);
-            return;
-        }
-
         try
         {
+            var version = _tunnelSupervisor.NegotiatedVersion;
+            if (version is null || !version.IsAtLeast(WakeMinimumTunnelRpcVersion))
+            {
+                _logger.LogDebug(
+                    "Skipping wake request, tunnel is not running or version {Version} does not support it", version);
+                return;
+            }
+
             _logger.LogInformation("Sending wake request to tunnel after system resume");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(WakeReplyTimeout);
