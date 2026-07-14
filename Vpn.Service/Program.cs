@@ -81,11 +81,11 @@ public static class Program
         builder.Services.AddSingleton<IManagerRpc, ManagerRpc>();
         builder.Services.AddSingleton<IManager, Manager>();
         builder.Services.AddSingleton<ITelemetryEnricher, TelemetryEnricher>();
+        builder.Services.AddSingleton<ISystemResumeMonitor, SystemResumeMonitor>();
 
         // Services
         builder.Services.AddHostedService<ManagerService>();
         builder.Services.AddHostedService<ManagerRpcService>();
-        builder.Services.AddHostedService<SystemResumeMonitor>();
 
         // Either run as a Windows service or a console application
         if (!Environment.UserInteractive)

@@ -11,8 +11,7 @@ namespace Coder.Desktop.Vpn.Service;
 public interface ITunnelSupervisor : IAsyncDisposable
 {
     /// <summary>
-    ///     The RPC version negotiated with the currently running tunnel. Null if the tunnel is not running or its
-    ///     handshake has not completed yet.
+    ///     The RPC version negotiated with the running tunnel, or null if the tunnel is not running.
     /// </summary>
     public RpcVersion? NegotiatedVersion { get; }
 

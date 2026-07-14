@@ -11,10 +11,17 @@ namespace Coder.Desktop.Tests.Vpn.Service;
 internal class FakeTunnelSupervisor : ITunnelSupervisor
 {
     public RpcVersion? NegotiatedVersion { get; set; }
-
-    public List<ManagerMessage> SentRequests { get; } = [];
-    public TunnelMessage? Reply { get; set; }
     public Exception? SendException { get; set; }
+    public List<ManagerMessage> SentRequests { get; } = [];
+    public TaskCompletionSource Sent { get; } = new();
+
+    public ValueTask<TunnelMessage> SendRequestAwaitReply(ManagerMessage message, CancellationToken ct = default)
+    {
+        SentRequests.Add(message);
+        Sent.TrySetResult();
+        if (SendException != null) throw SendException;
+        return ValueTask.FromResult(new TunnelMessage { Wake = new WakeResponse() });
+    }
 
     public Task StartAsync(string binPath, Speaker<ManagerMessage, TunnelMessage>.OnReceiveDelegate messageHandler,
         Speaker<ManagerMessage, TunnelMessage>.OnErrorDelegate errorHandler, CancellationToken ct = default)
@@ -32,23 +39,29 @@ internal class FakeTunnelSupervisor : ITunnelSupervisor
         throw new NotImplementedException();
     }
 
-    public ValueTask<TunnelMessage> SendRequestAwaitReply(ManagerMessage message, CancellationToken ct = default)
-    {
-        SentRequests.Add(message);
-        if (SendException != null) throw SendException;
-        if (Reply == null) throw new InvalidOperationException("No reply configured on FakeTunnelSupervisor");
-        return ValueTask.FromResult(Reply);
-    }
-
     public ValueTask DisposeAsync()
     {
         return ValueTask.CompletedTask;
     }
 }
 
+internal class FakeSystemResumeMonitor : ISystemResumeMonitor
+{
+    public event EventHandler? Resumed;
+
+    public void Raise()
+    {
+        Resumed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose()
+    {
+    }
+}
+
 internal class FakeManagerRpc : IManagerRpc
 {
-#pragma warning disable CS0067 // The event is only subscribed to by Manager, never raised in these tests.
+#pragma warning disable CS0067 // Never raised in tests.
     public event IManagerRpc.OnReceiveHandler? OnReceive;
 #pragma warning restore CS0067
 
@@ -95,101 +108,56 @@ internal class FakeTelemetryEnricher : ITelemetryEnricher
 [TestFixture]
 public class ManagerTest
 {
-    private static Manager NewManager(ITunnelSupervisor tunnelSupervisor)
+    private static Manager NewManager(ITunnelSupervisor tunnelSupervisor, ISystemResumeMonitor? resumeMonitor = null)
     {
         return new Manager(Options.Create(new ManagerConfig()), NullLogger<Manager>.Instance, new FakeDownloader(),
-            tunnelSupervisor, new FakeManagerRpc(), new FakeTelemetryEnricher());
+            tunnelSupervisor, new FakeManagerRpc(), new FakeTelemetryEnricher(),
+            resumeMonitor ?? new FakeSystemResumeMonitor());
     }
 
     [Test(Description = "Send a wake request to the tunnel on system resume")]
     [CancelAfter(30_000)]
-    public async Task HandleSystemResumeSendsWakeRequest(CancellationToken ct)
+    public async Task SendsWakeRequestOnResume(CancellationToken ct)
     {
-        var tunnelSupervisor = new FakeTunnelSupervisor
-        {
-            NegotiatedVersion = new RpcVersion(1, 3),
-            Reply = new TunnelMessage
-            {
-                Wake = new WakeResponse
-                {
-                    Success = true,
-                },
-            },
-        };
-        using var manager = NewManager(tunnelSupervisor);
+        var supervisor = new FakeTunnelSupervisor { NegotiatedVersion = new RpcVersion(1, 3) };
+        var monitor = new FakeSystemResumeMonitor();
+        using var manager = NewManager(supervisor, monitor);
 
-        await manager.HandleSystemResume(ct);
+        monitor.Raise();
 
-        Assert.That(tunnelSupervisor.SentRequests, Has.Count.EqualTo(1));
-        Assert.That(tunnelSupervisor.SentRequests[0].MsgCase, Is.EqualTo(ManagerMessage.MsgOneofCase.Wake));
+        await supervisor.Sent.Task.WaitAsync(ct);
+        Assert.That(supervisor.SentRequests[0].MsgCase, Is.EqualTo(ManagerMessage.MsgOneofCase.Wake));
     }
 
-    [Test(Description = "Skip the wake request when the tunnel is not running")]
+    [TestCase(null, Description = "Tunnel not running")]
+    [TestCase("1.2", Description = "Version does not support wake")]
     [CancelAfter(30_000)]
-    public async Task HandleSystemResumeSkipsWhenTunnelNotRunning(CancellationToken ct)
+    public async Task SkipsWakeRequestWhenUnsupported(string? version, CancellationToken ct)
     {
-        var tunnelSupervisor = new FakeTunnelSupervisor
+        var supervisor = new FakeTunnelSupervisor
         {
-            NegotiatedVersion = null,
+            NegotiatedVersion = version == null ? null : RpcVersion.Parse(version),
         };
-        using var manager = NewManager(tunnelSupervisor);
+        using var manager = NewManager(supervisor);
 
-        await manager.HandleSystemResume(ct);
+        await manager.SendWakeRequest(ct);
 
-        Assert.That(tunnelSupervisor.SentRequests, Is.Empty);
+        Assert.That(supervisor.SentRequests, Is.Empty);
     }
 
-    [Test(Description = "Skip the wake request when the negotiated version does not support it")]
+    [Test(Description = "Wake request failures are swallowed")]
     [CancelAfter(30_000)]
-    public async Task HandleSystemResumeSkipsWhenVersionTooOld(CancellationToken ct)
+    public async Task IgnoresWakeRequestFailure(CancellationToken ct)
     {
-        var tunnelSupervisor = new FakeTunnelSupervisor
-        {
-            NegotiatedVersion = new RpcVersion(1, 2),
-        };
-        using var manager = NewManager(tunnelSupervisor);
-
-        await manager.HandleSystemResume(ct);
-
-        Assert.That(tunnelSupervisor.SentRequests, Is.Empty);
-    }
-
-    [Test(Description = "Ignore an unexpected reply message type to a wake request")]
-    [CancelAfter(30_000)]
-    public async Task HandleSystemResumeIgnoresUnexpectedReply(CancellationToken ct)
-    {
-        var tunnelSupervisor = new FakeTunnelSupervisor
-        {
-            NegotiatedVersion = new RpcVersion(1, 3),
-            Reply = new TunnelMessage
-            {
-                Stop = new StopResponse(),
-            },
-        };
-        using var manager = NewManager(tunnelSupervisor);
-
-        // HandleSystemResume must not throw when the tunnel replies with an
-        // unexpected message type.
-        await manager.HandleSystemResume(ct);
-
-        Assert.That(tunnelSupervisor.SentRequests, Has.Count.EqualTo(1));
-    }
-
-    [Test(Description = "Ignore a wake request send failure without affecting the tunnel")]
-    [CancelAfter(30_000)]
-    public async Task HandleSystemResumeIgnoresSendFailure(CancellationToken ct)
-    {
-        var tunnelSupervisor = new FakeTunnelSupervisor
+        var supervisor = new FakeTunnelSupervisor
         {
             NegotiatedVersion = new RpcVersion(1, 3),
             SendException = new InvalidOperationException("TunnelSupervisor is not running"),
         };
-        using var manager = NewManager(tunnelSupervisor);
+        using var manager = NewManager(supervisor);
 
-        // HandleSystemResume must not throw when sending the wake request
-        // fails.
-        await manager.HandleSystemResume(ct);
+        await manager.SendWakeRequest(ct);
 
-        Assert.That(tunnelSupervisor.SentRequests, Has.Count.EqualTo(1));
+        Assert.That(supervisor.SentRequests, Has.Count.EqualTo(1));
     }
 }

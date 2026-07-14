@@ -84,8 +84,7 @@ public class Speaker<TS, TR> : IAsyncDisposable
     public event OnReceiveDelegate? Receive;
 
     /// <summary>
-    ///     The RPC version negotiated with the peer. Null until the handshake performed by <c>StartAsync</c> has
-    ///     completed successfully.
+    ///     The RPC version negotiated during the handshake. Null until <c>StartAsync</c> completes.
     /// </summary>
     public RpcVersion? NegotiatedVersion { get; private set; }
 

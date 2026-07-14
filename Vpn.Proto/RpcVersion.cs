@@ -64,12 +64,9 @@ public class RpcVersion
     }
 
     /// <summary>
-    ///     Returns true if a peer that negotiated this version supports a feature introduced in the given version.
-    ///     The major versions must match exactly, and this version's minor version must be at least the feature
-    ///     version's minor version.
+    ///     Returns true if a peer with this version supports a feature introduced in the given version. Major
+    ///     versions must match exactly.
     /// </summary>
-    /// <param name="featureVersion">Version that introduced the feature</param>
-    /// <returns>Whether the feature is supported</returns>
     public bool SupportsFeature(RpcVersion featureVersion)
     {
         return Major == featureVersion.Major && Minor >= featureVersion.Minor;

@@ -19,8 +19,6 @@ public enum TunnelStatus
 public interface IManager : IDisposable
 {
     public Task StopAsync(CancellationToken ct = default);
-
-    public Task HandleSystemResume(CancellationToken ct = default);
 }
 
 /// <summary>
@@ -28,8 +26,7 @@ public interface IManager : IDisposable
 /// </summary>
 public class Manager : IManager
 {
-    // WakeMinimumTunnelRpcVersion is the lowest RPC version negotiated with
-    // the tunnel that supports WakeRequest messages.
+    // Minimum tunnel RPC version that supports WakeRequest.
     private static readonly RpcVersion WakeMinimumTunnelRpcVersion = new(1, 3);
     private static readonly TimeSpan WakeReplyTimeout = TimeSpan.FromSeconds(5);
 
@@ -39,6 +36,7 @@ public class Manager : IManager
     private readonly ITunnelSupervisor _tunnelSupervisor;
     private readonly IManagerRpc _managerRpc;
     private readonly ITelemetryEnricher _telemetryEnricher;
+    private readonly ISystemResumeMonitor _systemResumeMonitor;
 
     private volatile TunnelStatus _status = TunnelStatus.Stopped;
 
@@ -54,7 +52,8 @@ public class Manager : IManager
 
     // ReSharper disable once ConvertToPrimaryConstructor
     public Manager(IOptions<ManagerConfig> config, ILogger<Manager> logger, IDownloader downloader,
-        ITunnelSupervisor tunnelSupervisor, IManagerRpc managerRpc, ITelemetryEnricher telemetryEnricher)
+        ITunnelSupervisor tunnelSupervisor, IManagerRpc managerRpc, ITelemetryEnricher telemetryEnricher,
+        ISystemResumeMonitor systemResumeMonitor)
     {
         _config = config.Value;
         _logger = logger;
@@ -63,10 +62,13 @@ public class Manager : IManager
         _managerRpc = managerRpc;
         _managerRpc.OnReceive += HandleClientRpcMessage;
         _telemetryEnricher = telemetryEnricher;
+        _systemResumeMonitor = systemResumeMonitor;
+        _systemResumeMonitor.Resumed += HandleSystemResumed;
     }
 
     public void Dispose()
     {
+        _systemResumeMonitor.Resumed -= HandleSystemResumed;
         _managerRpc.OnReceive -= HandleClientRpcMessage;
         GC.SuppressFinalize(this);
     }
@@ -77,32 +79,29 @@ public class Manager : IManager
         await BroadcastStatus(null, ct);
     }
 
+    private void HandleSystemResumed(object? sender, EventArgs e)
+    {
+        // Runs on the SystemEvents broadcast thread, so send in the background.
+        _ = SendWakeRequest();
+    }
+
     /// <summary>
-    ///     Sends a WakeRequest to the tunnel so it re-discovers network paths. After the system resumes from sleep,
-    ///     the tunnel can be unusable for several minutes because a short sleep on the same network often produces no
-    ///     link-change event that would otherwise trigger recovery. The request is a hint only; failures are logged
-    ///     and never affect the running tunnel.
+    ///     Sends a WakeRequest to the tunnel so it re-discovers network paths after a system resume. Failures are
+    ///     logged and never affect the running tunnel.
     /// </summary>
-    /// <param name="ct">Cancellation token</param>
-    public async Task HandleSystemResume(CancellationToken ct = default)
+    public async Task SendWakeRequest(CancellationToken ct = default)
     {
         var version = _tunnelSupervisor.NegotiatedVersion;
-        if (version is null)
+        if (version is null || !version.SupportsFeature(WakeMinimumTunnelRpcVersion))
         {
-            _logger.LogDebug("Skipping wake request, tunnel is not running");
-            return;
-        }
-
-        if (!version.SupportsFeature(WakeMinimumTunnelRpcVersion))
-        {
-            _logger.LogDebug(
-                "Skipping wake request, negotiated tunnel RPC version {Version} is older than {MinimumVersion}",
-                version, WakeMinimumTunnelRpcVersion);
+            _logger.LogDebug("Skipping wake request, tunnel is not running or version {Version} does not support it",
+                version);
             return;
         }
 
         try
         {
+            _logger.LogInformation("Sending wake request to tunnel after system resume");
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
             cts.CancelAfter(WakeReplyTimeout);
             var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
@@ -112,10 +111,6 @@ public class Manager : IManager
             if (reply.MsgCase != TunnelMessage.MsgOneofCase.Wake)
                 _logger.LogWarning("Tunnel replied to wake request with unexpected message type {MessageType}",
                     reply.MsgCase);
-            else if (!reply.Wake.Success)
-                _logger.LogWarning("Tunnel failed to handle wake request");
-            else
-                _logger.LogDebug("Tunnel handled wake request successfully");
         }
         catch (Exception e)
         {

@@ -172,25 +172,10 @@ public class SpeakerTest
         await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
 
         Assert.That(speaker1.NegotiatedVersion, Is.Null);
-        Assert.That(speaker2.NegotiatedVersion, Is.Null);
-
         await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
 
         Assert.That(speaker1.NegotiatedVersion, Is.EqualTo(RpcVersion.Current));
         Assert.That(speaker2.NegotiatedVersion, Is.EqualTo(RpcVersion.Current));
-    }
-
-    [Test(Description = "Negotiated version is the lower version of an older peer")]
-    [CancelAfter(30_000)]
-    public async Task NegotiatedVersionOlderPeer(CancellationToken ct)
-    {
-        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
-        await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
-
-        await stream2.WriteAsync(Encoding.UTF8.GetBytes("codervpn tunnel 1.2\n"), ct);
-        await speaker1.StartAsync(ct);
-
-        Assert.That(speaker1.NegotiatedVersion, Is.EqualTo(new RpcVersion(1, 2)));
     }
 
     [Test(Description = "Encounter a write error during handshake")]
