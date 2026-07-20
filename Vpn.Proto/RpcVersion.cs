@@ -5,7 +5,8 @@ namespace Coder.Desktop.Vpn.Proto;
 /// </summary>
 public class RpcVersion
 {
-    public static readonly RpcVersion Current = new(1, 1);
+    // 1.3 adds WakeRequest and WakeResponse.
+    public static readonly RpcVersion Current = new(1, 3);
 
     public ulong Major { get; }
     public ulong Minor { get; }
@@ -60,6 +61,14 @@ public class RpcVersion
 
         // The lowest minor version from the two versions should be returned.
         return Minor < other.Minor ? this : other;
+    }
+
+    /// <summary>
+    ///     Returns true if this version is equal to or newer than the other version.
+    /// </summary>
+    public bool IsAtLeast(RpcVersion other)
+    {
+        return Major > other.Major || (Major == other.Major && Minor >= other.Minor);
     }
 
     #region RpcVersion Equality

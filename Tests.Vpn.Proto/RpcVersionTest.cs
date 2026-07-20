@@ -40,6 +40,16 @@ public class RpcVersionTest
         // 2.1 && 1.1 => null
         IsCompatibleWithBothWays(twoOne, new RpcVersion(1, 1), Is.Null);
     }
+
+    [Test(Description = "Compare versions with IsAtLeast")]
+    public void IsAtLeast()
+    {
+        var oneThree = new RpcVersion(1, 3);
+        Assert.That(oneThree.IsAtLeast(oneThree), Is.True);
+        Assert.That(new RpcVersion(1, 4).IsAtLeast(oneThree), Is.True);
+        Assert.That(new RpcVersion(2, 0).IsAtLeast(oneThree), Is.True);
+        Assert.That(new RpcVersion(1, 2).IsAtLeast(oneThree), Is.False);
+    }
 }
 
 [TestFixture]

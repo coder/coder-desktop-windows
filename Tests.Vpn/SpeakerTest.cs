@@ -163,6 +163,21 @@ public class SpeakerTest
         Assert.That(reply.Message.Start.Success, Is.True);
     }
 
+    [Test(Description = "Negotiated version is exposed after a successful handshake")]
+    [CancelAfter(30_000)]
+    public async Task NegotiatedVersion(CancellationToken ct)
+    {
+        var (stream1, stream2) = BidirectionalPipe.NewInMemory();
+        await using var speaker1 = new Speaker<ManagerMessage, TunnelMessage>(stream1);
+        await using var speaker2 = new Speaker<TunnelMessage, ManagerMessage>(stream2);
+
+        Assert.That(speaker1.NegotiatedVersion, Is.Null);
+        await Task.WhenAll(speaker1.StartAsync(ct), speaker2.StartAsync(ct));
+
+        Assert.That(speaker1.NegotiatedVersion, Is.EqualTo(RpcVersion.Current));
+        Assert.That(speaker2.NegotiatedVersion, Is.EqualTo(RpcVersion.Current));
+    }
+
     [Test(Description = "Encounter a write error during handshake")]
     [CancelAfter(30_000)]
     public async Task WriteError(CancellationToken ct)

@@ -83,6 +83,11 @@ public class Speaker<TS, TR> : IAsyncDisposable
     /// </summary>
     public event OnReceiveDelegate? Receive;
 
+    /// <summary>
+    ///     The RPC version negotiated during the handshake. Null until <c>StartAsync</c> completes.
+    /// </summary>
+    public RpcVersion? NegotiatedVersion { get; private set; }
+
     private readonly Stream _conn;
 
     // _cts is cancelled when Dispose is called and will cause all ongoing I/O
@@ -157,8 +162,10 @@ public class Speaker<TS, TR> : IAsyncDisposable
         if (header.Role != expectedRole)
             throw new ArgumentException($"Expected peer role '{expectedRole}' but got '{header.Role}'");
 
-        if (header.VersionList.IsCompatibleWith(RpcVersionList.Current) is null)
+        var negotiatedVersion = header.VersionList.IsCompatibleWith(RpcVersionList.Current);
+        if (negotiatedVersion is null)
             throw new RpcVersionCompatibilityException(RpcVersionList.Current, header.VersionList);
+        NegotiatedVersion = negotiatedVersion;
     }
 
     private async Task WriteHeader(CancellationToken ct = default)

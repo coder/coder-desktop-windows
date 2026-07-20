@@ -26,12 +26,17 @@ public interface IManager : IDisposable
 /// </summary>
 public class Manager : IManager
 {
+    // Minimum tunnel RPC version that supports WakeRequest.
+    private static readonly RpcVersion WakeMinimumTunnelRpcVersion = new(1, 3);
+    private static readonly TimeSpan WakeReplyTimeout = TimeSpan.FromSeconds(5);
+
     private readonly ManagerConfig _config;
     private readonly IDownloader _downloader;
     private readonly ILogger<Manager> _logger;
     private readonly ITunnelSupervisor _tunnelSupervisor;
     private readonly IManagerRpc _managerRpc;
     private readonly ITelemetryEnricher _telemetryEnricher;
+    private readonly ISystemResumeMonitor _systemResumeMonitor;
 
     private volatile TunnelStatus _status = TunnelStatus.Stopped;
 
@@ -47,7 +52,8 @@ public class Manager : IManager
 
     // ReSharper disable once ConvertToPrimaryConstructor
     public Manager(IOptions<ManagerConfig> config, ILogger<Manager> logger, IDownloader downloader,
-        ITunnelSupervisor tunnelSupervisor, IManagerRpc managerRpc, ITelemetryEnricher telemetryEnricher)
+        ITunnelSupervisor tunnelSupervisor, IManagerRpc managerRpc, ITelemetryEnricher telemetryEnricher,
+        ISystemResumeMonitor systemResumeMonitor)
     {
         _config = config.Value;
         _logger = logger;
@@ -56,10 +62,13 @@ public class Manager : IManager
         _managerRpc = managerRpc;
         _managerRpc.OnReceive += HandleClientRpcMessage;
         _telemetryEnricher = telemetryEnricher;
+        _systemResumeMonitor = systemResumeMonitor;
+        _systemResumeMonitor.Resumed += HandleSystemResumed;
     }
 
     public void Dispose()
     {
+        _systemResumeMonitor.Resumed -= HandleSystemResumed;
         _managerRpc.OnReceive -= HandleClientRpcMessage;
         GC.SuppressFinalize(this);
     }
@@ -68,6 +77,46 @@ public class Manager : IManager
     {
         await _tunnelSupervisor.StopAsync(ct);
         await BroadcastStatus(null, ct);
+    }
+
+    private void HandleSystemResumed(object? sender, EventArgs e)
+    {
+        // Fire-and-forget is safe: SendWakeRequest logs and swallows all
+        // failures, and must not block the SystemEvents broadcast thread.
+        _ = SendWakeRequest();
+    }
+
+    /// <summary>
+    ///     Sends a WakeRequest to the tunnel so it re-discovers network paths after a system resume. Failures are
+    ///     logged and never affect the running tunnel.
+    /// </summary>
+    public async Task SendWakeRequest(CancellationToken ct = default)
+    {
+        try
+        {
+            var version = _tunnelSupervisor.NegotiatedVersion;
+            if (version is null || !version.IsAtLeast(WakeMinimumTunnelRpcVersion))
+            {
+                _logger.LogDebug(
+                    "Skipping wake request, tunnel is not running or version {Version} does not support it", version);
+                return;
+            }
+
+            _logger.LogInformation("Sending wake request to tunnel after system resume");
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            cts.CancelAfter(WakeReplyTimeout);
+            var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
+            {
+                Wake = new WakeRequest(),
+            }, cts.Token);
+            if (reply.MsgCase != TunnelMessage.MsgOneofCase.Wake)
+                _logger.LogWarning("Tunnel replied to wake request with unexpected message type {MessageType}",
+                    reply.MsgCase);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "Failed to send wake request to tunnel");
+        }
     }
 
     /// <summary>

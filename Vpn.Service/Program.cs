@@ -81,6 +81,7 @@ public static class Program
         builder.Services.AddSingleton<IManagerRpc, ManagerRpc>();
         builder.Services.AddSingleton<IManager, Manager>();
         builder.Services.AddSingleton<ITelemetryEnricher, TelemetryEnricher>();
+        builder.Services.AddSingleton<ISystemResumeMonitor, SystemResumeMonitor>();
 
         // Services
         builder.Services.AddHostedService<ManagerService>();

@@ -11,6 +11,11 @@ namespace Coder.Desktop.Vpn.Service;
 public interface ITunnelSupervisor : IAsyncDisposable
 {
     /// <summary>
+    ///     The RPC version negotiated with the running tunnel, or null if the tunnel is not running.
+    /// </summary>
+    public RpcVersion? NegotiatedVersion { get; }
+
+    /// <summary>
     ///     Starts the tunnel subprocess with the given executable path. If the subprocess is already running, this method will
     ///     kill it first.
     /// </summary>
@@ -63,6 +68,8 @@ public class TunnelSupervisor : ITunnelSupervisor
     private AnonymousPipeServerStream? _outPipe;
     private Speaker<ManagerMessage, TunnelMessage>? _speaker;
     private Process? _subprocess;
+
+    public RpcVersion? NegotiatedVersion => _speaker?.NegotiatedVersion;
 
     // ReSharper disable once ConvertToPrimaryConstructor
     public TunnelSupervisor(ILogger<TunnelSupervisor> logger)
