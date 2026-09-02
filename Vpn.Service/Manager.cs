@@ -39,6 +39,7 @@ public class Manager : IManager
     private readonly ISystemResumeMonitor _systemResumeMonitor;
 
     private volatile TunnelStatus _status = TunnelStatus.Stopped;
+    private long _tunnelGeneration;
 
     // TunnelSupervisor already has protections against concurrent operations,
     // but all the other stuff before starting the tunnel does not.
@@ -75,8 +76,16 @@ public class Manager : IManager
 
     public async Task StopAsync(CancellationToken ct = default)
     {
-        await _tunnelSupervisor.StopAsync(ct);
-        await BroadcastStatus(null, ct);
+        Interlocked.Increment(ref _tunnelGeneration);
+        try
+        {
+            await _tunnelSupervisor.StopAsync(ct);
+        }
+        finally
+        {
+            ClearPeers();
+            await BroadcastStatus(TunnelStatus.Stopped, ct);
+        }
     }
 
     private void HandleSystemResumed(object? sender, EventArgs e)
@@ -200,6 +209,7 @@ public class Manager : IManager
                 await BroadcastStatus(TunnelStatus.Starting, ct);
                 _lastStartRequest = message.Start;
                 _lastServerVersion = serverVersion;
+                var tunnelGeneration = Interlocked.Increment(ref _tunnelGeneration);
 
                 // TODO: each section of this operation needs a timeout
 
@@ -211,7 +221,7 @@ public class Manager : IManager
 
                 await BroadcastStartProgress(StartProgressStage.Finalizing, cancellationToken: ct);
                 await _tunnelSupervisor.StartAsync(_config.TunnelBinaryPath, HandleTunnelRpcMessage,
-                    HandleTunnelRpcError,
+                    error => HandleTunnelRpcError(tunnelGeneration, error),
                     ct);
 
                 var reply = await _tunnelSupervisor.SendRequestAwaitReply(new ManagerMessage
@@ -259,6 +269,7 @@ public class Manager : IManager
         {
             try
             {
+                Interlocked.Increment(ref _tunnelGeneration);
                 ClearPeers();
                 await BroadcastStatus(TunnelStatus.Stopping, ct);
                 // This will handle sending the Stop message to the tunnel for us.
@@ -395,18 +406,27 @@ public class Manager : IManager
         }
     }
 
-    private void HandleTunnelRpcError(Exception e)
+    private void HandleTunnelRpcError(long tunnelGeneration, Exception e)
     {
         _logger.LogError(e, "Manager<->Tunnel RPC error");
+        _ = HandleTunnelRpcErrorAsync(tunnelGeneration);
+    }
+
+    private async Task HandleTunnelRpcErrorAsync(long tunnelGeneration)
+    {
         try
         {
-            _tunnelSupervisor.StopAsync();
+            // Serialize the failure transition with start and stop operations
+            // so an in-flight start cannot overwrite it with Started.
+            using var operationLock = await _tunnelOperationLock.LockAsync();
+            if (tunnelGeneration != Interlocked.Read(ref _tunnelGeneration)) return;
+
             ClearPeers();
-            BroadcastStatus().Wait();
+            await BroadcastStatus(TunnelStatus.Stopped);
         }
-        catch (Exception e2)
+        catch (Exception error)
         {
-            _logger.LogError(e2, "Failed to stop tunnel supervisor after RPC error");
+            _logger.LogError(error, "Failed to update status after tunnel RPC error");
         }
     }
 
