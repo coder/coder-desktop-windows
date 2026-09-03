@@ -25,7 +25,7 @@ internal class JsonHttpClient
     // TODO: allow users to add headers
     private readonly HttpClient _httpClient = new();
 
-    public JsonHttpClient(Uri baseUri, IJsonTypeInfoResolver typeResolver)
+    public JsonHttpClient(Uri baseUri, IJsonTypeInfoResolver typeResolver, CoderComponent component)
     {
         _jsonOptions = new JsonSerializerOptions
         {
@@ -36,6 +36,7 @@ internal class JsonHttpClient
         };
         _jsonOptions.Converters.Add(new JsonStringEnumConverter(new SnakeCaseNamingPolicy(), false));
         _httpClient.BaseAddress = baseUri;
+        _httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent.Build(component));
     }
 
     public void RemoveHeader(string key)

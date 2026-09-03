@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.CoderSdk.Coder;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Utilities;
@@ -440,7 +441,7 @@ public class Manager : IManager
     private async ValueTask<ServerVersion> CheckServerVersionAndCredentials(string baseUrl, string apiToken,
         CancellationToken ct = default)
     {
-        var client = new CoderApiClient(baseUrl, apiToken);
+        var client = new CoderApiClient(baseUrl, apiToken, CoderComponent.Core);
 
         var buildInfo = await client.GetBuildInfo(ct);
         _logger.LogInformation("Fetched server version '{ServerVersion}'", buildInfo.Version);

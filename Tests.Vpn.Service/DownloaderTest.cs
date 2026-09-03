@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Service;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -373,6 +374,45 @@ public class DownloaderTest
         var manager = new Downloader(NullLogger<Downloader>.Instance);
         var req = new HttpRequestMessage(HttpMethod.Get, url);
         req.Headers.Add("X-Custom-Header", "custom-value");
+        var dlTask = await manager.StartDownloadAsync(req, destPath, NullDownloadValidator.Instance, ct);
+        await dlTask.Task;
+    }
+
+    [Test(Description = "Download identifies itself with a User-Agent")]
+    [CancelAfter(30_000)]
+    public async Task WithUserAgent(CancellationToken ct)
+    {
+        // Deployments behind a WAF reject requests with no User-Agent, which previously made the
+        // tunnel binary undownloadable. See coder-desktop-windows#176.
+        using var httpServer = new TestHttpServer(ctx =>
+        {
+            Assert.That(ctx.Request.UserAgent, Is.EqualTo(UserAgent.Build(CoderComponent.Core)));
+            ctx.Response.StatusCode = 200;
+        });
+        var url = new Uri(httpServer.BaseUrl + "/test");
+        var destPath = Path.Combine(_tempDir, "test");
+
+        var manager = new Downloader(NullLogger<Downloader>.Instance);
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        var dlTask = await manager.StartDownloadAsync(req, destPath, NullDownloadValidator.Instance, ct);
+        await dlTask.Task;
+    }
+
+    [Test(Description = "A caller-supplied User-Agent overrides the default")]
+    [CancelAfter(30_000)]
+    public async Task WithUserAgentOverride(CancellationToken ct)
+    {
+        using var httpServer = new TestHttpServer(ctx =>
+        {
+            Assert.That(ctx.Request.UserAgent, Is.EqualTo("custom-agent/1.2.3"));
+            ctx.Response.StatusCode = 200;
+        });
+        var url = new Uri(httpServer.BaseUrl + "/test");
+        var destPath = Path.Combine(_tempDir, "test");
+
+        var manager = new Downloader(NullLogger<Downloader>.Instance);
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.UserAgent.ParseAdd("custom-agent/1.2.3");
         var dlTask = await manager.StartDownloadAsync(req, destPath, NullDownloadValidator.Instance, ct);
         await dlTask.Task;
     }
