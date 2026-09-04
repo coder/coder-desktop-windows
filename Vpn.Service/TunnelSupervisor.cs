@@ -22,8 +22,7 @@ public interface ITunnelSupervisor : IAsyncDisposable
     /// <param name="binPath">Path to the executable</param>
     /// <param name="messageHandler">Handler to call with each RPC message</param>
     /// <param name="errorHandler">
-    ///     Handler for permanent errors from the RPC Speaker. The recipient should call StopAsync after
-    ///     receiving this.
+    ///     Handler for permanent errors from the RPC Speaker or tunnel subprocess.
     /// </param>
     /// <param name="ct">Cancellation token</param>
     public Task StartAsync(string binPath,
@@ -135,7 +134,8 @@ public class TunnelSupervisor : ITunnelSupervisor
 
             // We don't use the supplied CancellationToken here because we want it to only apply to the startup
             // procedure.
-            _ = _subprocess.WaitForExitAsync(_cts.Token).ContinueWith(OnProcessExited, CancellationToken.None);
+            var subprocess = _subprocess;
+            _ = MonitorProcessExitAsync(subprocess, errorHandler);
 
             // Start the RPC Speaker.
             try
@@ -143,7 +143,8 @@ public class TunnelSupervisor : ITunnelSupervisor
                 var stream = new BidirectionalPipe(_inPipe, _outPipe);
                 _speaker = new Speaker<ManagerMessage, TunnelMessage>(stream);
                 _speaker.Receive += messageHandler;
-                _speaker.Error += errorHandler;
+                _speaker.Error += error =>
+                    _ = HandleSubprocessFailureAsync(subprocess, error, errorHandler);
                 // Handshakes already have a 5-second timeout.
                 await _speaker.StartAsync(ct);
             }
@@ -225,26 +226,63 @@ public class TunnelSupervisor : ITunnelSupervisor
 
     public async ValueTask DisposeAsync()
     {
-        _cts.Dispose();
-        await CleanupAsync();
-        GC.SuppressFinalize(this);
-    }
-
-    private async Task OnProcessExited(Task task)
-    {
-        if (task.IsFaulted)
-            _logger.LogError(task.Exception, "OnProcessExited: subprocess task exited with an exception");
-        if (!await _operationLock.WaitAsync(0))
-        {
-            _logger.LogInformation("OnProcessExited: could not acquire operation lock to perform cleanup");
-            return;
-        }
-
+        await _cts.CancelAsync();
+        await _operationLock.WaitAsync();
         try
         {
             await CleanupAsync();
-            _logger.LogInformation("OnProcessExited: subprocess exited with code {ExitCode}",
-                _subprocess?.ExitCode ?? -1);
+        }
+        finally
+        {
+            _operationLock.Release();
+            _cts.Dispose();
+        }
+        GC.SuppressFinalize(this);
+    }
+
+    private async Task MonitorProcessExitAsync(Process subprocess,
+        Speaker<ManagerMessage, TunnelMessage>.OnErrorDelegate errorHandler)
+    {
+        try
+        {
+            await subprocess.WaitForExitAsync(_cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception e)
+        {
+            _logger.LogError(e, "Failed while waiting for tunnel subprocess to exit");
+            return;
+        }
+
+        await HandleSubprocessFailureAsync(subprocess,
+            new InvalidOperationException("Tunnel subprocess exited unexpectedly"),
+            errorHandler);
+    }
+
+    private async Task HandleSubprocessFailureAsync(Process subprocess, Exception error,
+        Speaker<ManagerMessage, TunnelMessage>.OnErrorDelegate errorHandler)
+    {
+        await _operationLock.WaitAsync();
+        try
+        {
+            // Cleanup of an old or intentionally stopped process clears this
+            // reference before releasing the operation lock.
+            if (!ReferenceEquals(subprocess, _subprocess)) return;
+
+            _logger.LogError(error, "Tunnel subprocess failed");
+            try
+            {
+                errorHandler(error);
+            }
+            catch (Exception handlerError)
+            {
+                _logger.LogError(handlerError, "Tunnel subprocess error handler failed");
+            }
+
+            await CleanupAsync();
         }
         finally
         {
