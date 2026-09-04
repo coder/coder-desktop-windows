@@ -67,18 +67,20 @@ public partial class CoderApiClient : ICoderApiClient
 
     private readonly JsonHttpClient _httpClient;
 
-    public CoderApiClient(string baseUrl) : this(new Uri(baseUrl, UriKind.Absolute))
+    public CoderApiClient(string baseUrl, CoderComponent component = CoderComponent.Desktop)
+        : this(new Uri(baseUrl, UriKind.Absolute), component)
     {
     }
 
-    public CoderApiClient(Uri baseUrl)
+    public CoderApiClient(Uri baseUrl, CoderComponent component = CoderComponent.Desktop)
     {
         if (baseUrl.PathAndQuery != "/")
             throw new ArgumentException($"Base URL '{baseUrl}' must not contain a path", nameof(baseUrl));
-        _httpClient = new JsonHttpClient(baseUrl, CoderApiJsonContext.Default);
+        _httpClient = new JsonHttpClient(baseUrl, CoderApiJsonContext.Default, component);
     }
 
-    public CoderApiClient(string baseUrl, string token) : this(baseUrl)
+    public CoderApiClient(string baseUrl, string token, CoderComponent component = CoderComponent.Desktop)
+        : this(baseUrl, component)
     {
         SetSessionToken(token);
     }

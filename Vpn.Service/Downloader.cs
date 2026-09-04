@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Coder.Desktop.CoderSdk;
 using Coder.Desktop.Vpn.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Security.Extensions;
@@ -348,10 +349,16 @@ public class DownloadTask
     private const int BufferSize = 64 * 1024;
     private const string XOriginalContentLengthHeader = "X-Original-Content-Length"; // overrides Content-Length if available
 
-    private static readonly HttpClient HttpClient = new(new HttpClientHandler
+    private static readonly HttpClient HttpClient = new Func<HttpClient>(() =>
     {
-        AutomaticDecompression = DecompressionMethods.All,
-    });
+        var client = new HttpClient(new HttpClientHandler
+        {
+            AutomaticDecompression = DecompressionMethods.All,
+        });
+        client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent.Build(CoderComponent.Core));
+        return client;
+    })();
+
     private readonly string _destinationDirectory;
 
     private readonly ILogger _logger;

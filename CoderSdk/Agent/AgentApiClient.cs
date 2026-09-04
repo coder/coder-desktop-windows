@@ -44,7 +44,7 @@ public partial class AgentApiClient : IAgentApiClient
     {
         if (baseUrl.PathAndQuery != "/")
             throw new ArgumentException($"Base URL '{baseUrl}' must not contain a path", nameof(baseUrl));
-        _httpClient = new JsonHttpClient(baseUrl, AgentApiJsonContext.Default);
+        _httpClient = new JsonHttpClient(baseUrl, AgentApiJsonContext.Default, CoderComponent.Desktop);
     }
 
     private async Task<TResponse> SendRequestNoBodyAsync<TResponse>(HttpMethod method, string path,
