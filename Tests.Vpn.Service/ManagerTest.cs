@@ -1,3 +1,4 @@
+using System.Reflection;
 using Coder.Desktop.Vpn;
 using Coder.Desktop.Vpn.Proto;
 using Coder.Desktop.Vpn.Service;
@@ -11,6 +12,7 @@ internal class FakeTunnelSupervisor(RpcVersion? negotiatedVersion, Exception? se
 {
     public List<ManagerMessage> SentRequests { get; } = [];
     public TaskCompletionSource Sent { get; } = new();
+    public int StopCalls { get; private set; }
 
     public RpcVersion? NegotiatedVersion => negotiatedVersion;
 
@@ -26,7 +28,11 @@ internal class FakeTunnelSupervisor(RpcVersion? negotiatedVersion, Exception? se
         Speaker<ManagerMessage, TunnelMessage>.OnErrorDelegate errorHandler, CancellationToken ct = default)
         => throw new NotImplementedException();
 
-    public Task StopAsync(CancellationToken ct = default) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken ct = default)
+    {
+        StopCalls++;
+        return Task.CompletedTask;
+    }
 
     public Task SendMessage(ManagerMessage message, CancellationToken ct = default)
         => throw new NotImplementedException();
@@ -51,9 +57,19 @@ internal class FakeManagerRpc : IManagerRpc
     public event IManagerRpc.OnReceiveHandler? OnReceive;
 #pragma warning restore CS0067
 
+    public List<ServiceMessage> Broadcasts { get; } = [];
+    public TaskCompletionSource Broadcast { get; } = new();
+
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     public Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
-    public Task BroadcastAsync(ServiceMessage message, CancellationToken ct = default) => Task.CompletedTask;
+
+    public Task BroadcastAsync(ServiceMessage message, CancellationToken ct = default)
+    {
+        Broadcasts.Add(message.Clone());
+        Broadcast.TrySetResult();
+        return Task.CompletedTask;
+    }
+
     public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 }
 
@@ -72,10 +88,50 @@ internal class FakeTelemetryEnricher : ITelemetryEnricher
 [TestFixture]
 public class ManagerTest
 {
-    private static Manager NewManager(ITunnelSupervisor tunnelSupervisor, ISystemResumeMonitor? resumeMonitor = null)
+    private static Manager NewManager(ITunnelSupervisor tunnelSupervisor, ISystemResumeMonitor? resumeMonitor = null,
+        IManagerRpc? managerRpc = null)
         => new(Options.Create(new ManagerConfig()), NullLogger<Manager>.Instance, new FakeDownloader(),
-            tunnelSupervisor, new FakeManagerRpc(), new FakeTelemetryEnricher(),
+            tunnelSupervisor, managerRpc ?? new FakeManagerRpc(), new FakeTelemetryEnricher(),
             resumeMonitor ?? new FakeSystemResumeMonitor());
+
+    private static long GetTunnelGeneration(Manager manager)
+    {
+        var generationField = typeof(Manager).GetField("_tunnelGeneration",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(generationField, Is.Not.Null);
+        return (long)generationField!.GetValue(manager)!;
+    }
+
+    private static void RaiseTunnelRpcError(Manager manager, long tunnelGeneration, Exception error)
+    {
+        var handler = typeof(Manager).GetMethod("HandleTunnelRpcError", BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(handler, Is.Not.Null);
+        handler!.Invoke(manager, [tunnelGeneration, error]);
+    }
+
+    private static void AddPeer(Manager manager)
+    {
+        var handler = typeof(Manager).GetMethod("HandleTunnelMessagePeerUpdate",
+            BindingFlags.Instance | BindingFlags.NonPublic);
+        Assert.That(handler, Is.Not.Null);
+        handler!.Invoke(manager,
+        [
+            new TunnelMessage
+            {
+                PeerUpdate = new PeerUpdate
+                {
+                    UpsertedWorkspaces =
+                    {
+                        new Workspace { Id = Google.Protobuf.ByteString.CopyFrom(new byte[16]), Name = "workspace" },
+                    },
+                    UpsertedAgents =
+                    {
+                        new Agent { Id = Google.Protobuf.ByteString.CopyFrom(new byte[16]), Name = "agent" },
+                    },
+                },
+            },
+        ]);
+    }
 
     [Test(Description = "Send a wake request to the tunnel on system resume")]
     [CancelAfter(30_000)]
@@ -114,5 +170,62 @@ public class ManagerTest
         await manager.SendWakeRequest(ct);
 
         Assert.That(supervisor.SentRequests, Has.Count.EqualTo(1));
+    }
+
+    [Test(Description = "Tunnel RPC errors report the VPN as stopped")]
+    [CancelAfter(30_000)]
+    public async Task ReportsStoppedAfterTunnelRpcError(CancellationToken ct)
+    {
+        var supervisor = new FakeTunnelSupervisor(new RpcVersion(1, 3));
+        var managerRpc = new FakeManagerRpc();
+        using var manager = NewManager(supervisor, managerRpc: managerRpc);
+        AddPeer(manager);
+
+        RaiseTunnelRpcError(manager, GetTunnelGeneration(manager), new IOException("tunnel disconnected"));
+        await managerRpc.Broadcast.Task.WaitAsync(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(supervisor.StopCalls, Is.Zero);
+            Assert.That(managerRpc.Broadcasts, Has.Count.EqualTo(1));
+            Assert.That(managerRpc.Broadcasts[0].Status.Lifecycle, Is.EqualTo(Status.Types.Lifecycle.Stopped));
+            Assert.That(managerRpc.Broadcasts[0].Status.PeerUpdate.UpsertedAgents, Is.Empty);
+            Assert.That(managerRpc.Broadcasts[0].Status.PeerUpdate.UpsertedWorkspaces, Is.Empty);
+        });
+    }
+
+    [Test(Description = "Errors from a replaced tunnel do not change VPN status")]
+    [CancelAfter(30_000)]
+    public async Task IgnoresErrorFromReplacedTunnel(CancellationToken ct)
+    {
+        var supervisor = new FakeTunnelSupervisor(new RpcVersion(1, 3));
+        var managerRpc = new FakeManagerRpc();
+        using var manager = NewManager(supervisor, managerRpc: managerRpc);
+
+        RaiseTunnelRpcError(manager, GetTunnelGeneration(manager) - 1, new IOException("old tunnel disconnected"));
+        await Task.Delay(100, ct);
+
+        Assert.That(managerRpc.Broadcasts, Is.Empty);
+    }
+
+    [Test(Description = "Stopping the manager reports the VPN as stopped")]
+    [CancelAfter(30_000)]
+    public async Task ReportsStoppedWhenManagerStops(CancellationToken ct)
+    {
+        var supervisor = new FakeTunnelSupervisor(new RpcVersion(1, 3));
+        var managerRpc = new FakeManagerRpc();
+        using var manager = NewManager(supervisor, managerRpc: managerRpc);
+        AddPeer(manager);
+
+        await manager.StopAsync(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(supervisor.StopCalls, Is.EqualTo(1));
+            Assert.That(managerRpc.Broadcasts, Has.Count.EqualTo(1));
+            Assert.That(managerRpc.Broadcasts[0].Status.Lifecycle, Is.EqualTo(Status.Types.Lifecycle.Stopped));
+            Assert.That(managerRpc.Broadcasts[0].Status.PeerUpdate.UpsertedAgents, Is.Empty);
+            Assert.That(managerRpc.Broadcasts[0].Status.PeerUpdate.UpsertedWorkspaces, Is.Empty);
+        });
     }
 }
