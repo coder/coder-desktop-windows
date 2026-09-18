@@ -258,8 +258,21 @@ public class TunnelSupervisor : ITunnelSupervisor
         }
 
         await HandleSubprocessFailureAsync(subprocess,
-            new InvalidOperationException("Tunnel subprocess exited unexpectedly"),
+            new InvalidOperationException($"Tunnel subprocess exited unexpectedly with code {ExitCode(subprocess)}"),
             errorHandler);
+    }
+
+    private static string ExitCode(Process subprocess)
+    {
+        try
+        {
+            return subprocess.ExitCode.ToString();
+        }
+        catch (InvalidOperationException)
+        {
+            // The process handle was disposed by a concurrent cleanup.
+            return "unknown";
+        }
     }
 
     private async Task HandleSubprocessFailureAsync(Process subprocess, Exception error,
@@ -273,6 +286,10 @@ public class TunnelSupervisor : ITunnelSupervisor
             if (!ReferenceEquals(subprocess, _subprocess)) return;
 
             _logger.LogError(error, "Tunnel subprocess failed");
+            await CleanupAsync();
+
+            // Notify after cleanup so a client reacting to the failure can
+            // immediately start a new tunnel.
             try
             {
                 errorHandler(error);
@@ -281,8 +298,6 @@ public class TunnelSupervisor : ITunnelSupervisor
             {
                 _logger.LogError(handlerError, "Tunnel subprocess error handler failed");
             }
-
-            await CleanupAsync();
         }
         finally
         {

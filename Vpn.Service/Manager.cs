@@ -416,8 +416,9 @@ public class Manager : IManager
     {
         try
         {
-            // Serialize the failure transition with start and stop operations
-            // so an in-flight start cannot overwrite it with Started.
+            // Wait for any in-flight start or stop to finish, then only act if
+            // the failed tunnel is still the current one. A stale error from a
+            // replaced tunnel must not mark the new tunnel as stopped.
             using var operationLock = await _tunnelOperationLock.LockAsync();
             if (tunnelGeneration != Interlocked.Read(ref _tunnelGeneration)) return;
 
