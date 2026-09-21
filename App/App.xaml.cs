@@ -281,7 +281,6 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         {
             _logger.LogError(ex, "Failed to show sign-in window on first launch");
         }
-
     }
 
     private static string SignInPromptMarkerPath => Path.Combine(
@@ -296,7 +295,7 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         Directory.CreateDirectory(Path.GetDirectoryName(SignInPromptMarkerPath)!);
         File.WriteAllBytes(SignInPromptMarkerPath, Array.Empty<byte>());
     }
-    
+
     public void OnActivated(object? sender, AppActivationArguments args)
     {
         switch (args.Kind)
