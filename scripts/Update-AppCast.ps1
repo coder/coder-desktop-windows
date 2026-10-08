@@ -110,32 +110,18 @@ Write-Output ""
 $nsManager = New-Object System.Xml.XmlNamespaceManager($appCast.NameTable)
 $nsManager.AddNamespace("sparkle", "http://www.andymatuschak.org/xml-namespaces/sparkle")
 
-# Find the matching channel item
-$channelItem = $appCast.SelectSingleNode("//item[sparkle:channel='$channel']", $nsManager)
-if ($null -eq $channelItem) {
+# Find the existing items for this channel. The first one is used as a
+# template for the new items, and all of them are replaced.
+$channelItems = @($appCast.SelectNodes("//item[sparkle:channel='$channel']", $nsManager))
+if ($channelItems.Count -eq 0) {
     throw "Could not find channel item for channel: $channel"
 }
+$templateItem = $channelItems[0]
+$parentNode = $templateItem.ParentNode
+$insertBefore = $templateItem
 
-# Update the item properties
-$channelItem.title = $tag
-$channelItem.pubDate = $pubDate
-$channelItem.SelectSingleNode("sparkle:version", $nsManager).InnerText = $version
-$channelItem.SelectSingleNode("sparkle:shortVersionString", $nsManager).InnerText = $version
-$channelItem.SelectSingleNode("sparkle:fullReleaseNotesLink", $nsManager).InnerText = "https://github.com/$repo/releases"
-
-# Set description with proper line breaks
-$descriptionNode = $channelItem.SelectSingleNode("description")
-$descriptionNode.InnerXml = "" # Clear existing content
-$cdata = $appCast.CreateCDataSection([System.IO.File]::ReadAllText($releaseNotesHtmlPath))
-$descriptionNode.AppendChild($cdata) | Out-Null
-
-# Remove existing enclosures
-$existingEnclosures = $channelItem.SelectNodes("enclosure")
-foreach ($enclosure in $existingEnclosures) {
-    $channelItem.RemoveChild($enclosure) | Out-Null
-}
-
-# Add new enclosures
+# NetSparkle only reads the first enclosure of each item, so every
+# architecture gets its own item with a single enclosure.
 $enclosures = @(
     @{
         path = $x64Path
@@ -146,7 +132,29 @@ $enclosures = @(
         os   = "win-arm64"
     }
 )
+$releaseNotesHtml = [System.IO.File]::ReadAllText($releaseNotesHtmlPath)
 foreach ($enclosure in $enclosures) {
+    $channelItem = $templateItem.CloneNode($true)
+
+    # Update the item properties
+    $channelItem.title = $tag
+    $channelItem.pubDate = $pubDate
+    $channelItem.SelectSingleNode("sparkle:version", $nsManager).InnerText = $version
+    $channelItem.SelectSingleNode("sparkle:shortVersionString", $nsManager).InnerText = $version
+    $channelItem.SelectSingleNode("sparkle:fullReleaseNotesLink", $nsManager).InnerText = "https://github.com/$repo/releases"
+
+    # Set description with proper line breaks
+    $descriptionNode = $channelItem.SelectSingleNode("description")
+    $descriptionNode.InnerXml = "" # Clear existing content
+    $cdata = $appCast.CreateCDataSection($releaseNotesHtml)
+    $descriptionNode.AppendChild($cdata) | Out-Null
+
+    # Remove existing enclosures
+    $existingEnclosures = @($channelItem.SelectNodes("enclosure"))
+    foreach ($existingEnclosure in $existingEnclosures) {
+        $channelItem.RemoveChild($existingEnclosure) | Out-Null
+    }
+
     $fileName = Split-Path $enclosure.path -Leaf
     $url = "https://github.com/$repo/releases/download/$tag/$fileName"
     $fileSize = (Get-Item $enclosure.path).Length
@@ -173,6 +181,11 @@ foreach ($enclosure in $enclosures) {
     }
 
     $channelItem.AppendChild($newEnclosure) | Out-Null
+    $parentNode.InsertBefore($channelItem, $insertBefore) | Out-Null
+}
+
+foreach ($oldItem in $channelItems) {
+    $parentNode.RemoveChild($oldItem) | Out-Null
 }
 
 # Save the updated XML. Convert CRLF to LF since CRLF seems to break NetSparkle
