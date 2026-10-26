@@ -353,7 +353,7 @@ public class DownloadTask
     {
         var client = new HttpClient(new HttpClientHandler
         {
-            AutomaticDecompression = DecompressionMethods.All,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
         });
         client.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent.Build(CoderComponent.Core));
         return client;
