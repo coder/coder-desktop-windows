@@ -152,26 +152,26 @@ public class Program
     private static readonly Version DotNetCheckVersion = new(10, 0, 0);
 
     private static readonly Dictionary<Platform, ExePackagePayload> DotNetRuntimePackagePayloads = new()
-{
-    [Platform.x64] = new ExePackagePayload
     {
-        Name = ".NET Desktop Runtime 10.0.14 (x64).exe",
-        DownloadUrl =
+        [Platform.x64] = new ExePackagePayload
+        {
+            Name = ".NET Desktop Runtime 10.0.14 (x64).exe",
+            DownloadUrl =
             "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.14/windowsdesktop-runtime-10.0.14-win-x64.exe",
-        Hash =
+            Hash =
             "337dacab1636219147b3fe75e451bf5b1c17bca2c86328266d40c4ad1ff0a1e8391c4746ca7a5b702b65b61e8bfe834566cfc1b548cc10aef90b441357b10b69",
-        Size = 60_035_296,
-    },
-    [Platform.arm64] = new ExePackagePayload
-    {
-        Name = ".NET Desktop Runtime 10.0.14 (arm64).exe",
-        DownloadUrl =
+            Size = 60_035_296,
+        },
+        [Platform.arm64] = new ExePackagePayload
+        {
+            Name = ".NET Desktop Runtime 10.0.14 (arm64).exe",
+            DownloadUrl =
             "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.14/windowsdesktop-runtime-10.0.14-win-arm64.exe",
-        Hash =
+            Hash =
             "3ea03fbaf7281affa959db52299d2dd198879a10d7db1b58ae09246399f421fa51ed7fb45eca4d4742b98f7d34c0a2d9d412cb6707474a2743b32405ce10a965",
-        Size = 54_014_888,
-    },
-};
+            Size = 54_014_888,
+        },
+    };
 
     private static int Main(string[] args)
     {
