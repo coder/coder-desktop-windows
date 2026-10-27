@@ -39,6 +39,8 @@
 
     <ItemGroup>
         <Content Include="coder.ico" />
+        <!-- H.NotifyIcon loads tray icons from disk, so they must be in build and publish output -->
+        <Content Update="Assets\*.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <EmbeddedResource Include="Assets\changelog.css" />
         <Manifest Include="$(ApplicationManifest)" />
     </ItemGroup>
