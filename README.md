@@ -16,14 +16,14 @@ download the latest version from the GitHub releases.
 
 You will need:
 
-- Visual Studio 2022
+- .NET 10 SDK (see `global.json`)
+- Visual Studio 2026 (or an IDE that supports .NET 10)
     - .NET desktop development
     - WinUI application development
     - Windows 10 SDK (10.0.19041.0)
 - Wix Toolset 5.0.2 (if building the installer)
 
-It's also recommended to use JetBrains Rider (or VS + ReSharper) for a better
-experience.
+It's also recommended to use JetBrains Rider (or VS + ReSharper) for a better experience.
 
 ### License
 

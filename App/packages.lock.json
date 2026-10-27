@@ -578,14 +578,6 @@
         "resolved": "0.9.3",
         "contentHash": "Copo3+rYuRVOuc6fmzHwXwehDC8l8DQ3y2VRI/d0sQTwProL4QAjkxRPV0zr3XBz1A8ZODXATOXV0hJXc7YdKg=="
       },
-      "Semver": {
-        "type": "Transitive",
-        "resolved": "3.0.0",
-        "contentHash": "9jZCicsVgTebqkAujRWtC9J1A5EQVlu0TVKHcgoCuv345ve5DYf4D1MjhKEnQjdRZo6x/vdv6QQrYFs7ilGzLA==",
-        "dependencies": {
-          "Microsoft.Extensions.Primitives": "5.0.1"
-        }
-      },
       "Serilog": {
         "type": "Transitive",
         "resolved": "4.2.0",
@@ -626,9 +618,7 @@
       "Coder.Desktop.Vpn": {
         "type": "Project",
         "dependencies": {
-          "Coder.Desktop.Vpn.Proto": "[1.0.0, )",
-          "Microsoft.Extensions.Configuration": "[9.0.1, )",
-          "Semver": "[3.0.0, )"
+          "Coder.Desktop.Vpn.Proto": "[1.0.0, )"
         }
       },
       "Coder.Desktop.Vpn.Proto": {
