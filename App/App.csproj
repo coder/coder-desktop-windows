@@ -14,7 +14,7 @@
         <WindowsPackageType>None</WindowsPackageType>
         <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
         <!-- To use CommunityToolkit.Mvvm.ComponentModel.ObservablePropertyAttribute: -->
-        <LangVersion>preview</LangVersion>
+        <LangVersion>14.0</LangVersion>
         <!-- We have our own implementation of main with exception handling -->
         <DefineConstants>DISABLE_XAML_GENERATED_MAIN;DISABLE_XAML_GENERATED_BREAK_ON_UNHANDLED_EXCEPTION</DefineConstants>
         <!-- Default version for debug builds, overridden during releases -->
