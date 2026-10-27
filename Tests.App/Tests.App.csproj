@@ -3,7 +3,7 @@
     <PropertyGroup>
         <AssemblyName>Coder.Desktop.Tests.App</AssemblyName>
         <RootNamespace>Coder.Desktop.Tests.App</RootNamespace>
-        <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+        <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
         <LangVersion>preview</LangVersion>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
