@@ -155,21 +155,20 @@ public class Program
     {
         [Platform.x64] = new ExePackagePayload
         {
-            Name = ".NET Desktop Runtime 8.0.13 (x64).exe",
-            DownloadUrl =
-                "https://download.visualstudio.microsoft.com/download/pr/fc8c9dea-8180-4dad-bf1b-5f229cf47477/c3f0536639ab40f1470b6bad5e1b95b8/windowsdesktop-runtime-8.0.13-win-x64.exe",
+            Name = ".NET Desktop Runtime 8.0.33 (x64).exe",
+            DownloadUrl = "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.33/windowsdesktop-runtime-8.0.33-win-x64.exe",
             Hash =
-                "abeef95a520e5d22d4a8b0d369fe103c2552a5c337500582e850da3611135bb68bb479d123cee85a445310cf4db73037e6198eec40d66d4d746ef2e2e5f1450f",
-            Size = 58_433_888,
+                "b622106783dee5e1ce993ec849ecd43fa147c6230daecf910348f6adcd28f63abf39cf6db832a6a2684941c19a9321816e9cbc9dbe8c4a8bb2d7e46487ab3890",
+            Size = 58_398_672,
         },
         [Platform.arm64] = new ExePackagePayload
         {
-            Name = ".NET Desktop Runtime 8.0.13 (arm64).exe",
+            Name = ".NET Desktop Runtime 8.0.33 (arm64).exe",
             DownloadUrl =
-                "https://download.visualstudio.microsoft.com/download/pr/7468483d-b69c-4ff8-b900-e046f3a73e8d/fce0ba9123be8a4cc10ed1c73af09ae6/windowsdesktop-runtime-8.0.13-win-arm64.exe",
+                "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.33/windowsdesktop-runtime-8.0.33-win-arm64.exe",
             Hash =
-                "45c1fc3f5adb8551fb0ee805ad6c5046a9447da38cbe6b7e9d04fdc995d21885b8b9415ba3bc9040644d82e04aab3a88c625854efc7870ac0236d0368de90c3c",
-            Size = 53_944_552,
+                "a7ab2d10c7d93c58ef80ef90b0b32e4a7f41f973e41852660606676f2c16aa902620702c646065e07324fff7ab8cdc5112e2946d3f3eded06b5cc3eb78b1a5c6",
+            Size = 53_967_552,
         },
     };
 
