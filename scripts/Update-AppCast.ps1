@@ -1,4 +1,4 @@
-# Updates appcast.xml and appcast.xml.signature for a given release.
+# Generates appcast.xml and appcast.xml.signature for a given release.
 #
 # Requires openssl.exe. You can install it via winget:
 #   winget install ShiningLight.OpenSSL.Light
@@ -9,7 +9,6 @@
 #          -x64Path <path>
 #          -arm64Path <path>
 #          -keyPath <path>
-#          -inputAppCastPath <path>
 #          -outputAppCastPath <path>
 #          -outputAppCastSignaturePath <path>
 param (
@@ -36,10 +35,6 @@ param (
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path $_ })]
     [string] $keyPath,
-
-    [Parameter(Mandatory = $false)]
-    [ValidateScript({ Test-Path $_ })]
-    [string] $inputAppCastPath = "appcast.xml",
 
     [Parameter(Mandatory = $false)]
     [string] $outputAppCastPath = "appcast.xml",
@@ -104,99 +99,73 @@ Get-Content $releaseNotesHtmlPath
 Write-Output "---- End of Release Notes HTML ----"
 Write-Output ""
 
-[xml] $appCast = Get-Content $inputAppCastPath
-
-# Set up namespace manager for sparkle: prefix
-$nsManager = New-Object System.Xml.XmlNamespaceManager($appCast.NameTable)
-$nsManager.AddNamespace("sparkle", "http://www.andymatuschak.org/xml-namespaces/sparkle")
-
-# Find the existing items for this channel. The first one is used as a
-# template for the new items, and all of them are replaced.
-$channelItems = @($appCast.SelectNodes("//item[sparkle:channel='$channel']", $nsManager))
-if ($channelItems.Count -eq 0) {
-    throw "Could not find channel item for channel: $channel"
-}
-$templateItem = $channelItems[0]
-$parentNode = $templateItem.ParentNode
-$insertBefore = $templateItem
+$sparkleNs = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+$releaseNotesHtml = [System.IO.File]::ReadAllText($releaseNotesHtmlPath)
 
 # NetSparkle only reads the first enclosure of each item, so every
 # architecture gets its own item with a single enclosure.
-$enclosures = @(
-    @{
-        path = $x64Path
-        os   = "win-x64"
-    },
-    @{
-        path = $arm64Path
-        os   = "win-arm64"
-    }
+$installers = @(
+    @{ path = $x64Path; os = "win-x64" },
+    @{ path = $arm64Path; os = "win-arm64" }
 )
-$releaseNotesHtml = [System.IO.File]::ReadAllText($releaseNotesHtmlPath)
-foreach ($enclosure in $enclosures) {
-    $channelItem = $templateItem.CloneNode($true)
 
-    # Update the item properties
-    $channelItem.title = $tag
-    $channelItem.pubDate = $pubDate
-    $channelItem.SelectSingleNode("sparkle:version", $nsManager).InnerText = $version
-    $channelItem.SelectSingleNode("sparkle:shortVersionString", $nsManager).InnerText = $version
-    $channelItem.SelectSingleNode("sparkle:fullReleaseNotesLink", $nsManager).InnerText = "https://github.com/$repo/releases"
+# The appcast only lists the latest release, so it is generated from scratch.
+# NetSparkle fails to parse CRLF line endings, so use LF.
+$settings = New-Object System.Xml.XmlWriterSettings
+$settings.Indent = $true
+$settings.IndentChars = "  "
+$settings.NewLineChars = "`n"
+$settings.Encoding = New-Object System.Text.UTF8Encoding($false)
+$writer = [System.Xml.XmlWriter]::Create($outputAppCastPath, $settings)
+try {
+    $writer.WriteStartDocument($true)
+    $writer.WriteStartElement("rss")
+    $writer.WriteAttributeString("xmlns", "sparkle", $null, $sparkleNs)
+    $writer.WriteAttributeString("version", "2.0")
+    $writer.WriteStartElement("channel")
+    $writer.WriteElementString("title", "Coder Desktop")
+    $writer.WriteElementString("language", "en")
 
-    # Set description with proper line breaks
-    $descriptionNode = $channelItem.SelectSingleNode("description")
-    $descriptionNode.InnerXml = "" # Clear existing content
-    $cdata = $appCast.CreateCDataSection($releaseNotesHtml)
-    $descriptionNode.AppendChild($cdata) | Out-Null
+    foreach ($installer in $installers) {
+        $fileName = Split-Path $installer.path -Leaf
 
-    # Remove existing enclosures
-    $existingEnclosures = @($channelItem.SelectNodes("enclosure"))
-    foreach ($existingEnclosure in $existingEnclosures) {
-        $channelItem.RemoveChild($existingEnclosure) | Out-Null
+        $writer.WriteStartElement("item")
+        $writer.WriteElementString("title", $tag)
+        $writer.WriteStartElement("description")
+        $writer.WriteCData($releaseNotesHtml)
+        $writer.WriteEndElement()
+        $writer.WriteElementString("pubDate", $pubDate)
+        $writer.WriteElementString("channel", $sparkleNs, $channel)
+        $writer.WriteElementString("version", $sparkleNs, $version)
+        $writer.WriteElementString("shortVersionString", $sparkleNs, $version)
+        $writer.WriteElementString("fullReleaseNotesLink", $sparkleNs, "https://github.com/$repo/releases")
+
+        $writer.WriteStartElement("enclosure")
+        $writer.WriteAttributeString("url", "https://github.com/$repo/releases/download/$tag/$fileName")
+        $writer.WriteAttributeString("type", "application/x-msdos-program")
+        $writer.WriteAttributeString("length", (Get-Item $installer.path).Length)
+        $writer.WriteAttributeString("os", $sparkleNs, $installer.os)
+        $writer.WriteAttributeString("version", $sparkleNs, $version)
+        $writer.WriteAttributeString("shortVersionString", $sparkleNs, $version)
+        $writer.WriteAttributeString("criticalUpdate", $sparkleNs, "false")
+        # NetSparkle prefers edSignature over signature
+        $writer.WriteAttributeString("edSignature", $sparkleNs, (Get-Ed25519Signature $installer.path))
+        $writer.WriteEndElement()
+
+        $writer.WriteEndElement()
     }
 
-    $fileName = Split-Path $enclosure.path -Leaf
-    $url = "https://github.com/$repo/releases/download/$tag/$fileName"
-    $fileSize = (Get-Item $enclosure.path).Length
-    $signature = Get-Ed25519Signature $enclosure.path
-
-    $newEnclosure = $appCast.CreateElement("enclosure")
-    $newEnclosure.SetAttribute("url", $url)
-    $newEnclosure.SetAttribute("type", "application/x-msdos-program")
-    $newEnclosure.SetAttribute("length", $fileSize)
-
-    # Set namespaced attributes
-    $sparkleNs = $nsManager.LookupNamespace("sparkle")
-    $attrs = @{
-        "os"                 = $enclosure.os
-        "version"            = $version
-        "shortVersionString" = $version
-        "criticalUpdate"     = "false"
-        "edSignature"        = $signature # NetSparkle prefers edSignature over signature
-    }
-    foreach ($key in $attrs.Keys) {
-        $attr = $appCast.CreateAttribute("sparkle", $key, $sparkleNs)
-        $attr.Value = $attrs[$key]
-        $newEnclosure.Attributes.Append($attr) | Out-Null
-    }
-
-    $channelItem.AppendChild($newEnclosure) | Out-Null
-    $parentNode.InsertBefore($channelItem, $insertBefore) | Out-Null
+    $writer.WriteEndElement()
+    $writer.WriteEndElement()
+    $writer.WriteEndDocument()
+}
+finally {
+    $writer.Close()
 }
 
-foreach ($oldItem in $channelItems) {
-    $parentNode.RemoveChild($oldItem) | Out-Null
-}
-
-# Save the updated XML. Convert CRLF to LF since CRLF seems to break NetSparkle
-$appCast.Save($outputAppCastPath)
-$content = [System.IO.File]::ReadAllText($outputAppCastPath)
-$content = $content -replace "`r`n", "`n"
-[System.IO.File]::WriteAllText($outputAppCastPath, $content)
-
-Write-Output "---- Updated appcast -----"
+Write-Output "---- Generated appcast -----"
 Get-Content $outputAppCastPath
-Write-Output "---- End of updated appcast ----"
+Write-Output "---- End of generated appcast ----"
 Write-Output ""
 
 # Generate the signature for the appcast itself
