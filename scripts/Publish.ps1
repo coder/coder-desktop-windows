@@ -118,7 +118,8 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to dotnet restore" }
 $servicePublishDir = Join-Path $buildPath "service"
 & dotnet.exe publish .\Vpn.Service\Vpn.Service.csproj -c Release -a $arch -o $servicePublishDir /p:Version=$version
 if ($LASTEXITCODE -ne 0) { throw "Failed to build Vpn.Service" }
-& dotnet.exe build .\App\App.csproj -c Release /p:Platform=$arch /p:OutputPath=$appPublishDir /p:Version=$version
+$appPublishDir = Join-Path $buildPath "app"
+& dotnet.exe build .\App\App.csproj -c Release -o $appPublishDir /p:Platform=$arch /p:OutputPath=$appPublishDir /p:Version=$version
 if ($LASTEXITCODE -ne 0) { throw "Failed to build App" }
 
 # Find any files in the publish directory recursively that match any of our
