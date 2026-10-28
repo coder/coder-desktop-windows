@@ -19,13 +19,15 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl);
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool isSubAgentApp = false,
+        bool sessionTokenBlocked = false, bool confirmBeforeOpening = false);
 }
 
 public class AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger, ICredentialManager credentialManager)
     : IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl)
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool isSubAgentApp = false,
+        bool sessionTokenBlocked = false, bool confirmBeforeOpening = false)
     {
         return new AgentAppViewModel(childLogger, credentialManager)
         {
@@ -33,14 +35,15 @@ public class AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger, IC
             Name = name,
             AppUri = appUri,
             IconUrl = iconUrl,
+            IsSubAgentApp = isSubAgentApp,
+            SessionTokenBlocked = sessionTokenBlocked,
+            ConfirmBeforeOpening = confirmBeforeOpening,
         };
     }
 }
 
 public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<AgentAppViewModel>
 {
-    private const string SessionTokenUriVar = "$SESSION_TOKEN";
-
     private readonly ILogger<AgentAppViewModel> _logger;
     private readonly ICredentialManager _credentialManager;
 
@@ -54,14 +57,35 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     [NotifyPropertyChangedFor(nameof(Details))]
     public required partial Uri AppUri { get; set; }
 
+    /// <summary>True when the app belongs to a sub-agent, such as a dev container.</summary>
+    public bool IsSubAgentApp { get; init; }
+
+    /// <summary>True when the user must confirm before the app's link is opened.</summary>
+    public bool ConfirmBeforeOpening { get; init; }
+
+    /// <summary>True when the app link needs a session token but isn't trusted with one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Details))]
+    [NotifyPropertyChangedFor(nameof(IconOpacity))]
+    public partial bool SessionTokenBlocked { get; set; }
+
+    public double IconOpacity => SessionTokenBlocked ? 0.4 : 1.0;
+
     [ObservableProperty] public partial Uri? IconUrl { get; set; }
 
     [ObservableProperty] public partial ImageSource IconImageSource { get; set; }
 
     [ObservableProperty] public partial bool UseFallbackIcon { get; set; } = true;
 
+    private string DisplayName => string.IsNullOrWhiteSpace(Name) ? "(no name)" : Name;
+
     public string Details =>
-        (string.IsNullOrWhiteSpace(Name) ? "(no name)" : Name) + ":\n\n" + AppUri;
+        DisplayName + ":\n\n" +
+        (SessionTokenBlocked ? BlockedDetails : AppUri.ToString());
+
+    private string BlockedDetails => SessionTokenLink.BlockedMessage + " " + (IsSubAgentApp
+        ? "Fix the app's url in the dev container's devcontainer.json."
+        : "Ask your template administrator to fix the app's url in the template's coder_app configuration.");
 
     public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager)
     {
@@ -87,6 +111,8 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
             Name = obj.Name;
         if (AppUri != obj.AppUri)
             AppUri = obj.AppUri;
+        if (SessionTokenBlocked != obj.SessionTokenBlocked)
+            SessionTokenBlocked = obj.SessionTokenBlocked;
         if (IconUrl != obj.IconUrl)
         {
             UseFallbackIcon = true;
@@ -149,40 +175,76 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
             if (uri.Scheme is not "http" and not "https")
             {
                 var cred = _credentialManager.GetCachedCredentials();
-                if (cred.State is CredentialState.Valid && cred.ApiToken is not null)
-                    uri = new Uri(uri.ToString().Replace(SessionTokenUriVar, cred.ApiToken));
+                // Check and replace the raw link, since Uri.ToString() unescapes it.
+                if (cred.State is CredentialState.Valid && cred.ApiToken is not null &&
+                    SessionTokenLink.NeedsSessionToken(uri.OriginalString))
+                    uri = new Uri(SessionTokenLink.Substitute(uri.OriginalString, cred.CoderUrl, cred.ApiToken,
+                        IsSubAgentApp) ?? throw new Exception(SessionTokenLink.BlockedMessage));
             }
 
-            if (uri.ToString().Contains(SessionTokenUriVar))
+            if (uri.ToString().Contains(SessionTokenLink.Placeholder))
                 throw new Exception(
-                    $"URI contains {SessionTokenUriVar} variable but could not be replaced (http and https URLs cannot contain {SessionTokenUriVar})");
+                    $"URI contains {SessionTokenLink.Placeholder} variable but could not be replaced (http and https URLs cannot contain {SessionTokenLink.Placeholder})");
 
-            _ = Launcher.LaunchUriAsync(uri);
+            if (!ConfirmBeforeOpening)
+            {
+                _ = Launcher.LaunchUriAsync(uri);
+                return;
+            }
+
+            var open = new Button
+            {
+                Content = "Open",
+                Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            var flyout = ShowFlyout(parameter, new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"Open {DisplayName}?\n\nThis opens a {uri.Scheme}: link in another app on your computer.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    open,
+                },
+            });
+            open.Click += (_, _) =>
+            {
+                flyout?.Hide();
+                _ = Launcher.LaunchUriAsync(uri);
+            };
         }
         catch (Exception e)
         {
             _logger.LogWarning(e, "could not parse or launch app");
-
-            if (parameter is not FrameworkElement frameworkElement) return;
-            var flyout = new Flyout
+            ShowFlyout(parameter, new TextBlock
             {
-                Content = new TextBlock
-                {
-                    Text = $"Could not open app: {e.Message}",
-                    Margin = new Thickness(4),
-                    TextWrapping = TextWrapping.Wrap,
-                },
-                FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
-                {
-                    Setters =
-                    {
-                        new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled),
-                        new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled),
-                    },
-                },
-            };
-            FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
-            FlyoutBase.ShowAttachedFlyout(frameworkElement);
+                Text = $"Could not open app: {e.Message}",
+                TextWrapping = TextWrapping.Wrap,
+            });
         }
+    }
+
+    private static Flyout? ShowFlyout(object parameter, UIElement content)
+    {
+        if (parameter is not FrameworkElement frameworkElement) return null;
+        var flyout = new Flyout
+        {
+            Content = new Border { Margin = new Thickness(4), Child = content },
+            FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
+            {
+                Setters =
+                {
+                    new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled),
+                    new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled),
+                },
+            },
+        };
+        FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
+        FlyoutBase.ShowAttachedFlyout(frameworkElement);
+        return flyout;
     }
 }

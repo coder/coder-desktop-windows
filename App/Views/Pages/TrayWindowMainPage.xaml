@@ -276,39 +276,44 @@
 
                                 <ItemsRepeater.ItemTemplate>
                                     <DataTemplate x:DataType="viewModels:AgentAppViewModel">
-                                        <HyperlinkButton
-                                            x:Name="AppButton"
-                                            Padding="4"
-                                            Margin="2"
-                                            Command="{x:Bind OpenAppCommand}"
-                                            CommandParameter="{Binding ElementName=AppButton}"
-                                            Width="34"
-                                            Height="34"
-                                            ToolTipService.ToolTip="{x:Bind Details}">
-                                            <HyperlinkButton.Resources>
-                                                <SolidColorBrush x:Key="HyperlinkButtonBackground" Color="#1F000000"/>
-                                                <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColorDark1}" />
-                                            </HyperlinkButton.Resources>
-
-                                            <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                                <Image
-                                                    Source="{x:Bind IconImageSource, Mode=OneWay}"
-                                                    ImageOpened="{x:Bind OnImageOpened}"
-                                                    ImageFailed="{x:Bind OnImageFailed}"
-                                                    Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
-                                                    Width="20"
-                                                    Height="20"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center" />
-
-                                                <FontIcon
-                                                    Glyph="&#xECAA;"
-                                                    FontSize="20"
-                                                    HorizontalAlignment="Center"
-                                                    VerticalAlignment="Center"
-                                                    Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
-                                            </Grid>
-                                        </HyperlinkButton>
+                                        <!-- The tooltip is on a wrapper since disabled buttons don't show tooltips. -->
+                                        <Grid
+                                            Background="Transparent"
+                                            ToolTipService.ToolTip="{x:Bind Details, Mode=OneWay}">
+                                            <HyperlinkButton
+                                                x:Name="AppButton"
+                                                Padding="4"
+                                                Margin="2"
+                                                Command="{x:Bind OpenAppCommand}"
+                                                CommandParameter="{Binding ElementName=AppButton}"
+                                                IsEnabled="{x:Bind SessionTokenBlocked, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
+                                                Width="34"
+                                                Height="34">
+                                                <HyperlinkButton.Resources>
+                                                    <SolidColorBrush x:Key="HyperlinkButtonBackground" Color="#1F000000"/>
+                                                    <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColorDark1}" />
+                                                </HyperlinkButton.Resources>
+    
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Opacity="{x:Bind IconOpacity, Mode=OneWay}">
+                                                    <Image
+                                                        Source="{x:Bind IconImageSource, Mode=OneWay}"
+                                                        ImageOpened="{x:Bind OnImageOpened}"
+                                                        ImageFailed="{x:Bind OnImageFailed}"
+                                                        Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
+                                                        Width="20"
+                                                        Height="20"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center" />
+    
+                                                    <FontIcon
+                                                        Glyph="&#xECAA;"
+                                                        FontSize="20"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="{x:Bind UseFallbackIcon, Converter={StaticResource BoolToVisibilityConverter}, Mode=OneWay}" />
+                                                </Grid>
+                                            </HyperlinkButton>
+                                        </Grid>
                                     </DataTemplate>
                                 </ItemsRepeater.ItemTemplate>
                             </ItemsRepeater>

@@ -488,7 +488,10 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             // icon.
             _ = Uri.TryCreate(DashboardBaseUrl, app.Icon, out var iconUrl);
 
-            apps.Add(_agentAppViewModelFactory.Create(app.Id, app.DisplayName, appUri, iconUrl));
+            apps.Add(_agentAppViewModelFactory.Create(app.Id, app.DisplayName, appUri, iconUrl,
+                isSubAgentApp: workspaceAgent.ParentId is not null,
+                sessionTokenBlocked: SessionTokenLink.IsBlocked(app.Url, DashboardBaseUrl),
+                confirmBeforeOpening: !SessionTokenLink.IsKnownHandler(app.Url)));
         }
 
         foreach (var displayApp in workspaceAgent.DisplayApps)
