@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Windows.System;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
@@ -23,13 +24,15 @@ public interface IAgentAppViewModelFactory
         bool sessionTokenBlocked = false, bool confirmBeforeOpening = false);
 }
 
-public class AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger, ICredentialManager credentialManager)
-    : IAgentAppViewModelFactory
+public class AgentAppViewModelFactory(
+    ILogger<AgentAppViewModel> childLogger,
+    ICredentialManager credentialManager,
+    ISettingsManager<AppLinkSettings> appLinkSettingsManager) : IAgentAppViewModelFactory
 {
     public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool isSubAgentApp = false,
         bool sessionTokenBlocked = false, bool confirmBeforeOpening = false)
     {
-        return new AgentAppViewModel(childLogger, credentialManager)
+        return new AgentAppViewModel(childLogger, credentialManager, appLinkSettingsManager)
         {
             Id = id,
             Name = name,
@@ -46,6 +49,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 {
     private readonly ILogger<AgentAppViewModel> _logger;
     private readonly ICredentialManager _credentialManager;
+    private readonly ISettingsManager<AppLinkSettings> _appLinkSettingsManager;
 
     public required Uuid Id { get; init; }
 
@@ -87,10 +91,12 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
         ? "Fix the app's url in the dev container's devcontainer.json."
         : "Ask your template administrator to fix the app's url in the template's coder_app configuration.");
 
-    public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager)
+    public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager,
+        ISettingsManager<AppLinkSettings> appLinkSettingsManager)
     {
         _logger = logger;
         _credentialManager = credentialManager;
+        _appLinkSettingsManager = appLinkSettingsManager;
 
         // Apply the icon URL to the icon image source when it is updated.
         IconImageSource = UpdateIcon();
@@ -163,7 +169,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     }
 
     [RelayCommand]
-    private void OpenApp(object parameter)
+    private async Task OpenApp(object parameter)
     {
         try
         {
@@ -186,12 +192,14 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
                 throw new Exception(
                     $"URI contains {SessionTokenLink.Placeholder} variable but could not be replaced (http and https URLs cannot contain {SessionTokenLink.Placeholder})");
 
-            if (!ConfirmBeforeOpening)
+            var scheme = uri.Scheme.ToLowerInvariant();
+            if (!ConfirmBeforeOpening || await IsSchemeTrusted(scheme))
             {
                 _ = Launcher.LaunchUriAsync(uri);
                 return;
             }
 
+            var dontAskAgain = new CheckBox { Content = $"Don't ask again for {scheme}: links" };
             var open = new Button
             {
                 Content = "Open",
@@ -205,16 +213,28 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
                 {
                     new TextBlock
                     {
-                        Text = $"Open {DisplayName}?\n\nThis opens a {uri.Scheme}: link in another app on your computer.",
+                        Text = $"Open {DisplayName}?\n\nThis opens a {scheme}: link in another app on your computer.",
                         TextWrapping = TextWrapping.Wrap,
                     },
+                    dontAskAgain,
                     open,
                 },
             });
-            open.Click += (_, _) =>
+            open.Click += async (_, _) =>
             {
                 flyout?.Hide();
                 _ = Launcher.LaunchUriAsync(uri);
+                if (dontAskAgain.IsChecked is not true) return;
+                try
+                {
+                    var settings = await _appLinkSettingsManager.Read();
+                    settings.TrustedSchemes.Add(scheme);
+                    await _appLinkSettingsManager.Write(settings);
+                }
+                catch (Exception e)
+                {
+                    _logger.LogWarning(e, "could not save trusted app link scheme");
+                }
             };
         }
         catch (Exception e)
@@ -225,6 +245,19 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
                 Text = $"Could not open app: {e.Message}",
                 TextWrapping = TextWrapping.Wrap,
             });
+        }
+    }
+
+    private async Task<bool> IsSchemeTrusted(string scheme)
+    {
+        try
+        {
+            return (await _appLinkSettingsManager.Read()).TrustedSchemes.Contains(scheme);
+        }
+        catch (Exception e)
+        {
+            _logger.LogWarning(e, "could not read trusted app link schemes");
+            return false;
         }
     }
 

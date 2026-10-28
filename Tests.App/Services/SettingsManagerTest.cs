@@ -43,4 +43,20 @@ public sealed class SettingsManagerTests
         var actual = _sut.Read().GetAwaiter().GetResult();
         Assert.That(actual.ConnectOnLaunch, Is.False);
     }
+
+    [Test]
+    public async Task AppLinkSettings_PersistsTrustedSchemes()
+    {
+        var settings = new AppLinkSettings { TrustedSchemes = ["someapp"] };
+        await new SettingsManager<AppLinkSettings>(_tempDir).Write(settings);
+
+        // A new manager has no cache, so this reads the file.
+        var manager = new SettingsManager<AppLinkSettings>(_tempDir);
+        var actual = await manager.Read();
+        Assert.That(actual.TrustedSchemes, Is.EquivalentTo(new[] { "someapp" }));
+
+        // Reads return clones, so changes aren't saved until written.
+        actual.TrustedSchemes.Add("other");
+        Assert.That((await manager.Read()).TrustedSchemes, Is.EquivalentTo(new[] { "someapp" }));
+    }
 }

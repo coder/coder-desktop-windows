@@ -121,6 +121,7 @@ public partial class App : Application, IDispatcherQueueManager, IDefaultNotific
         services.AddTransient<FileSyncListWindow>();
 
         services.AddSingleton<ISettingsManager<CoderConnectSettings>, SettingsManager<CoderConnectSettings>>();
+        services.AddSingleton<ISettingsManager<AppLinkSettings>, SettingsManager<AppLinkSettings>>();
         services.AddSingleton<IStartupManager, StartupManager>();
         // SettingsWindow views and view models
         services.AddTransient<SettingsViewModel>();
