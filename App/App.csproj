@@ -28,6 +28,16 @@
         <ApplicationIcon>coder.ico</ApplicationIcon>
         <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
         <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+        <!--
+            Unpackaged WinUI apps only load XAML resources from resources.pri.
+            The SDK defaults to $(TargetName).pri ("Coder Desktop.pri").
+        -->
+        <ProjectPriFileName>resources.pri</ProjectPriFileName>
+        <!--
+            Index embedded .xbf files in resources.pri by their project-relative path (Files/Views/Pages/X.xbf)
+            so they match the ms-appx:/// URIs the XAML compiler generates.
+        -->
+        <GenerateLibraryLayout>true</GenerateLibraryLayout>
     </PropertyGroup>
 
     <PropertyGroup Condition="$(Configuration) == 'Release'">
