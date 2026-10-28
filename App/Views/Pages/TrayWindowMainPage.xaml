@@ -279,14 +279,14 @@
                                         <!-- The tooltip is on a wrapper since disabled buttons don't show tooltips. -->
                                         <Grid
                                             Background="Transparent"
-                                            ToolTipService.ToolTip="{x:Bind Details, Mode=OneWay}">
+                                            ToolTipService.ToolTip="{x:Bind Details}">
                                             <HyperlinkButton
                                                 x:Name="AppButton"
                                                 Padding="4"
                                                 Margin="2"
                                                 Command="{x:Bind OpenAppCommand}"
                                                 CommandParameter="{Binding ElementName=AppButton}"
-                                                IsEnabled="{x:Bind SessionTokenBlocked, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}"
+                                                IsEnabled="{x:Bind SessionTokenBlocked, Converter={StaticResource InverseBoolConverter}}"
                                                 Width="34"
                                                 Height="34">
                                                 <HyperlinkButton.Resources>
@@ -294,7 +294,7 @@
                                                     <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="{ThemeResource SystemAccentColorDark1}" />
                                                 </HyperlinkButton.Resources>
     
-                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Opacity="{x:Bind IconOpacity, Mode=OneWay}">
+                                                <Grid HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Opacity="{x:Bind IconOpacity}">
                                                     <Image
                                                         Source="{x:Bind IconImageSource, Mode=OneWay}"
                                                         ImageOpened="{x:Bind OnImageOpened}"

@@ -63,17 +63,12 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
     }
 }
 
-/// <summary>
-/// Settings for opening workspace app links.
-/// </summary>
 public class AppLinkSettings : ISettings<AppLinkSettings>
 {
     public static string SettingsFileName { get; } = "app-link-settings.json";
     public int Version { get; set; } = 1;
 
-    /// <summary>
-    /// Lowercase URI schemes the user chose to open without confirmation.
-    /// </summary>
+    /// <summary>Lowercase URI schemes the user chose to open without confirmation.</summary>
     public HashSet<string> TrustedSchemes { get; set; } = [];
 
     public AppLinkSettings Clone()
