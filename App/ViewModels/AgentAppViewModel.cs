@@ -20,8 +20,7 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool isSubAgentApp = false,
-        bool sessionTokenBlocked = false, bool confirmBeforeOpening = false);
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool confirmBeforeOpening);
 }
 
 public class AgentAppViewModelFactory(
@@ -29,17 +28,20 @@ public class AgentAppViewModelFactory(
     ICredentialManager credentialManager,
     ISettingsManager<AppLinkSettings> appLinkSettingsManager) : IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool isSubAgentApp = false,
-        bool sessionTokenBlocked = false, bool confirmBeforeOpening = false)
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool confirmBeforeOpening)
     {
+        var cred = credentialManager.GetCachedCredentials();
         return new AgentAppViewModel(childLogger, credentialManager, appLinkSettingsManager)
         {
             Id = id,
             Name = name,
             AppUri = appUri,
             IconUrl = iconUrl,
-            IsSubAgentApp = isSubAgentApp,
-            SessionTokenBlocked = sessionTokenBlocked,
+            // Uri.OriginalString is the raw link; Uri.ToString() unescapes it.
+            // OpenApp checks again with the credentials it uses.
+            BlockReason = cred.CoderUrl is null
+                ? null
+                : SessionTokenLink.BlockReason(appUri.OriginalString, cred.CoderUrl, cred.DashboardUrl),
             ConfirmBeforeOpening = confirmBeforeOpening,
         };
     }
@@ -57,15 +59,16 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     [NotifyPropertyChangedFor(nameof(Details))]
     public required partial string Name { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Details))]
-    public required partial Uri AppUri { get; set; }
+    public required Uri AppUri { get; init; }
 
-    public bool IsSubAgentApp { get; init; }
-    public bool SessionTokenBlocked { get; init; }
+    /// <summary>Set when the link needs a session token but isn't trusted with one.</summary>
+    public string? BlockReason { get; init; }
+
     public bool ConfirmBeforeOpening { get; init; }
 
-    public double IconOpacity => SessionTokenBlocked ? 0.4 : 1.0;
+    public bool CanOpen => BlockReason is null;
+
+    public double IconOpacity => CanOpen ? 1.0 : 0.4;
 
     [ObservableProperty] public partial Uri? IconUrl { get; set; }
 
@@ -75,11 +78,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     private string DisplayName => string.IsNullOrWhiteSpace(Name) ? "(no name)" : Name;
 
-    public string Details => DisplayName + ":\n\n" + (SessionTokenBlocked
-        ? SessionTokenLink.BlockedMessage + (IsSubAgentApp
-            ? " Fix the app's url in the dev container's devcontainer.json."
-            : " Ask your template administrator to fix the app's url in the template's coder_app configuration.")
-        : AppUri.ToString());
+    public string Details => DisplayName + ":\n\n" + (BlockReason ?? AppUri.ToString());
 
     public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager,
         ISettingsManager<AppLinkSettings> appLinkSettingsManager)
@@ -99,7 +98,10 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     public bool TryApplyChanges(AgentAppViewModel obj)
     {
-        if (Id != obj.Id || IsSubAgentApp != obj.IsSubAgentApp || SessionTokenBlocked != obj.SessionTokenBlocked ||
+        // The block reason and confirmation depend on the link, so replace the
+        // item when it changes.
+        // Uri equality ignores the fragment, which holds Gateway's params.
+        if (Id != obj.Id || AppUri.OriginalString != obj.AppUri.OriginalString || BlockReason != obj.BlockReason ||
             ConfirmBeforeOpening != obj.ConfirmBeforeOpening)
             return false;
 
@@ -107,8 +109,6 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
         // write to values unless they've changed.
         if (Name != obj.Name)
             Name = obj.Name;
-        if (AppUri != obj.AppUri)
-            AppUri = obj.AppUri;
         if (IconUrl != obj.IconUrl)
         {
             UseFallbackIcon = true;
@@ -170,12 +170,15 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
             // token var replacement on those URLs.
             if (uri.Scheme is not "http" and not "https")
             {
+                // Check against the credentials whose token is used, since they
+                // may have loaded after this app was created.
                 var cred = _credentialManager.GetCachedCredentials();
-                // Check and replace the raw link, since Uri.ToString() unescapes it.
-                if (cred.State is CredentialState.Valid && cred.ApiToken is not null &&
-                    uri.OriginalString.Contains(SessionTokenLink.Placeholder))
-                    uri = new Uri(SessionTokenLink.Substitute(uri.OriginalString, cred.CoderUrl, cred.ApiToken,
-                        IsSubAgentApp) ?? throw new Exception(SessionTokenLink.BlockedMessage));
+                if (cred is { State: CredentialState.Valid, CoderUrl: not null, ApiToken: not null })
+                {
+                    var reason = SessionTokenLink.BlockReason(uri.OriginalString, cred.CoderUrl, cred.DashboardUrl);
+                    if (reason is not null) throw new Exception(reason);
+                    uri = new Uri(uri.OriginalString.Replace(SessionTokenLink.Placeholder, cred.ApiToken));
+                }
             }
 
             if (uri.ToString().Contains(SessionTokenLink.Placeholder))

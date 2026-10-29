@@ -286,7 +286,7 @@
                                                 Margin="2"
                                                 Command="{x:Bind OpenAppCommand}"
                                                 CommandParameter="{Binding ElementName=AppButton}"
-                                                IsEnabled="{x:Bind SessionTokenBlocked, Converter={StaticResource InverseBoolConverter}}"
+                                                IsEnabled="{x:Bind CanOpen}"
                                                 Width="34"
                                                 Height="34">
                                                 <HyperlinkButton.Resources>
