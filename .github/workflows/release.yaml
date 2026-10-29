@@ -140,11 +140,6 @@ jobs:
         $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:APPCAST_SIGNATURE_KEY_BASE64))
         Set-Content -Path $keyPath -Value $key
 
-        # Download the old appcast from GCS.
-        $oldAppCastPath = Join-Path $env:TEMP "appcast.old.xml"
-        & gsutil cp $env:APPCAST_GCS_URI $oldAppCastPath
-        if ($LASTEXITCODE -ne 0) { throw "Failed to download appcast" }
-
         # Generate the new appcast and signature.
         $newAppCastPath = Join-Path $env:TEMP "appcast.new.xml"
         $newAppCastSignaturePath = $newAppCastPath + ".signature"
@@ -154,7 +149,6 @@ jobs:
           -x64Path "${{ steps.release.outputs.X64_OUTPUT_PATH }}" `
           -arm64Path "${{ steps.release.outputs.ARM64_OUTPUT_PATH }}" `
           -keyPath $keyPath `
-          -inputAppCastPath $oldAppCastPath `
           -outputAppCastPath $newAppCastPath `
           -outputAppCastSignaturePath $newAppCastSignaturePath
         if ($LASTEXITCODE -ne 0) { throw "Failed to generate new appcast" }
