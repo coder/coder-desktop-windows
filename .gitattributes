@@ -1,1 +1,3 @@
 MutagenSdk/Proto/**/*.proto linguist-generated=true
+**/packages.lock.json linguist-generated=true
+* text=auto eol=lf

@@ -119,7 +119,7 @@ public class AuthenticodeDownloadValidatorTest
 
         foreach (var (certPath, isEv) in certs)
         {
-            var x509Cert = new X509Certificate2(certPath);
+            var x509Cert = X509CertificateLoader.LoadCertificateFromFile(certPath);
             var result = (bool?)method!.Invoke(null, [x509Cert]);
             Assert.That(result, Is.Not.Null,
                 $"IsExtendedValidationCertificate returned null for {Path.GetFileName(certPath)}");

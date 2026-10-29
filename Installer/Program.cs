@@ -149,26 +149,27 @@ public class Program
     private static readonly Guid BundleUpgradeCode = new("8a773cf1-029c-4ba8-a3f8-dda90f9e641b");
 
     private static readonly RegistryHive RegistryHive = RegistryHive.LocalMachine;
-    private static readonly Version DotNetCheckVersion = new(8, 0, 0);
+    private static readonly Version DotNetCheckVersion = new(10, 0, 0);
 
     private static readonly Dictionary<Platform, ExePackagePayload> DotNetRuntimePackagePayloads = new()
     {
         [Platform.x64] = new ExePackagePayload
         {
-            Name = ".NET Desktop Runtime 8.0.33 (x64).exe",
-            DownloadUrl = "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.33/windowsdesktop-runtime-8.0.33-win-x64.exe",
+            Name = ".NET Desktop Runtime 10.0.14 (x64).exe",
+            DownloadUrl =
+            "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.14/windowsdesktop-runtime-10.0.14-win-x64.exe",
             Hash =
-                "b622106783dee5e1ce993ec849ecd43fa147c6230daecf910348f6adcd28f63abf39cf6db832a6a2684941c19a9321816e9cbc9dbe8c4a8bb2d7e46487ab3890",
-            Size = 58_398_672,
+            "337dacab1636219147b3fe75e451bf5b1c17bca2c86328266d40c4ad1ff0a1e8391c4746ca7a5b702b65b61e8bfe834566cfc1b548cc10aef90b441357b10b69",
+            Size = 60_035_296,
         },
         [Platform.arm64] = new ExePackagePayload
         {
-            Name = ".NET Desktop Runtime 8.0.33 (arm64).exe",
+            Name = ".NET Desktop Runtime 10.0.14 (arm64).exe",
             DownloadUrl =
-                "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/8.0.33/windowsdesktop-runtime-8.0.33-win-arm64.exe",
+            "https://builds.dotnet.microsoft.com/dotnet/WindowsDesktop/10.0.14/windowsdesktop-runtime-10.0.14-win-arm64.exe",
             Hash =
-                "a7ab2d10c7d93c58ef80ef90b0b32e4a7f41f973e41852660606676f2c16aa902620702c646065e07324fff7ab8cdc5112e2946d3f3eded06b5cc3eb78b1a5c6",
-            Size = 53_967_552,
+            "3ea03fbaf7281affa959db52299d2dd198879a10d7db1b58ae09246399f421fa51ed7fb45eca4d4742b98f7d34c0a2d9d412cb6707474a2743b32405ce10a965",
+            Size = 54_014_888,
         },
     };
 
@@ -313,8 +314,7 @@ public class Program
             },
         ];
 
-        // Check for .NET Desktop Runtime 8.0. The bootstrapper will also check
-        // and install it before launching this MSI.
+        // Check for .NET Desktop Runtime . The bootstrapper will also check and install it before launching this MSI.
         //
         // For whatever reason, including the DotNetCompatibilityCheck element
         // using `project.GenericItems` does not work (I'm guessing it's related
@@ -329,7 +329,7 @@ public class Program
                 $"Property={DotNetCheckName}; RuntimeType={DotNetCheckRuntimeType}; Version={DotNetCheckVersion}; RollForward={DotNetCheckRollForward}; Platform={opts.Platform}");
         project.LaunchConditions.Add(new LaunchCondition(
             Condition.Create($"Installed OR {DotNetCheckName} = 0"),
-            $"Please install .NET Desktop Runtime 8.0 (check result: [{DotNetCheckName}])"));
+            $"Please install .NET Desktop Runtime {DotNetCheckVersion.ToString(2)} (check result: [{DotNetCheckName}])"));
 
         // Build the MSI package.
         var outputPath = Compiler.BuildMsi(project, opts.OutputPath);
@@ -414,7 +414,7 @@ public class Program
             new Variable("InstallFolder", $"[ProgramFiles64Folder]{ProductName}", false, false, VariableType.formatted),
         ];
 
-        // Check for .NET Desktop Runtime 8.0. For similar reasons as the MSI,
+        // Check for .NET Desktop Runtime. For similar reasons as the MSI,
         // this is manually added to the `<Bundle>` element.
         bundle.Include(WixExtension.NetFx);
         bundle.WixSourceGenerated += doc =>

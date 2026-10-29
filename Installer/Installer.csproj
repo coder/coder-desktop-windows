@@ -5,7 +5,7 @@
         <RootNamespace>Coder.Desktop.Installer</RootNamespace>
         <OutputType>Exe</OutputType>
         <TargetFramework>net481</TargetFramework>
-        <LangVersion>13.0</LangVersion>
+        <LangVersion>14.0</LangVersion>
     </PropertyGroup>
 
     <ItemGroup>

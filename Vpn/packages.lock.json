@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net8.0-windows7.0": {
+    "net10.0-windows7.0": {
       "Microsoft.Extensions.Configuration": {
         "type": "Direct",
         "requested": "[9.0.1, )",
@@ -20,12 +20,6 @@
         "dependencies": {
           "Microsoft.Extensions.Primitives": "5.0.1"
         }
-      },
-      "System.IO.Pipelines": {
-        "type": "Direct",
-        "requested": "[9.0.1, )",
-        "resolved": "9.0.1",
-        "contentHash": "uXf5o8eV/gtzDQY4lGROLFMWQvcViKcF8o4Q6KpIOjloAQXrnscQSu6gTxYJMHuNJnh7szIF9AzkaEq+zDLoEg=="
       },
       "Google.Protobuf": {
         "type": "Transitive",

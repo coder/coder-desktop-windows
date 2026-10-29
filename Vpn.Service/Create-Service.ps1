@@ -6,7 +6,7 @@ if (-not ([Security.Principal.WindowsPrincipal]([Security.Principal.WindowsIdent
 }
 
 $name = "Coder Desktop (Debug)"
-$binaryPath = Join-Path -Path $PSScriptRoot -ChildPath "bin/Debug/net8.0-windows/Vpn.Service.exe"
+$binaryPath = Join-Path -Path $PSScriptRoot -ChildPath "bin/Debug/net10.0-windows/Vpn.Service.exe"
 
 try {
     Write-Host "Creating service..."
