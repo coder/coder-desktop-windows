@@ -37,8 +37,7 @@ public class AgentAppViewModelFactory(
             Name = name,
             AppUri = appUri,
             IconUrl = iconUrl,
-            // Uri.OriginalString is the raw link; Uri.ToString() unescapes it.
-            // OpenApp checks again with the credentials it uses.
+            // OriginalString is the raw link; ToString() unescapes it.
             BlockReason = cred.CoderUrl is null
                 ? null
                 : SessionTokenLink.BlockReason(appUri.OriginalString, cred.CoderUrl, cred.DashboardUrl),
@@ -98,9 +97,8 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     public bool TryApplyChanges(AgentAppViewModel obj)
     {
-        // The block reason and confirmation depend on the link, so replace the
-        // item when it changes.
-        // Uri equality ignores the fragment, which holds Gateway's params.
+        // Replace the item when the link changes. Uri equality ignores the
+        // fragment, which holds Gateway's params.
         if (Id != obj.Id || AppUri.OriginalString != obj.AppUri.OriginalString || BlockReason != obj.BlockReason ||
             ConfirmBeforeOpening != obj.ConfirmBeforeOpening)
             return false;
@@ -170,8 +168,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
             // token var replacement on those URLs.
             if (uri.Scheme is not "http" and not "https")
             {
-                // Check against the credentials whose token is used, since they
-                // may have loaded after this app was created.
+                // Recheck, since credentials may have loaded after this app was created.
                 var cred = _credentialManager.GetCachedCredentials();
                 if (cred is { State: CredentialState.Valid, CoderUrl: not null, ApiToken: not null })
                 {
