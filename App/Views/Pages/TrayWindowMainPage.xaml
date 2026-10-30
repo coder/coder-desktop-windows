@@ -265,7 +265,7 @@
                             </Grid>
 
                             <ItemsRepeater
-                                ItemsSource="{x:Bind VisibleApps, Mode=OneWay}"
+                                ItemsSource="{x:Bind VisibleApps}"
                                 Visibility="{x:Bind ShowExpandAppsMessage, Converter={StaticResource InverseBoolToVisibilityConverter}, Mode=OneWay}"
                                 Height="34"
                                 Margin="17,0">
