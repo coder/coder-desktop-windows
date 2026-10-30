@@ -20,6 +20,9 @@ public class CredentialModel : ICoderApiClientCredentialProvider
     public CredentialState State { get; init; } = CredentialState.Unknown;
 
     public Uri? CoderUrl { get; init; }
+
+    /// <summary>The deployment's access URL from build info, which can differ from <see cref="CoderUrl" />.</summary>
+    public Uri? DashboardUrl { get; init; }
     public string? ApiToken { get; init; }
 
     public string? Username { get; init; }
@@ -30,6 +33,7 @@ public class CredentialModel : ICoderApiClientCredentialProvider
         {
             State = State,
             CoderUrl = CoderUrl,
+            DashboardUrl = DashboardUrl,
             ApiToken = ApiToken,
             Username = Username,
         };

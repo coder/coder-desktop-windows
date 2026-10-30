@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Windows.System;
 using Coder.Desktop.App.Models;
 using Coder.Desktop.App.Services;
@@ -19,30 +20,37 @@ namespace Coder.Desktop.App.ViewModels;
 
 public interface IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl);
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool confirmBeforeOpening);
 }
 
-public class AgentAppViewModelFactory(ILogger<AgentAppViewModel> childLogger, ICredentialManager credentialManager)
-    : IAgentAppViewModelFactory
+public class AgentAppViewModelFactory(
+    ILogger<AgentAppViewModel> childLogger,
+    ICredentialManager credentialManager,
+    ISettingsManager<AppLinkSettings> appLinkSettingsManager) : IAgentAppViewModelFactory
 {
-    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl)
+    public AgentAppViewModel Create(Uuid id, string name, Uri appUri, Uri? iconUrl, bool confirmBeforeOpening)
     {
-        return new AgentAppViewModel(childLogger, credentialManager)
+        var cred = credentialManager.GetCachedCredentials();
+        return new AgentAppViewModel(childLogger, credentialManager, appLinkSettingsManager)
         {
             Id = id,
             Name = name,
             AppUri = appUri,
             IconUrl = iconUrl,
+            // OriginalString is the raw link; ToString() unescapes it.
+            BlockReason = cred.CoderUrl is null
+                ? null
+                : SessionTokenLink.BlockReason(appUri.OriginalString, cred.CoderUrl, cred.DashboardUrl),
+            ConfirmBeforeOpening = confirmBeforeOpening,
         };
     }
 }
 
 public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<AgentAppViewModel>
 {
-    private const string SessionTokenUriVar = "$SESSION_TOKEN";
-
     private readonly ILogger<AgentAppViewModel> _logger;
     private readonly ICredentialManager _credentialManager;
+    private readonly ISettingsManager<AppLinkSettings> _appLinkSettingsManager;
 
     public required Uuid Id { get; init; }
 
@@ -50,9 +58,16 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     [NotifyPropertyChangedFor(nameof(Details))]
     public required partial string Name { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Details))]
-    public required partial Uri AppUri { get; set; }
+    public required Uri AppUri { get; init; }
+
+    /// <summary>Set when the link needs a session token but isn't trusted with one.</summary>
+    public string? BlockReason { get; init; }
+
+    public bool ConfirmBeforeOpening { get; init; }
+
+    public bool CanOpen => BlockReason is null;
+
+    public double IconOpacity => CanOpen ? 1.0 : 0.4;
 
     [ObservableProperty] public partial Uri? IconUrl { get; set; }
 
@@ -60,13 +75,16 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     [ObservableProperty] public partial bool UseFallbackIcon { get; set; } = true;
 
-    public string Details =>
-        (string.IsNullOrWhiteSpace(Name) ? "(no name)" : Name) + ":\n\n" + AppUri;
+    private string DisplayName => string.IsNullOrWhiteSpace(Name) ? "(no name)" : Name;
 
-    public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager)
+    public string Details => DisplayName + ":\n\n" + (BlockReason ?? AppUri.ToString());
+
+    public AgentAppViewModel(ILogger<AgentAppViewModel> logger, ICredentialManager credentialManager,
+        ISettingsManager<AppLinkSettings> appLinkSettingsManager)
     {
         _logger = logger;
         _credentialManager = credentialManager;
+        _appLinkSettingsManager = appLinkSettingsManager;
 
         // Apply the icon URL to the icon image source when it is updated.
         IconImageSource = UpdateIcon();
@@ -79,14 +97,16 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
 
     public bool TryApplyChanges(AgentAppViewModel obj)
     {
-        if (Id != obj.Id) return false;
+        // Replace the item when the link changes. Uri equality ignores the
+        // fragment, which holds Gateway's params.
+        if (Id != obj.Id || AppUri.OriginalString != obj.AppUri.OriginalString || BlockReason != obj.BlockReason ||
+            ConfirmBeforeOpening != obj.ConfirmBeforeOpening)
+            return false;
 
         // To avoid spurious UI updates which cause flashing, don't actually
         // write to values unless they've changed.
         if (Name != obj.Name)
             Name = obj.Name;
-        if (AppUri != obj.AppUri)
-            AppUri = obj.AppUri;
         if (IconUrl != obj.IconUrl)
         {
             UseFallbackIcon = true;
@@ -137,7 +157,7 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
     }
 
     [RelayCommand]
-    private void OpenApp(object parameter)
+    private async Task OpenApp(object parameter)
     {
         try
         {
@@ -148,41 +168,97 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
             // token var replacement on those URLs.
             if (uri.Scheme is not "http" and not "https")
             {
+                // Recheck, since credentials may have loaded after this app was created.
                 var cred = _credentialManager.GetCachedCredentials();
-                if (cred.State is CredentialState.Valid && cred.ApiToken is not null)
-                    uri = new Uri(uri.ToString().Replace(SessionTokenUriVar, cred.ApiToken));
+                if (cred is { State: CredentialState.Valid, CoderUrl: not null, ApiToken: not null })
+                {
+                    var reason = SessionTokenLink.BlockReason(uri.OriginalString, cred.CoderUrl, cred.DashboardUrl);
+                    if (reason is not null) throw new Exception(reason);
+                    uri = new Uri(uri.OriginalString.Replace(SessionTokenLink.Placeholder, cred.ApiToken));
+                }
             }
 
-            if (uri.ToString().Contains(SessionTokenUriVar))
+            if (uri.ToString().Contains(SessionTokenLink.Placeholder))
                 throw new Exception(
-                    $"URI contains {SessionTokenUriVar} variable but could not be replaced (http and https URLs cannot contain {SessionTokenUriVar})");
+                    $"URI contains {SessionTokenLink.Placeholder} variable but could not be replaced (http and https URLs cannot contain {SessionTokenLink.Placeholder})");
 
+            var scheme = uri.Scheme.ToLowerInvariant();
+            if (!ConfirmBeforeOpening || (await _appLinkSettingsManager.Read()).TrustedSchemes.Contains(scheme))
+            {
+                _ = Launcher.LaunchUriAsync(uri);
+                return;
+            }
+
+            var dontAskAgain = new CheckBox { Content = $"Don't ask again for {scheme}: links" };
+            var open = new Button
+            {
+                Content = "Open",
+                Style = (Style)Application.Current.Resources["AccentButtonStyle"],
+                HorizontalAlignment = HorizontalAlignment.Right,
+            };
+            var flyout = ShowFlyout(parameter, new StackPanel
+            {
+                Spacing = 8,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = $"Open {DisplayName}?\n\nThis opens a {scheme}: link in another app on your computer.",
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    dontAskAgain,
+                    open,
+                },
+            });
+            if (flyout is null) return;
+
+            // Await the choice so this command, which doesn't run concurrently,
+            // covers the whole flow and can't stack a second flyout.
+            var confirmed = new TaskCompletionSource<bool>();
+            open.Click += (_, _) => confirmed.TrySetResult(true);
+            flyout.Closed += (_, _) => confirmed.TrySetResult(false);
+            if (!await confirmed.Task) return;
+
+            flyout.Hide();
             _ = Launcher.LaunchUriAsync(uri);
+            if (dontAskAgain.IsChecked is not true) return;
+            try
+            {
+                await _appLinkSettingsManager.Update(settings => settings.TrustedSchemes.Add(scheme));
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "could not save trusted app link scheme");
+            }
         }
         catch (Exception e)
         {
             _logger.LogWarning(e, "could not parse or launch app");
-
-            if (parameter is not FrameworkElement frameworkElement) return;
-            var flyout = new Flyout
+            ShowFlyout(parameter, new TextBlock
             {
-                Content = new TextBlock
-                {
-                    Text = $"Could not open app: {e.Message}",
-                    Margin = new Thickness(4),
-                    TextWrapping = TextWrapping.Wrap,
-                },
-                FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
-                {
-                    Setters =
-                    {
-                        new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled),
-                        new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled),
-                    },
-                },
-            };
-            FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
-            FlyoutBase.ShowAttachedFlyout(frameworkElement);
+                Text = $"Could not open app: {e.Message}",
+                TextWrapping = TextWrapping.Wrap,
+            });
         }
+    }
+
+    private static Flyout? ShowFlyout(object parameter, UIElement content)
+    {
+        if (parameter is not FrameworkElement frameworkElement) return null;
+        var flyout = new Flyout
+        {
+            Content = new Border { Margin = new Thickness(4), Child = content },
+            FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter))
+            {
+                Setters =
+                {
+                    new Setter(ScrollViewer.HorizontalScrollModeProperty, ScrollMode.Disabled),
+                    new Setter(ScrollViewer.HorizontalScrollBarVisibilityProperty, ScrollBarVisibility.Disabled),
+                },
+            },
+        };
+        FlyoutBase.SetAttachedFlyout(frameworkElement, flyout);
+        FlyoutBase.ShowAttachedFlyout(frameworkElement);
+        return flyout;
     }
 }

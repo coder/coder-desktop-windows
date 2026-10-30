@@ -43,4 +43,22 @@ public sealed class SettingsManagerTests
         var actual = _sut.Read().GetAwaiter().GetResult();
         Assert.That(actual.ConnectOnLaunch, Is.False);
     }
+
+    [Test]
+    public async Task AppLinkSettings_PersistsTrustedSchemes()
+    {
+        await new SettingsManager<AppLinkSettings>(_tempDir).Write(new AppLinkSettings { TrustedSchemes = ["someapp"] });
+        var actual = await new SettingsManager<AppLinkSettings>(_tempDir).Read();
+        Assert.That(actual.TrustedSchemes, Is.EquivalentTo(new[] { "someapp" }));
+    }
+
+    [Test]
+    public async Task Update_ConcurrentUpdatesAllApply()
+    {
+        var sut = new SettingsManager<AppLinkSettings>(_tempDir);
+        await Task.WhenAll(Enumerable.Range(0, 20)
+            .Select(i => Task.Run(() => sut.Update(settings => settings.TrustedSchemes.Add($"app{i}")))));
+        var actual = await new SettingsManager<AppLinkSettings>(_tempDir).Read();
+        Assert.That(actual.TrustedSchemes, Has.Count.EqualTo(20));
+    }
 }

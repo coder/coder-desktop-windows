@@ -291,6 +291,9 @@ public class CredentialManager : ICredentialManager
         {
             State = CredentialState.Valid,
             CoderUrl = uri,
+            DashboardUrl = Uri.TryCreate(buildInfo.DashboardUrl, UriKind.Absolute, out var dashboardUrl)
+                ? dashboardUrl
+                : null,
             ApiToken = credentials.ApiToken,
             Username = me.Username,
         };

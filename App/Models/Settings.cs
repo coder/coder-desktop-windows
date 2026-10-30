@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Coder.Desktop.App.Models;
 
 public interface ISettings<T> : ICloneable<T>
@@ -58,5 +60,19 @@ public class CoderConnectSettings : ISettings<CoderConnectSettings>
     public CoderConnectSettings Clone()
     {
         return new CoderConnectSettings(Version, ConnectOnLaunch);
+    }
+}
+
+public class AppLinkSettings : ISettings<AppLinkSettings>
+{
+    public static string SettingsFileName { get; } = "app-link-settings.json";
+    public int Version { get; set; } = 1;
+
+    /// <summary>Lowercase URI schemes the user chose to open without confirmation.</summary>
+    public HashSet<string> TrustedSchemes { get; set; } = [];
+
+    public AppLinkSettings Clone()
+    {
+        return new AppLinkSettings { Version = Version, TrustedSchemes = [.. TrustedSchemes] };
     }
 }

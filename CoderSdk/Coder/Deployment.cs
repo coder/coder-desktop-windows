@@ -8,6 +8,7 @@ public partial interface ICoderApiClient
 public class BuildInfo
 {
     public string Version { get; set; } = "";
+    public string DashboardUrl { get; set; } = "";
 }
 
 public partial class CoderApiClient

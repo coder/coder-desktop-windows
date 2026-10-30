@@ -37,6 +37,11 @@
                                        IsEnabled="{x:Bind ViewModel.StartOnLoginDisabled, Converter={StaticResource InverseBoolConverter}, Mode=OneWay}">
                     <ToggleSwitch IsOn="{x:Bind ViewModel.StartOnLogin, Mode=TwoWay}" />
                 </controls:SettingsCard>
+                <controls:SettingsCard Description="Ask again before opening app links you trusted."
+                                       Header="App link confirmations"
+                                       HeaderIcon="{ui:FontIcon Glyph=&#xE72C;}">
+                    <Button Content="Reset" Command="{x:Bind ViewModel.ResetTrustedAppLinksCommand}" />
+                </controls:SettingsCard>
                 <TextBlock Style="{StaticResource SettingsSectionHeaderTextBlockStyle}" Text="Coder Connect" />
                 <controls:SettingsCard Description="This setting controls whether Coder Connect automatically starts with Coder Desktop. "
                                        Header="Connect on launch"
