@@ -26,10 +26,10 @@ public class SessionTokenLinkTest
         return new TestCaseData(url).Returns(SessionTokenLink.UntrustedUrlMessage).SetName(name);
     }
 
-    private static TestCaseData WrongDeployment(string name, string origin)
+    private static TestCaseData WrongDeployment(string name, string origin, string? shown = null)
     {
         return new TestCaseData(Link(Vscode, origin))
-            .Returns($"This app signs in to {origin}, but Coder Desktop is signed in to https://coder.example.com/.")
+            .Returns($"This app signs in to {shown ?? origin}, but Coder Desktop is signed in to https://coder.example.com.")
             .SetName(name);
     }
 
@@ -77,6 +77,7 @@ public class SessionTokenLinkTest
         WrongDeployment("another host", "https://other.example"),
         WrongDeployment("another port", "https://coder.example.com:1"),
         WrongDeployment("http instead of https", "http://coder.example.com"),
+        WrongDeployment("another host with a trailing slash", "https://other.example/", "https://other.example"),
     ];
 
     [TestCaseSource(nameof(Cases))]

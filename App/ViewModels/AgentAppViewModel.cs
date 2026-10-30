@@ -210,22 +210,26 @@ public partial class AgentAppViewModel : ObservableObject, IModelUpdateable<Agen
                     open,
                 },
             });
-            open.Click += async (_, _) =>
+            if (flyout is null) return;
+
+            // Await the choice so this command, which doesn't run concurrently,
+            // covers the whole flow and can't stack a second flyout.
+            var confirmed = new TaskCompletionSource<bool>();
+            open.Click += (_, _) => confirmed.TrySetResult(true);
+            flyout.Closed += (_, _) => confirmed.TrySetResult(false);
+            if (!await confirmed.Task) return;
+
+            flyout.Hide();
+            _ = Launcher.LaunchUriAsync(uri);
+            if (dontAskAgain.IsChecked is not true) return;
+            try
             {
-                flyout?.Hide();
-                _ = Launcher.LaunchUriAsync(uri);
-                if (dontAskAgain.IsChecked is not true) return;
-                try
-                {
-                    var settings = await _appLinkSettingsManager.Read();
-                    settings.TrustedSchemes.Add(scheme);
-                    await _appLinkSettingsManager.Write(settings);
-                }
-                catch (Exception e)
-                {
-                    _logger.LogWarning(e, "could not save trusted app link scheme");
-                }
-            };
+                await _appLinkSettingsManager.Update(settings => settings.TrustedSchemes.Add(scheme));
+            }
+            catch (Exception e)
+            {
+                _logger.LogWarning(e, "could not save trusted app link scheme");
+            }
         }
         catch (Exception e)
         {

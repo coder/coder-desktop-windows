@@ -9,7 +9,7 @@
     xmlns:winuiex="using:WinUIEx"
     mc:Ignorable="d"
     Title="Coder Settings"
-    Width="600" Height="350"
+    Width="600" Height="450"
     MinWidth="600" MinHeight="350">
 
     <Window.SystemBackdrop>

@@ -14,8 +14,7 @@ public static class SessionTokenLink
     public const string Placeholder = "$SESSION_TOKEN";
 
     public const string UntrustedUrlMessage =
-        "This app's URL isn't trusted to sign you in to Coder. Ask your template administrator to fix the " +
-        "app's url in the template's coder_app configuration.";
+        "This link asks for your Coder sign-in, but its URL isn't trusted. Ask your template admin to fix it.";
 
     /// <param name="Base">Scheme and authority, matched case-insensitively.</param>
     /// <param name="Path">Matched exactly, up to where the params start.</param>
@@ -69,7 +68,8 @@ public static class SessionTokenLink
 
         return IsSameOrigin(url, signedInUrl) || (dashboardUrl is not null && IsSameOrigin(url, dashboardUrl))
             ? null
-            : $"This app signs in to {url}, but Coder Desktop is signed in to {signedInUrl}.";
+            : $"This app signs in to {url.TrimEnd('/')}, but Coder Desktop is signed in to " +
+              $"{signedInUrl.GetLeftPart(UriPartial.Authority)}.";
     }
 
     /// <summary>
