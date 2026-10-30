@@ -278,8 +278,10 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
 
 
     // We only show 6 apps max, which fills the entire width of the tray
-    // window.
-    public IEnumerable<AgentAppViewModel> VisibleApps => Apps.Count > MaxAppsPerRow ? Apps.Take(MaxAppsPerRow) : Apps;
+    // window. This is kept in sync with Apps instead of being recomputed,
+    // since swapping the ItemsSource while Apps raises CollectionChanged
+    // crashes WinUI.
+    public ObservableCollection<AgentAppViewModel> VisibleApps { get; } = [];
 
     public bool ShowExpandAppsMessage => ExpandAppsMessage != null;
 
@@ -356,7 +358,7 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
         // listeners for the underlying collection changing instead.
         Apps.CollectionChanged += (_, _) =>
         {
-            OnPropertyChanged(new PropertyChangedEventArgs(nameof(VisibleApps)));
+            ModelUpdate.ApplyLists(VisibleApps, Apps.Take(MaxAppsPerRow), CompareAppsByName);
             OnPropertyChanged(new PropertyChangedEventArgs(nameof(ShowExpandAppsMessage)));
             OnPropertyChanged(new PropertyChangedEventArgs(nameof(ExpandAppsMessage)));
         };
@@ -533,8 +535,12 @@ public partial class AgentViewModel : ObservableObject, IModelUpdateable<AgentVi
             apps.Add(_agentAppViewModelFactory.Create(id, displayName, appUri, iconUrl));
         }
 
-        // Sort by name.
-        ModelUpdate.ApplyLists(Apps, apps, (a, b) => string.Compare(a.Name, b.Name, StringComparison.Ordinal));
+        ModelUpdate.ApplyLists(Apps, apps, CompareAppsByName);
+    }
+
+    private static int CompareAppsByName(AgentAppViewModel a, AgentAppViewModel b)
+    {
+        return string.Compare(a.Name, b.Name, StringComparison.Ordinal);
     }
 
     [RelayCommand]
