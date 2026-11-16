@@ -17,6 +17,9 @@ permissions:
 
 jobs:
   release:
+    # The EV signing service account (coder-ci) only trusts jobs in this
+    # environment, which only main and v* tags may use.
+    environment: code-signing
     # windows-2025 is required for an up-to-date version of OpenSSL for the
     # appcast generation.
     runs-on: ${{ github.repository_owner == 'coder' && 'windows-2025-16-cores' || 'windows-2025' }}
