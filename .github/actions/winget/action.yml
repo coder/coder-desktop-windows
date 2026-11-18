@@ -1,0 +1,109 @@
+name: Submit to winget
+description: >
+  Opens a pull request in microsoft/winget-pkgs that updates Coder.CoderDesktop to a released
+  version, from the cdrci account's fork, and pings the maintainers on it. The release must
+  already be published with its -x64.exe and -arm64.exe installers.
+
+inputs:
+  version:
+    description: Released version without the leading v, e.g. 1.2.3.
+    required: true
+  winget-token:
+    description: >
+      cdrci's GitHub token. It pushes a commit to cdrci/winget-pkgs, opens the pull request in
+      microsoft/winget-pkgs and comments on it.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check inputs
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        WINGET_GH_TOKEN: ${{ inputs.winget-token }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') {
+          throw "version must look like 1.2.3, got '$env:VERSION'"
+        }
+        if (-not $env:WINGET_GH_TOKEN) {
+          throw "winget-token is empty: is CDRCI_GITHUB_TOKEN set in this job's environment?"
+        }
+
+    - name: Sync fork
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ inputs.winget-token }}
+      run: gh repo sync cdrci/winget-pkgs -b master
+
+    # Pinned to a release and checked against its SHA-256, which matches both
+    # GitHub's asset digest and the wingetcreate.exe.txt checksum file Microsoft
+    # publishes alongside it. To update, take both values from a newer release
+    # at https://github.com/microsoft/winget-create/releases.
+    - name: Install wingetcreate
+      shell: pwsh
+      env:
+        WINGETCREATE_VERSION: v1.28.1.0
+        WINGETCREATE_SHA256: 63D980BA79E97042395BD6EB5992C2DB9E01E9E7A8A22958A95C288F27310413
+      run: |
+        $ErrorActionPreference = "Stop"
+        $path = Join-Path $env:RUNNER_TEMP "wingetcreate.exe"
+        Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/download/$env:WINGETCREATE_VERSION/wingetcreate.exe" -OutFile $path
+        $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash
+        if ($hash -ne $env:WINGETCREATE_SHA256) {
+          Remove-Item $path
+          throw "wingetcreate.exe $env:WINGETCREATE_VERSION checksum mismatch: got $hash"
+        }
+
+    - name: Submit updated manifest to winget-pkgs
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        # For gh: reads this repository's release.
+        GH_TOKEN: ${{ github.token }}
+        # For wingetcreate. We need a real token since we're pushing a commit
+        # to GitHub and then making a PR in a different repo.
+        WINGET_GH_TOKEN: ${{ inputs.winget-token }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $version = $env:VERSION
+
+        $release_assets = gh release view --repo $env:GITHUB_REPOSITORY "v${version}" --json assets | `
+          ConvertFrom-Json
+        # Get the installer URLs from the release assets.
+        $amd64_installer_url = $release_assets.assets | `
+          Where-Object name -Match ".*-x64.exe$" | `
+          Select -ExpandProperty url
+        $arm64_installer_url = $release_assets.assets | `
+          Where-Object name -Match ".*-arm64.exe$" | `
+          Select -ExpandProperty url
+
+        echo "amd64 Installer URL: ${amd64_installer_url}"
+        echo "arm64 Installer URL: ${arm64_installer_url}"
+        echo "Package version: ${version}"
+
+        & "$env:RUNNER_TEMP\wingetcreate.exe" update Coder.CoderDesktop `
+          --submit `
+          --version "${version}" `
+          --urls "${amd64_installer_url}" "${arm64_installer_url}" `
+          --token "$env:WINGET_GH_TOKEN"
+        if ($LASTEXITCODE -ne 0) { throw "wingetcreate failed" }
+
+    - name: Comment on PR
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        # For gh. We need a real token since we're commenting on a PR in a
+        # different repo.
+        GH_TOKEN: ${{ inputs.winget-token }}
+      run: |
+        # wait 30 seconds
+        Start-Sleep -Seconds 30.0
+        # Find the PR that wingetcreate just made.
+        $version = $env:VERSION
+        $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.CoderDesktop version ${version}" --limit 1 --json number | `
+          ConvertFrom-Json
+        $pr_number = $pr_list[0].number
+
+        gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
