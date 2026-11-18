@@ -37,10 +37,24 @@ runs:
         GH_TOKEN: ${{ inputs.winget-token }}
       run: gh repo sync cdrci/winget-pkgs -b master
 
+    # Pinned to a release and checked against its SHA-256, which matches both
+    # GitHub's asset digest and the wingetcreate.exe.txt checksum file Microsoft
+    # publishes alongside it. To update, take both values from a newer release
+    # at https://github.com/microsoft/winget-create/releases.
     - name: Install wingetcreate
       shell: pwsh
+      env:
+        WINGETCREATE_VERSION: v1.28.1.0
+        WINGETCREATE_SHA256: 63D980BA79E97042395BD6EB5992C2DB9E01E9E7A8A22958A95C288F27310413
       run: |
-        Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile "$env:RUNNER_TEMP\wingetcreate.exe"
+        $ErrorActionPreference = "Stop"
+        $path = Join-Path $env:RUNNER_TEMP "wingetcreate.exe"
+        Invoke-WebRequest -Uri "https://github.com/microsoft/winget-create/releases/download/$env:WINGETCREATE_VERSION/wingetcreate.exe" -OutFile $path
+        $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash
+        if ($hash -ne $env:WINGETCREATE_SHA256) {
+          Remove-Item $path
+          throw "wingetcreate.exe $env:WINGETCREATE_VERSION checksum mismatch: got $hash"
+        }
 
     - name: Submit updated manifest to winget-pkgs
       shell: pwsh
