@@ -2,24 +2,25 @@ name: Release
 
 on:
   push:
+    # Only release managers may push v* tags (Release tags ruleset), and the
+    # code-signing and winget environments only accept v* tags.
     tags:
-      - '*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version number (e.g. v1.2.3)'
-        required: true
+      - 'v*'
 
-permissions:
-  contents: write
-  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-  id-token: write
+permissions: {}
 
 jobs:
   release:
     # The EV signing service account (coder-ci) only trusts jobs in this
-    # environment, which only main and v* tags may use.
+    # environment. It holds the signing configuration and the appcast key, and
+    # a desktop release manager approves each run.
     environment: code-signing
+    permissions:
+      # Create the GitHub release.
+      contents: write
+      # GCP authentication (workload identity) for EV signing and the appcast
+      # upload.
+      id-token: write
     # windows-2025 is required for an up-to-date version of OpenSSL for the
     # appcast generation.
     runs-on: ${{ github.repository_owner == 'coder' && 'windows-2025-16-cores' || 'windows-2025' }}
@@ -28,10 +29,12 @@ jobs:
     timeout-minutes: 15
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      with:
+        persist-credentials: false
 
     - name: Setup .NET
-      uses: actions/setup-dotnet@v4
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
       with:
         dotnet-version: '10.0.x'
 
@@ -47,11 +50,7 @@ jobs:
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
-        if ($env:INPUT_VERSION) {
-          $tag = $env:INPUT_VERSION
-        } else {
-          $tag = $env:GITHUB_REF -replace 'refs/tags/',''
-        }
+        $tag = $env:GITHUB_REF -replace 'refs/tags/',''
         if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
           throw "Version must be in format v1.2.3, got $tag"
         }
@@ -61,8 +60,6 @@ jobs:
         Add-Content -Path $env:GITHUB_OUTPUT -Value "ASSEMBLY_VERSION=$assemblyVersion"
         Write-Host "Version: $version"
         Write-Host "Assembly version: $assemblyVersion"
-      env:
-        INPUT_VERSION: ${{ inputs.version }}
 
     # Setup GCloud for signing Windows binaries.
     - name: Authenticate to Google Cloud
@@ -97,6 +94,11 @@ jobs:
         Set-Content -Path $env:EV_CERTIFICATE_PATH -Value $env:EV_SIGNING_CERT
         $env:JSIGN_PATH = Join-Path $env:TEMP "jsign-6.0.jar"
         Invoke-WebRequest -Uri "https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar" -OutFile $env:JSIGN_PATH
+        # Same checksum as coder/coder's build-coder action.
+        $jsignHash = (Get-FileHash -Algorithm SHA256 -Path $env:JSIGN_PATH).Hash
+        if ($jsignHash -ne "05CA18D4AB7B8C2183289B5378D32860F0EA0F3BDAB1F1B8CAE5894FB225FA8A") {
+          throw "jsign-6.0.jar checksum mismatch: $jsignHash"
+        }
 
         & ./scripts/Release.ps1 `
           -version ${{ steps.version.outputs.VERSION }} `
@@ -110,13 +112,13 @@ jobs:
         GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
 
     - name: Upload artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: publish
         path: .\publish\
 
     - name: Create release
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         name: Release ${{ steps.version.outputs.VERSION }}
@@ -147,7 +149,7 @@ jobs:
         $newAppCastPath = Join-Path $env:TEMP "appcast.new.xml"
         $newAppCastSignaturePath = $newAppCastPath + ".signature"
         & ./scripts/Update-AppCast.ps1 `
-          -tag "${{ github.ref_name }}" `
+          -tag $env:GITHUB_REF_NAME `
           -channel stable `
           -x64Path "${{ steps.release.outputs.X64_OUTPUT_PATH }}" `
           -arm64Path "${{ steps.release.outputs.ARM64_OUTPUT_PATH }}" `
@@ -169,8 +171,14 @@ jobs:
         GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
 
   winget:
+    # Holds cdrci's token for the winget-pkgs PR. A desktop release manager
+    # approves each run.
+    environment: winget
     runs-on: depot-windows-latest
     needs: release
+    permissions:
+      # Read the release assets with gh.
+      contents: read
     steps:
       - name: Sync fork
         run: gh repo sync cdrci/winget-pkgs -b master
@@ -181,6 +189,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       # If the event that triggered the build was an annotated tag (which our
       # tags are supposed to be), actions/checkout has a bug where the tag in
