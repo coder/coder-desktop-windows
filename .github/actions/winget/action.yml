@@ -1,0 +1,95 @@
+name: Submit to winget
+description: >
+  Opens a pull request in microsoft/winget-pkgs that updates Coder.CoderDesktop to a released
+  version, from the cdrci account's fork, and pings the maintainers on it. The release must
+  already be published with its -x64.exe and -arm64.exe installers.
+
+inputs:
+  version:
+    description: Released version without the leading v, e.g. 1.2.3.
+    required: true
+  winget-token:
+    description: >
+      cdrci's GitHub token. It pushes a commit to cdrci/winget-pkgs, opens the pull request in
+      microsoft/winget-pkgs and comments on it.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Check inputs
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        WINGET_GH_TOKEN: ${{ inputs.winget-token }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        if ($env:VERSION -notmatch '^\d+\.\d+\.\d+$') {
+          throw "version must look like 1.2.3, got '$env:VERSION'"
+        }
+        if (-not $env:WINGET_GH_TOKEN) {
+          throw "winget-token is empty: is CDRCI_GITHUB_TOKEN set in this job's environment?"
+        }
+
+    - name: Sync fork
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ inputs.winget-token }}
+      run: gh repo sync cdrci/winget-pkgs -b master
+
+    - name: Install wingetcreate
+      shell: pwsh
+      run: |
+        Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile "$env:RUNNER_TEMP\wingetcreate.exe"
+
+    - name: Submit updated manifest to winget-pkgs
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        # For gh: reads this repository's release.
+        GH_TOKEN: ${{ github.token }}
+        # For wingetcreate. We need a real token since we're pushing a commit
+        # to GitHub and then making a PR in a different repo.
+        WINGET_GH_TOKEN: ${{ inputs.winget-token }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $version = $env:VERSION
+
+        $release_assets = gh release view --repo $env:GITHUB_REPOSITORY "v${version}" --json assets | `
+          ConvertFrom-Json
+        # Get the installer URLs from the release assets.
+        $amd64_installer_url = $release_assets.assets | `
+          Where-Object name -Match ".*-x64.exe$" | `
+          Select -ExpandProperty url
+        $arm64_installer_url = $release_assets.assets | `
+          Where-Object name -Match ".*-arm64.exe$" | `
+          Select -ExpandProperty url
+
+        echo "amd64 Installer URL: ${amd64_installer_url}"
+        echo "arm64 Installer URL: ${arm64_installer_url}"
+        echo "Package version: ${version}"
+
+        & "$env:RUNNER_TEMP\wingetcreate.exe" update Coder.CoderDesktop `
+          --submit `
+          --version "${version}" `
+          --urls "${amd64_installer_url}" "${arm64_installer_url}" `
+          --token "$env:WINGET_GH_TOKEN"
+        if ($LASTEXITCODE -ne 0) { throw "wingetcreate failed" }
+
+    - name: Comment on PR
+      shell: pwsh
+      env:
+        VERSION: ${{ inputs.version }}
+        # For gh. We need a real token since we're commenting on a PR in a
+        # different repo.
+        GH_TOKEN: ${{ inputs.winget-token }}
+      run: |
+        # wait 30 seconds
+        Start-Sleep -Seconds 30.0
+        # Find the PR that wingetcreate just made.
+        $version = $env:VERSION
+        $pr_list = gh pr list --repo microsoft/winget-pkgs --search "author:cdrci Coder.CoderDesktop version ${version}" --limit 1 --json number | `
+          ConvertFrom-Json
+        $pr_number = $pr_list[0].number
+
+        gh pr comment --repo microsoft/winget-pkgs "${pr_number}" --body "🤖 cc: @deansheather @matifali"
