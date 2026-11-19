@@ -128,6 +128,13 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Authenticate to Google Cloud (release artifacts)
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
+      with:
+        workload_identity_provider: ${{ secrets.GCP_RELEASE_ARTIFACTS_WORKLOAD_ID_PROVIDER }}
+        service_account: ${{ secrets.GCP_RELEASE_ARTIFACTS_SERVICE_ACCOUNT }}
+
     - name: Update appcast
       if: startsWith(github.ref, 'refs/tags/')
       shell: pwsh
