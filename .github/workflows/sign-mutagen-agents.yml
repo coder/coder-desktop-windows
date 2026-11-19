@@ -17,23 +17,17 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 30
     outputs:
-      sha256: ${{ steps.checksum.outputs.sha256 }}
+      sha256: ${{ steps.rcodesign.outputs.sha256 }}
     steps:
     - name: Build rcodesign
-      uses: coder/coder-desktop-macos/.github/actions/install-rcodesign@9c16b2e1ba534feb32cec0a7db25975da92e98b5
-
-    - name: Record checksum
-      id: checksum
-      run: |
-        set -euo pipefail
-        sha256="$(sha256sum /tmp/rcodesign-bin/rcodesign | cut -d ' ' -f 1)"
-        echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+      id: rcodesign
+      uses: coder/setup-apple-signing-action/rcodesign@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
 
     - name: Upload rcodesign
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
         name: rcodesign
-        path: /tmp/rcodesign-bin/rcodesign
+        path: ${{ steps.rcodesign.outputs.path }}
         retention-days: 3
 
   sign:
@@ -115,41 +109,12 @@ jobs:
         sudo install -m 0755 "$RUNNER_TEMP/rcodesign/rcodesign" /usr/bin/rcodesign
         rcodesign --version
 
-    - name: Setup Cloud KMS PKCS#11 library
-      env:
-        AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
-      run: |
-        set -euo pipefail
-        curl --fail --silent --show-error --location \
-          --output /tmp/libkmsp11.tar.gz \
-          https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/pkcs11-v1.9/libkmsp11-1.9-linux-amd64.tar.gz
-        echo "5397f965073cd5d1e2c43e5148f102f31a7c835902f97eb41c7c9c0f1b876a40 /tmp/libkmsp11.tar.gz" | sha256sum -c
-        sudo tar -xzf /tmp/libkmsp11.tar.gz \
-          -C /usr/local/lib \
-          --strip-components=1 \
-          libkmsp11-1.9-linux-amd64/libkmsp11.so
-        rm /tmp/libkmsp11.tar.gz
-
-        touch /tmp/kmsp11_config.yaml
-        chmod 600 /tmp/kmsp11_config.yaml
-        cat > /tmp/kmsp11_config.yaml <<EOF
-        ---
-        tokens:
-          - key_ring: "$AC_KMS_KEY_RING"
-        EOF
-
-    - name: Setup certificate
-      env:
-        AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
-      run: |
-        set -euo pipefail
-        touch /tmp/apple_cert.pem
-        chmod 600 /tmp/apple_cert.pem
-        echo "$AC_CERTIFICATE_PEM" > /tmp/apple_cert.pem
-        if ! openssl x509 -in /tmp/apple_cert.pem -noout -subject -serial -enddate; then
-          echo "::error::The AC_CERTIFICATE_PEM secret is not a PEM certificate."
-          exit 1
-        fi
+    - name: Set up Apple signing
+      id: apple_signing
+      uses: coder/setup-apple-signing-action@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
+      with:
+        certificate-pem: ${{ secrets.AC_CERTIFICATE_PEM }}
+        key-ring: ${{ secrets.AC_KMS_KEY_RING }}
 
     - name: Authenticate to Google Cloud
       id: gcloud_auth
@@ -160,7 +125,9 @@ jobs:
 
     - name: Sign
       env:
-        KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
+        KMS_PKCS11_CONFIG: ${{ steps.apple_signing.outputs.pkcs11-config }}
+        PKCS11_LIBRARY: ${{ steps.apple_signing.outputs.pkcs11-library }}
+        CERTIFICATE_FILE: ${{ steps.apple_signing.outputs.certificate-file }}
         GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth.outputs.credentials_file_path }}
       run: |
         set -euo pipefail
@@ -175,9 +142,9 @@ jobs:
         tar -xpzf "$archive" -C "$work/agents"
         for agent in darwin_amd64 darwin_arm64; do
           rcodesign sign \
-            --pkcs11-library /usr/local/lib/libkmsp11.so \
+            --pkcs11-library "$PKCS11_LIBRARY" \
             --pkcs11-key-label developer-id-application \
-            --pkcs11-certificate-file /tmp/apple_cert.pem \
+            --pkcs11-certificate-file "$CERTIFICATE_FILE" \
             --binary-identifier "$agent" \
             --code-signature-flags runtime \
             "$work/agents/$agent"
@@ -210,4 +177,4 @@ jobs:
 
     - name: Delete certificate and configuration
       if: always()
-      run: rm -f /tmp/apple_cert.pem /tmp/kmsp11_config.yaml
+      run: rm -rf "$RUNNER_TEMP/apple-signing"
