@@ -10,7 +10,16 @@ on:
 permissions: {}
 
 jobs:
+  # Signs the macOS agents in mutagen-agents.tar.gz.
+  sign-mutagen-agents:
+    permissions:
+      contents: read
+      id-token: write
+    uses: coder/coder-desktop-windows/.github/workflows/sign-mutagen-agents.yml@main
+    secrets: inherit
+
   release:
+    needs: sign-mutagen-agents
     # The EV signing service account (coder-ci) only trusts jobs in this
     # environment. It holds the signing configuration, the appcast key and
     # cdrci's token for winget, and a desktop release manager approves each run.
@@ -82,11 +91,26 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to add wix extension $ext" }
         }
 
+    - name: Download mutagen agents
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: mutagen-agents
+        path: ${{ runner.temp }}/mutagen-agents
+
     - name: scripts/Release.ps1
       id: release
       shell: pwsh
       run: |
         $ErrorActionPreference = "Stop"
+
+        $mutagenAgentsPath = Join-Path $env:RUNNER_TEMP "mutagen-agents\mutagen-agents.tar.gz"
+        if ($env:MUTAGEN_AGENTS_SHA256 -notmatch '^[0-9a-f]{64}$') {
+          throw "No checksum from the sign-mutagen-agents job"
+        }
+        $mutagenAgentsHash = (Get-FileHash -Algorithm SHA256 -Path $mutagenAgentsPath).Hash
+        if ($mutagenAgentsHash -ne $env:MUTAGEN_AGENTS_SHA256) {
+          throw "mutagen-agents.tar.gz checksum mismatch: $mutagenAgentsHash"
+        }
 
         $env:EV_CERTIFICATE_PATH = Join-Path $env:TEMP "ev_cert.pem"
         Set-Content -Path $env:EV_CERTIFICATE_PATH -Value $env:EV_SIGNING_CERT
@@ -100,9 +124,11 @@ jobs:
 
         & ./scripts/Release.ps1 `
           -version ${{ steps.version.outputs.VERSION }} `
-          -assemblyVersion ${{ steps.version.outputs.ASSEMBLY_VERSION }}
+          -assemblyVersion ${{ steps.version.outputs.ASSEMBLY_VERSION }} `
+          -mutagenAgentsPath $mutagenAgentsPath
         if ($LASTEXITCODE -ne 0) { throw "Failed to publish" }
       env:
+        MUTAGEN_AGENTS_SHA256: ${{ needs.sign-mutagen-agents.outputs.sha256 }}
         EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
         EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
         EV_KEY: ${{ secrets.EV_KEY }}

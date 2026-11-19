@@ -39,22 +39,17 @@ $goArch = switch ($arch) {
 
 # Download the mutagen binary from our bucket for this platform if we don't have
 # it yet (or it's different).
-$mutagenVersion = "v0.18.5"
-# SHA-256 checksums of the files for $mutagenVersion.
-$mutagenChecksums = @{
-    "mutagen-windows-amd64.exe" = "51415c027c3e63010fc1578fefd64998e92abbb8aa2cc40df36081261ef61c1d"
-    "mutagen-windows-arm64.exe" = "bea242b472d1700b3d33dc07a187c615cc3cd13465fbddc397060e949d48afb9"
-    "mutagen-agents.tar.gz"     = "02e7458b9c6d1436c1fda8151bac86bfb46783b75a10d0fd9202100eb2a16f1d"
-}
+$mutagen = Get-Content -Raw (Join-Path $PSScriptRoot "mutagen.json") | ConvertFrom-Json
+$mutagenVersion = $mutagen.version
 $mutagenPath = Join-Path $PSScriptRoot "files\mutagen-windows-$($arch).exe"
 $mutagenUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-windows-$($goArch).exe"
 $mutagenEtagFile = $mutagenPath + ".etag"
-$mutagenChecksum = $mutagenChecksums["mutagen-windows-$($goArch).exe"]
+$mutagenChecksum = $mutagen.sha256."mutagen-windows-$($goArch).exe"
 Download-File $mutagenUrl $mutagenPath $mutagenEtagFile $mutagenChecksum
 
 # Download mutagen agents tarball.
 $mutagenAgentsPath = Join-Path $PSScriptRoot "files\mutagen-agents.tar.gz"
 $mutagenAgentsUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-agents.tar.gz"
 $mutagenAgentsEtagFile = $mutagenAgentsPath + ".etag"
-$mutagenAgentsChecksum = $mutagenChecksums["mutagen-agents.tar.gz"]
+$mutagenAgentsChecksum = $mutagen.sha256."mutagen-agents.tar.gz"
 Download-File $mutagenAgentsUrl $mutagenAgentsPath $mutagenAgentsEtagFile $mutagenAgentsChecksum

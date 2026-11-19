@@ -1,4 +1,4 @@
-# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-msiOutputPath <path>] [-outputPath <path>] [-sign]
+# Usage: Publish.ps1 -arch <x64|arm64> -version <version> [-msiOutputPath <path>] [-outputPath <path>] [-mutagenAgentsPath <path>] [-sign]
 param (
     [ValidateSet("x64", "arm64")]
     [Parameter(Mandatory = $true)]
@@ -13,6 +13,9 @@ param (
 
     [Parameter(Mandatory = $false)]
     [string] $outputPath = "", # defaults to "publish\CoderDesktop-$version-$arch.exe"
+
+    [Parameter(Mandatory = $false)]
+    [string] $mutagenAgentsPath = "", # defaults to "scripts\files\mutagen-agents.tar.gz"
 
     [Parameter(Mandatory = $false)]
     [switch] $keepBuildTemp = $false,
@@ -56,6 +59,9 @@ if ($sign) {
     Write-Host "Signing is enabled"
     Find-Dependencies java
     Find-EnvironmentVariables @("JSIGN_PATH", "EV_KEYSTORE", "EV_KEY", "EV_CERTIFICATE_PATH", "EV_TSA_URL", "GCLOUD_ACCESS_TOKEN")
+    if ($mutagenAgentsPath -eq "") {
+        throw "Missing parameter: mutagenAgentsPath"
+    }
 }
 
 function Add-CoderSignature([string] $path, [switch] $replaceExisting) {
@@ -153,35 +159,43 @@ $mutagenDestPath = Join-Path $vpnFilesPath "mutagen.exe"
 Copy-Item $mutagenSrcPath $mutagenDestPath
 Add-CoderSignature $mutagenDestPath -replaceExisting
 
-# Unpack the mutagen agents, sign the Windows agents and repack them in the
-# same order.
-$tar = Join-Path ([Environment]::SystemDirectory) "tar.exe"
 $mutagenAgentsSrcPath = Join-Path $scriptRoot "files\mutagen-agents.tar.gz"
+if ($mutagenAgentsPath -ne "") {
+    $mutagenAgentsSrcPath = $mutagenAgentsPath
+}
 $mutagenAgentsDestPath = Join-Path $vpnFilesPath "mutagen-agents.tar.gz"
-$mutagenAgentsDir = Join-Path $publishDir "mutagen-agents-$($version)-$($arch)"
-if (Test-Path $mutagenAgentsDir) {
+if ($sign) {
+    # Unpack the mutagen agents, sign the Windows agents and repack them in the
+    # same order.
+    $tar = Join-Path ([Environment]::SystemDirectory) "tar.exe"
+    $mutagenAgentsDir = Join-Path $publishDir "mutagen-agents-$($version)-$($arch)"
+    if (Test-Path $mutagenAgentsDir) {
+        Remove-Item -Recurse -Force $mutagenAgentsDir
+    }
+    New-Item -ItemType Directory -Path $mutagenAgentsDir -Force
+    $mutagenAgents = @(& $tar -tf $mutagenAgentsSrcPath)
+    if ($LASTEXITCODE -ne 0) { throw "Failed to list mutagen agents" }
+    & $tar -xf $mutagenAgentsSrcPath -C $mutagenAgentsDir
+    if ($LASTEXITCODE -ne 0) { throw "Failed to unpack mutagen agents" }
+    foreach ($agent in @("windows_amd64", "windows_arm64")) {
+        $agentPath = Join-Path $mutagenAgentsDir $agent
+        $agentExePath = $agentPath + ".exe"
+        Move-Item $agentPath $agentExePath
+        Add-CoderSignature $agentExePath -replaceExisting
+        Move-Item $agentExePath $agentPath
+    }
+    & $tar -czf $mutagenAgentsDestPath -C $mutagenAgentsDir @mutagenAgents
+    if ($LASTEXITCODE -ne 0) { throw "Failed to repack mutagen agents" }
+    $repackedAgents = @(& $tar -tf $mutagenAgentsDestPath)
+    if ($LASTEXITCODE -ne 0) { throw "Failed to list repacked mutagen agents" }
+    if (($repackedAgents -join " ") -cne ($mutagenAgents -join " ")) {
+        throw "Repacked mutagen agents '$repackedAgents' do not match '$mutagenAgents'"
+    }
     Remove-Item -Recurse -Force $mutagenAgentsDir
 }
-New-Item -ItemType Directory -Path $mutagenAgentsDir -Force
-$mutagenAgents = @(& $tar -tf $mutagenAgentsSrcPath)
-if ($LASTEXITCODE -ne 0) { throw "Failed to list mutagen agents" }
-& $tar -xf $mutagenAgentsSrcPath -C $mutagenAgentsDir
-if ($LASTEXITCODE -ne 0) { throw "Failed to unpack mutagen agents" }
-foreach ($agent in @("windows_amd64", "windows_arm64")) {
-    $agentPath = Join-Path $mutagenAgentsDir $agent
-    $agentExePath = $agentPath + ".exe"
-    Move-Item $agentPath $agentExePath
-    Add-CoderSignature $agentExePath -replaceExisting
-    Move-Item $agentExePath $agentPath
+else {
+    Copy-Item $mutagenAgentsSrcPath $mutagenAgentsDestPath
 }
-& $tar -czf $mutagenAgentsDestPath -C $mutagenAgentsDir @mutagenAgents
-if ($LASTEXITCODE -ne 0) { throw "Failed to repack mutagen agents" }
-$repackedAgents = @(& $tar -tf $mutagenAgentsDestPath)
-if ($LASTEXITCODE -ne 0) { throw "Failed to list repacked mutagen agents" }
-if (($repackedAgents -join " ") -cne ($mutagenAgents -join " ")) {
-    throw "Repacked mutagen agents '$repackedAgents' do not match '$mutagenAgents'"
-}
-Remove-Item -Recurse -Force $mutagenAgentsDir
 
 # Build the MSI installer
 & dotnet.exe run --project .\Installer\Installer.csproj -c Release -- `
