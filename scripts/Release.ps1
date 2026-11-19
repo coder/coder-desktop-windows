@@ -1,4 +1,4 @@
-# Usage: Release.ps1 -version <version>
+# Usage: Release.ps1 -version <version> -assemblyVersion <version> -mutagenAgentsPath <path>
 param (
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^\d+\.\d+\.\d+$")]
@@ -6,7 +6,10 @@ param (
 
     [Parameter(Mandatory = $true)]
     [ValidatePattern("^\d+\.\d+\.\d+\.\d+$")]
-    [string] $assemblyVersion
+    [string] $assemblyVersion,
+
+    [Parameter(Mandatory = $true)]
+    [string] $mutagenAgentsPath
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,6 +33,7 @@ foreach ($arch in @("x64", "arm64")) {
             -arch $arch `
             -msiOutputPath $msiOutputPath `
             -outputPath $outputPath `
+            -mutagenAgentsPath $mutagenAgentsPath `
             -sign
         if ($LASTEXITCODE -ne 0) { throw "Failed to publish" }
 

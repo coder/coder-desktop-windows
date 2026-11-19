@@ -1,0 +1,213 @@
+name: sign-mutagen-agents
+
+# Signs the macOS agents in mutagen-agents.tar.gz.
+
+on:
+  workflow_call:
+    outputs:
+      sha256:
+        description: SHA-256 of mutagen-agents.tar.gz in the mutagen-agents artifact.
+        value: ${{ jobs.sign.outputs.sha256 }}
+
+permissions: {}
+
+jobs:
+  rcodesign:
+    name: Build rcodesign
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    outputs:
+      sha256: ${{ steps.checksum.outputs.sha256 }}
+    steps:
+    - name: Build rcodesign
+      uses: coder/coder-desktop-macos/.github/actions/install-rcodesign@9c16b2e1ba534feb32cec0a7db25975da92e98b5
+
+    - name: Record checksum
+      id: checksum
+      run: |
+        set -euo pipefail
+        sha256="$(sha256sum /tmp/rcodesign-bin/rcodesign | cut -d ' ' -f 1)"
+        echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+    - name: Upload rcodesign
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: rcodesign
+        path: /tmp/rcodesign-bin/rcodesign
+        retention-days: 3
+
+  sign:
+    name: Sign the macOS agents
+    needs: rcodesign
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    environment: code-signing
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      sha256: ${{ steps.checksum.outputs.sha256 }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ github.sha }}
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Check the run
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+        [[ "$GITHUB_EVENT_NAME" == "push" ]] || fail "This workflow only runs for a tag push, not for $GITHUB_EVENT_NAME."
+        [[ "$GITHUB_REF" =~ ^refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$ ]] || fail "The tag must look like v1.2.3, got $GITHUB_REF."
+        [[ "$(git rev-parse HEAD)" == "$GITHUB_SHA" ]] || fail "The checkout is not at $GITHUB_SHA."
+        git merge-base --is-ancestor "$GITHUB_SHA" origin/main || fail "$GITHUB_SHA is not on main."
+
+    - name: Check the configuration
+      env:
+        AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
+        AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
+        AC_WORKLOAD_ID_PROVIDER: ${{ secrets.AC_WORKLOAD_ID_PROVIDER }}
+        AC_SERVICE_ACCOUNT: ${{ secrets.AC_SERVICE_ACCOUNT }}
+      run: |
+        set -euo pipefail
+        missing=0
+        for name in AC_CERTIFICATE_PEM AC_KMS_KEY_RING AC_WORKLOAD_ID_PROVIDER AC_SERVICE_ACCOUNT; do
+          if [[ -z "${!name}" ]]; then
+            echo "::error::The $name secret is not set in the code-signing environment."
+            missing=1
+          fi
+        done
+        exit "$missing"
+
+    - name: Download mutagen agents
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+        version="$(jq -er '.version' scripts/mutagen.json)"
+        sha256="$(jq -er '.sha256["mutagen-agents.tar.gz"]' scripts/mutagen.json)"
+        [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || fail "Unexpected mutagen version '$version'."
+        [[ "$sha256" =~ ^[0-9a-f]{64}$ ]] || fail "Unexpected mutagen-agents.tar.gz checksum '$sha256'."
+        mkdir "$RUNNER_TEMP/mutagen"
+        curl --fail --silent --show-error --location \
+          --output "$RUNNER_TEMP/mutagen/mutagen-agents.tar.gz" \
+          "https://storage.googleapis.com/coder-desktop/mutagen/$version/mutagen-agents.tar.gz"
+        sha256sum -c <<<"$sha256  $RUNNER_TEMP/mutagen/mutagen-agents.tar.gz"
+
+    - name: Download rcodesign
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: rcodesign
+        path: ${{ runner.temp }}/rcodesign
+
+    - name: Check rcodesign
+      env:
+        SHA256: ${{ needs.rcodesign.outputs.sha256 }}
+      run: |
+        set -euo pipefail
+        [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::No checksum from the rcodesign job."; exit 1; }
+        sha256sum -c <<<"$SHA256  $RUNNER_TEMP/rcodesign/rcodesign"
+
+    - name: Install rcodesign
+      run: |
+        set -euo pipefail
+        sudo install -m 0755 "$RUNNER_TEMP/rcodesign/rcodesign" /usr/bin/rcodesign
+        rcodesign --version
+
+    - name: Setup Cloud KMS PKCS#11 library
+      env:
+        AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
+      run: |
+        set -euo pipefail
+        curl --fail --silent --show-error --location \
+          --output /tmp/libkmsp11.tar.gz \
+          https://github.com/GoogleCloudPlatform/kms-integrations/releases/download/pkcs11-v1.9/libkmsp11-1.9-linux-amd64.tar.gz
+        echo "5397f965073cd5d1e2c43e5148f102f31a7c835902f97eb41c7c9c0f1b876a40 /tmp/libkmsp11.tar.gz" | sha256sum -c
+        sudo tar -xzf /tmp/libkmsp11.tar.gz \
+          -C /usr/local/lib \
+          --strip-components=1 \
+          libkmsp11-1.9-linux-amd64/libkmsp11.so
+        rm /tmp/libkmsp11.tar.gz
+
+        touch /tmp/kmsp11_config.yaml
+        chmod 600 /tmp/kmsp11_config.yaml
+        cat > /tmp/kmsp11_config.yaml <<EOF
+        ---
+        tokens:
+          - key_ring: "$AC_KMS_KEY_RING"
+        EOF
+
+    - name: Setup certificate
+      env:
+        AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
+      run: |
+        set -euo pipefail
+        touch /tmp/apple_cert.pem
+        chmod 600 /tmp/apple_cert.pem
+        echo "$AC_CERTIFICATE_PEM" > /tmp/apple_cert.pem
+        if ! openssl x509 -in /tmp/apple_cert.pem -noout -subject -serial -enddate; then
+          echo "::error::The AC_CERTIFICATE_PEM secret is not a PEM certificate."
+          exit 1
+        fi
+
+    - name: Authenticate to Google Cloud
+      id: gcloud_auth
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ secrets.AC_WORKLOAD_ID_PROVIDER }}
+        service_account: ${{ secrets.AC_SERVICE_ACCOUNT }}
+
+    - name: Sign
+      env:
+        KMS_PKCS11_CONFIG: /tmp/kmsp11_config.yaml
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth.outputs.credentials_file_path }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+        work="$RUNNER_TEMP/mutagen"
+        archive="$work/mutagen-agents.tar.gz"
+        signed="$work/signed/mutagen-agents.tar.gz"
+        mkdir "$work/original" "$work/agents" "$work/signed" "$work/check"
+
+        mapfile -t members < <(tar -tzf "$archive")
+        tar -xpzf "$archive" -C "$work/original"
+        tar -xpzf "$archive" -C "$work/agents"
+        for agent in darwin_amd64 darwin_arm64; do
+          rcodesign sign \
+            --pkcs11-library /usr/local/lib/libkmsp11.so \
+            --pkcs11-key-label developer-id-application \
+            --pkcs11-certificate-file /tmp/apple_cert.pem \
+            --binary-identifier "$agent" \
+            --code-signature-flags runtime \
+            "$work/agents/$agent"
+        done
+        tar -czf "$signed" -C "$work/agents" -- "${members[@]}"
+
+        mapfile -t signed_members < <(tar -tzf "$signed")
+        [[ "${signed_members[*]}" == "${members[*]}" ]] || fail "The members of the signed archive do not match: ${signed_members[*]}"
+        tar -xpzf "$signed" -C "$work/check"
+        for member in "${members[@]}"; do
+          case "$member" in
+            darwin_amd64 | darwin_arm64) ;;
+            *) cmp "$work/original/$member" "$work/check/$member" || fail "$member changed." ;;
+          esac
+        done
+
+    - name: Record checksum
+      id: checksum
+      run: |
+        set -euo pipefail
+        sha256="$(sha256sum "$RUNNER_TEMP/mutagen/signed/mutagen-agents.tar.gz" | cut -d ' ' -f 1)"
+        echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+    - name: Upload mutagen agents
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: mutagen-agents
+        path: ${{ runner.temp }}/mutagen/signed/mutagen-agents.tar.gz
+        retention-days: 3
+
+    - name: Delete certificate and configuration
+      if: always()
+      run: rm -f /tmp/apple_cert.pem /tmp/kmsp11_config.yaml

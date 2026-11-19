@@ -7,7 +7,7 @@ param (
 
 $ErrorActionPreference = "Stop"
 
-function Download-File([string] $url, [string] $outputPath, [string] $etagFile) {
+function Download-File([string] $url, [string] $outputPath, [string] $etagFile, [string] $checksum) {
     Write-Host "Downloading '$url' to '$outputPath'"
     # We use `curl.exe` here because `Invoke-WebRequest` is notoriously slow.
     & curl.exe `
@@ -23,6 +23,14 @@ function Download-File([string] $url, [string] $outputPath, [string] $etagFile) 
     if (!(Test-Path $outputPath) -or (Get-Item $outputPath).Length -eq 0) {
         throw "Failed to download '$url', output file '$outputPath' is missing or empty"
     }
+    $bytes = [System.IO.File]::ReadAllBytes($outputPath)
+    $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+    $actualChecksum = [System.BitConverter]::ToString($hash).Replace("-", "")
+    if ($actualChecksum -ne $checksum) {
+        if (Test-Path $etagFile) { Remove-Item -Force $etagFile }
+        Remove-Item -Force $outputPath
+        throw "Checksum mismatch for '$outputPath': expected '$checksum', got '$actualChecksum'"
+    }
 }
 
 $goArch = switch ($arch) {
@@ -33,14 +41,17 @@ $goArch = switch ($arch) {
 
 # Download the mutagen binary from our bucket for this platform if we don't have
 # it yet (or it's different).
-$mutagenVersion = "v0.18.5"
+$mutagen = Get-Content -Raw (Join-Path $PSScriptRoot "mutagen.json") | ConvertFrom-Json
+$mutagenVersion = $mutagen.version
 $mutagenPath = Join-Path $PSScriptRoot "files\mutagen-windows-$($arch).exe"
 $mutagenUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-windows-$($goArch).exe"
 $mutagenEtagFile = $mutagenPath + ".etag"
-Download-File $mutagenUrl $mutagenPath $mutagenEtagFile
+$mutagenChecksum = $mutagen.sha256."mutagen-windows-$($goArch).exe"
+Download-File $mutagenUrl $mutagenPath $mutagenEtagFile $mutagenChecksum
 
 # Download mutagen agents tarball.
 $mutagenAgentsPath = Join-Path $PSScriptRoot "files\mutagen-agents.tar.gz"
 $mutagenAgentsUrl = "https://storage.googleapis.com/coder-desktop/mutagen/$($mutagenVersion)/mutagen-agents.tar.gz"
 $mutagenAgentsEtagFile = $mutagenAgentsPath + ".etag"
-Download-File $mutagenAgentsUrl $mutagenAgentsPath $mutagenAgentsEtagFile
+$mutagenAgentsChecksum = $mutagen.sha256."mutagen-agents.tar.gz"
+Download-File $mutagenAgentsUrl $mutagenAgentsPath $mutagenAgentsEtagFile $mutagenAgentsChecksum

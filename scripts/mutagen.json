@@ -1,0 +1,8 @@
+{
+  "version": "v0.18.5",
+  "sha256": {
+    "mutagen-windows-amd64.exe": "51415c027c3e63010fc1578fefd64998e92abbb8aa2cc40df36081261ef61c1d",
+    "mutagen-windows-arm64.exe": "bea242b472d1700b3d33dc07a187c615cc3cd13465fbddc397060e949d48afb9",
+    "mutagen-agents.tar.gz": "02e7458b9c6d1436c1fda8151bac86bfb46783b75a10d0fd9202100eb2a16f1d"
+  }
+}
