@@ -21,7 +21,7 @@ jobs:
     steps:
     - name: Build rcodesign
       id: rcodesign
-      uses: coder/setup-apple-signing-action/rcodesign@ee5b178f59b7ad9c80089dc91a36c45868cddb69 # main 2026-11-19
+      uses: coder/setup-apple-signing-action/rcodesign@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
 
     - name: Upload rcodesign
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -111,7 +111,7 @@ jobs:
 
     - name: Set up Apple signing
       id: apple_signing
-      uses: coder/setup-apple-signing-action@ee5b178f59b7ad9c80089dc91a36c45868cddb69 # main 2026-11-19
+      uses: coder/setup-apple-signing-action@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
       with:
         certificate-pem: ${{ secrets.AC_CERTIFICATE_PEM }}
         key-ring: ${{ secrets.AC_KMS_KEY_RING }}
