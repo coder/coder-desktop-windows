@@ -23,7 +23,9 @@ function Download-File([string] $url, [string] $outputPath, [string] $etagFile, 
     if (!(Test-Path $outputPath) -or (Get-Item $outputPath).Length -eq 0) {
         throw "Failed to download '$url', output file '$outputPath' is missing or empty"
     }
-    $actualChecksum = (Get-FileHash -Algorithm SHA256 -Path $outputPath).Hash
+    $bytes = [System.IO.File]::ReadAllBytes($outputPath)
+    $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
+    $actualChecksum = [System.BitConverter]::ToString($hash).Replace("-", "")
     if ($actualChecksum -ne $checksum) {
         if (Test-Path $etagFile) { Remove-Item -Force $etagFile }
         Remove-Item -Force $outputPath
