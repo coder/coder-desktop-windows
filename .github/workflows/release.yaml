@@ -16,11 +16,7 @@ jobs:
       contents: read
       id-token: write
     uses: coder/coder-desktop-windows/.github/workflows/sign-mutagen-agents.yml@main
-    secrets:
-      AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
-      AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
-      AC_WORKLOAD_ID_PROVIDER: ${{ secrets.AC_WORKLOAD_ID_PROVIDER }}
-      AC_SERVICE_ACCOUNT: ${{ secrets.AC_SERVICE_ACCOUNT }}
+    secrets: inherit
 
   release:
     needs: sign-mutagen-agents

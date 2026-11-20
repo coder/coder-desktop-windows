@@ -4,15 +4,6 @@ name: sign-mutagen-agents
 
 on:
   workflow_call:
-    secrets:
-      AC_CERTIFICATE_PEM:
-        required: true
-      AC_KMS_KEY_RING:
-        required: true
-      AC_WORKLOAD_ID_PROVIDER:
-        required: true
-      AC_SERVICE_ACCOUNT:
-        required: true
     outputs:
       sha256:
         description: SHA-256 of mutagen-agents.tar.gz in the mutagen-agents artifact.
