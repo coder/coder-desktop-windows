@@ -160,14 +160,49 @@ Copy-Item $mutagenSrcPath $mutagenDestPath
 Add-CoderSignature $mutagenDestPath -replaceExisting
 
 $mutagenAgentsSrcPath = Join-Path $scriptRoot "files\mutagen-agents.tar.gz"
+$tar = Join-Path ([Environment]::SystemDirectory) "tar.exe"
 if ($mutagenAgentsPath -ne "") {
+    # Compare the supplied mutagen agents with the pinned ones. The macOS
+    # agents are not compared.
+    $pinnedAgentsDir = Join-Path $publishDir "mutagen-agents-pinned-$($version)-$($arch)"
+    $suppliedAgentsDir = Join-Path $publishDir "mutagen-agents-supplied-$($version)-$($arch)"
+    foreach ($dir in @($pinnedAgentsDir, $suppliedAgentsDir)) {
+        if (Test-Path $dir) {
+            Remove-Item -Recurse -Force $dir
+        }
+        New-Item -ItemType Directory -Path $dir -Force
+    }
+    $pinnedAgents = @(& $tar -tf $mutagenAgentsSrcPath)
+    if ($LASTEXITCODE -ne 0) { throw "Failed to list pinned mutagen agents" }
+    $suppliedAgents = @(& $tar -tf $mutagenAgentsPath)
+    if ($LASTEXITCODE -ne 0) { throw "Failed to list supplied mutagen agents" }
+    if (($suppliedAgents -join "`n") -cne ($pinnedAgents -join "`n")) {
+        throw "Supplied mutagen agents '$suppliedAgents' do not match pinned mutagen agents '$pinnedAgents'"
+    }
+    & $tar -xf $mutagenAgentsSrcPath -C $pinnedAgentsDir
+    if ($LASTEXITCODE -ne 0) { throw "Failed to unpack pinned mutagen agents" }
+    & $tar -xf $mutagenAgentsPath -C $suppliedAgentsDir
+    if ($LASTEXITCODE -ne 0) { throw "Failed to unpack supplied mutagen agents" }
+    foreach ($agent in $pinnedAgents) {
+        $suppliedAgentPath = Join-Path $suppliedAgentsDir $agent
+        if ((Get-Item -LiteralPath $suppliedAgentPath -Force).LinkType) {
+            throw "Supplied mutagen agent '$agent' is not a regular file"
+        }
+        if ($agent -cin @("darwin_amd64", "darwin_arm64")) { continue }
+        $pinnedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $pinnedAgentsDir $agent) -ErrorAction Stop).Hash
+        $suppliedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $suppliedAgentPath -ErrorAction Stop).Hash
+        if ($suppliedHash -ne $pinnedHash) {
+            throw "Supplied mutagen agent '$agent' does not match the pinned mutagen agent"
+        }
+    }
+    Remove-Item -Recurse -Force $pinnedAgentsDir
+    Remove-Item -Recurse -Force $suppliedAgentsDir
     $mutagenAgentsSrcPath = $mutagenAgentsPath
 }
 $mutagenAgentsDestPath = Join-Path $vpnFilesPath "mutagen-agents.tar.gz"
 if ($sign) {
     # Unpack the mutagen agents, sign the Windows agents and repack them in the
     # same order.
-    $tar = Join-Path ([Environment]::SystemDirectory) "tar.exe"
     $mutagenAgentsDir = Join-Path $publishDir "mutagen-agents-$($version)-$($arch)"
     if (Test-Path $mutagenAgentsDir) {
         Remove-Item -Recurse -Force $mutagenAgentsDir
