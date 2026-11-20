@@ -1,0 +1,646 @@
+name: release-sign
+
+# Builds, signs and publishes Coder Desktop. release.yaml calls main's copy of
+# this file.
+#
+#   validate     Checks the request.
+#   approve      Creates the release tag.
+#   rcodesign    Builds the tool that signs the macOS agents.
+#   sign-agents  Signs the macOS agents in mutagen-agents.tar.gz.
+#   build        Builds and signs the installers.
+#   publish      Publishes the release and the appcast.
+#   winget       Submits the release to winget.
+#
+# A run with a version is a release. A run without one is a dry run, which ends
+# after the build job.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version to release, e.g. v1.2.3. Empty for a dry run
+        type: string
+        default: ''
+      commit:
+        description: Full SHA of the commit on main to release. Required with a version
+        type: string
+        default: ''
+      dryrun:
+        description: Build and sign the installers without publishing them
+        type: boolean
+        default: false
+
+permissions: {}
+
+jobs:
+  # Checks the inputs.
+  validate:
+    name: Check the request
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Check the request
+      env:
+        VERSION: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+        DRYRUN: ${{ inputs.dryrun }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+
+        [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]] || fail "This workflow only runs when dispatched, not for $GITHUB_EVENT_NAME."
+        [[ "$GITHUB_REF" == "refs/heads/main" ]] || fail "This workflow only runs on main, not on $GITHUB_REF."
+
+        if [[ -z "$VERSION" ]]; then
+          [[ "$DRYRUN" == "true" ]] || fail "Give a version to release, or set dryrun."
+          [[ -z "$COMMIT" ]] || fail "commit is only for a release: give a version too."
+          exit 0
+        fi
+
+        [[ "$DRYRUN" != "true" ]] || fail "A release cannot be a dry run: leave version empty for a dry run."
+        [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "version must look like v1.2.3."
+        [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "commit must be a full 40-character SHA."
+        [[ "$(git rev-parse --verify --quiet "$COMMIT^{commit}")" == "$COMMIT" ]] || fail "$COMMIT is not a commit."
+        git merge-base --is-ancestor "$COMMIT" "$GITHUB_SHA" || fail "$COMMIT is not on main."
+        git cat-file -e "$COMMIT:.github/workflows/release-sign.yml" 2>/dev/null || fail "$COMMIT does not contain release-sign.yml."
+
+  # Creates the tag as the coder-release-publisher App, once the run is approved
+  # in the release-approval environment. Releases only.
+  approve:
+    name: Approve and tag the release
+    needs: validate
+    if: ${{ inputs.version != '' }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment: release-approval
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    # For the tags and the history of main.
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+        persist-credentials: false
+
+    - name: Check the tag
+      id: check
+      env:
+        VERSION: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+
+        [[ "$GITHUB_REF" == "refs/heads/main" ]] || fail "This workflow only runs on main, not on $GITHUB_REF."
+        [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "version must look like v1.2.3."
+        [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "commit must be a full 40-character SHA."
+        [[ "$(git rev-parse --verify --quiet "$COMMIT^{commit}")" == "$COMMIT" ]] || fail "$COMMIT is not a commit."
+        git merge-base --is-ancestor "$COMMIT" "$GITHUB_SHA" || fail "$COMMIT is not on main."
+        git cat-file -e "$COMMIT:.github/workflows/release-sign.yml" 2>/dev/null || fail "$COMMIT does not contain release-sign.yml."
+
+        # A re-run finds the tag that the first attempt created.
+        if existing="$(git rev-parse --verify --quiet "refs/tags/$VERSION^{commit}")"; then
+          [[ "$existing" == "$COMMIT" ]] || fail "Tag $VERSION already exists at $existing, not at $COMMIT."
+          echo "Tag $VERSION already exists at $COMMIT."
+          echo "create=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # The version is higher than the latest release, and the commit is not
+        # older than it.
+        tags="$(git tag --list 'v*' --sort=-version:refname)"
+        latest="$(grep -E -m 1 '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$tags" || true)"
+        if [[ -n "$latest" ]]; then
+          printf '%s\n' "$latest" "$VERSION" | sort -V -C || fail "$VERSION is not newer than $latest, the latest release."
+          git merge-base --is-ancestor "refs/tags/$latest" "$COMMIT" || fail "$COMMIT is older than the commit released as $latest."
+        fi
+
+        echo "create=true" >> "$GITHUB_OUTPUT"
+
+    - name: Generate release App token
+      id: app_token
+      if: ${{ steps.check.outputs.create == 'true' }}
+      uses: coder/github-app-token-action@6e522647a301a860cee724d573b03a59754f84b2 # main 2026-11-17
+      with:
+        client-id: ${{ secrets.CODER_RELEASE_PUBLISHER_APP_ID }}
+        kms-key: ${{ secrets.CODER_RELEASE_PUBLISHER_APP_KMS_KEY }}
+        workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+        owner: coder
+        repositories: coder-desktop-windows
+        permissions: |
+          contents: write
+          workflows: write
+
+    # An annotated tag, through the API.
+    - name: Create the tag
+      if: ${{ steps.check.outputs.create == 'true' }}
+      env:
+        GH_TOKEN: ${{ steps.app_token.outputs.token }}
+        VERSION: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags" \
+          -f tag="$VERSION" -f message="Release $VERSION" -f object="$COMMIT" -f type=commit \
+          --jq .sha)"
+        gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$VERSION" -f sha="$tag_object" >/dev/null
+        echo "Created tag $VERSION at $COMMIT."
+
+  rcodesign:
+    name: Build rcodesign
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions: {}
+    outputs:
+      sha256: ${{ steps.rcodesign.outputs.sha256 }}
+    steps:
+    - name: Build rcodesign
+      id: rcodesign
+      uses: coder/setup-apple-signing-action/rcodesign@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
+
+    - name: Upload rcodesign
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: rcodesign
+        path: ${{ steps.rcodesign.outputs.path }}
+        retention-days: 3
+
+  # Signs the macOS agents in mutagen-agents.tar.gz.
+  sign-agents:
+    name: Sign the macOS agents
+    needs: [validate, approve, rcodesign]
+    if: >-
+      ${{ !cancelled() && needs.validate.result == 'success' && needs.rcodesign.result == 'success' &&
+      (needs.approve.result == 'success' || needs.approve.result == 'skipped') }}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    environment: code-signing
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      sha256: ${{ steps.checksum.outputs.sha256 }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.commit || github.sha }}
+        persist-credentials: false
+
+    - name: Check the configuration
+      env:
+        AC_CERTIFICATE_PEM: ${{ secrets.AC_CERTIFICATE_PEM }}
+        AC_KMS_KEY_RING: ${{ secrets.AC_KMS_KEY_RING }}
+        AC_WORKLOAD_ID_PROVIDER: ${{ secrets.AC_WORKLOAD_ID_PROVIDER }}
+        AC_SERVICE_ACCOUNT: ${{ secrets.AC_SERVICE_ACCOUNT }}
+      run: |
+        set -euo pipefail
+        missing=0
+        for name in AC_CERTIFICATE_PEM AC_KMS_KEY_RING AC_WORKLOAD_ID_PROVIDER AC_SERVICE_ACCOUNT; do
+          if [[ -z "${!name}" ]]; then
+            echo "::error::The $name secret is not set in the code-signing environment."
+            missing=1
+          fi
+        done
+        exit "$missing"
+
+    - name: Download mutagen agents
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+        version="$(jq -er '.version' scripts/mutagen.json)"
+        sha256="$(jq -er '.sha256["mutagen-agents.tar.gz"]' scripts/mutagen.json)"
+        [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || fail "Unexpected mutagen version '$version'."
+        [[ "$sha256" =~ ^[0-9a-f]{64}$ ]] || fail "Unexpected mutagen-agents.tar.gz checksum '$sha256'."
+        mkdir "$RUNNER_TEMP/mutagen"
+        curl --fail --silent --show-error --location \
+          --output "$RUNNER_TEMP/mutagen/mutagen-agents.tar.gz" \
+          "https://storage.googleapis.com/coder-desktop/mutagen/$version/mutagen-agents.tar.gz"
+        sha256sum -c <<<"$sha256  $RUNNER_TEMP/mutagen/mutagen-agents.tar.gz"
+
+    - name: Download rcodesign
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: rcodesign
+        path: ${{ runner.temp }}/rcodesign
+
+    - name: Check rcodesign
+      env:
+        SHA256: ${{ needs.rcodesign.outputs.sha256 }}
+      run: |
+        set -euo pipefail
+        [[ "$SHA256" =~ ^[0-9a-f]{64}$ ]] || { echo "::error::No checksum from the rcodesign job."; exit 1; }
+        sha256sum -c <<<"$SHA256  $RUNNER_TEMP/rcodesign/rcodesign"
+
+    - name: Install rcodesign
+      run: |
+        set -euo pipefail
+        sudo install -m 0755 "$RUNNER_TEMP/rcodesign/rcodesign" /usr/bin/rcodesign
+        rcodesign --version
+
+    - name: Set up Apple signing
+      id: apple_signing
+      uses: coder/setup-apple-signing-action@7901d28b3975e01adede2dd2044dde8280ce605a # main 2026-11-19
+      with:
+        certificate-pem: ${{ secrets.AC_CERTIFICATE_PEM }}
+        key-ring: ${{ secrets.AC_KMS_KEY_RING }}
+
+    - name: Authenticate to Google Cloud
+      id: gcloud_auth
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ secrets.AC_WORKLOAD_ID_PROVIDER }}
+        service_account: ${{ secrets.AC_SERVICE_ACCOUNT }}
+
+    - name: Sign
+      env:
+        KMS_PKCS11_CONFIG: ${{ steps.apple_signing.outputs.pkcs11-config }}
+        PKCS11_LIBRARY: ${{ steps.apple_signing.outputs.pkcs11-library }}
+        CERTIFICATE_FILE: ${{ steps.apple_signing.outputs.certificate-file }}
+        GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.gcloud_auth.outputs.credentials_file_path }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+        work="$RUNNER_TEMP/mutagen"
+        archive="$work/mutagen-agents.tar.gz"
+        signed="$work/signed/mutagen-agents.tar.gz"
+        mkdir "$work/original" "$work/agents" "$work/signed" "$work/check"
+
+        mapfile -t members < <(tar -tzf "$archive")
+        tar -xpzf "$archive" -C "$work/original"
+        tar -xpzf "$archive" -C "$work/agents"
+        for agent in darwin_amd64 darwin_arm64; do
+          rcodesign sign \
+            --pkcs11-library "$PKCS11_LIBRARY" \
+            --pkcs11-key-label developer-id-application \
+            --pkcs11-certificate-file "$CERTIFICATE_FILE" \
+            --binary-identifier "$agent" \
+            --code-signature-flags runtime \
+            "$work/agents/$agent"
+        done
+        tar -czf "$signed" -C "$work/agents" -- "${members[@]}"
+
+        mapfile -t signed_members < <(tar -tzf "$signed")
+        [[ "${signed_members[*]}" == "${members[*]}" ]] || fail "The members of the signed archive do not match: ${signed_members[*]}"
+        tar -xpzf "$signed" -C "$work/check"
+        for member in "${members[@]}"; do
+          case "$member" in
+            darwin_amd64 | darwin_arm64) ;;
+            *) cmp "$work/original/$member" "$work/check/$member" || fail "$member changed." ;;
+          esac
+        done
+
+    - name: Record checksum
+      id: checksum
+      run: |
+        set -euo pipefail
+        sha256="$(sha256sum "$RUNNER_TEMP/mutagen/signed/mutagen-agents.tar.gz" | cut -d ' ' -f 1)"
+        echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
+
+    - name: Upload mutagen agents
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: mutagen-agents
+        path: ${{ runner.temp }}/mutagen/signed/mutagen-agents.tar.gz
+        retention-days: 3
+
+    - name: Delete certificate and configuration
+      if: always()
+      run: rm -rf "$RUNNER_TEMP/apple-signing"
+
+  # Builds the installers and signs them. A dry run builds version 0.0.1.
+  build:
+    name: Build and sign the installers
+    needs: [validate, approve, sign-agents]
+    if: >-
+      ${{ !cancelled() && needs.validate.result == 'success' && needs.sign-agents.result == 'success' &&
+      (needs.approve.result == 'success' || needs.approve.result == 'skipped') }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'windows-2025-16-cores' || 'windows-2025' }}
+    timeout-minutes: 25
+    environment: code-signing
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      x64-sha256: ${{ steps.checksums.outputs.x64 }}
+      arm64-sha256: ${{ steps.checksums.outputs.arm64 }}
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.commit || github.sha }}
+        persist-credentials: false
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      with:
+        dotnet-version: '10.0.x'
+
+    # Necessary for signing Windows binaries.
+    - name: Setup Java
+      uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
+      with:
+        distribution: "zulu"
+        java-version: "11.0"
+
+    - name: Get the version
+      id: version
+      shell: pwsh
+      env:
+        TAG: ${{ inputs.version }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $tag = $env:TAG
+        if (-not $tag) {
+          $tag = "v0.0.1"
+        }
+        if ($tag -notmatch '^v\d+\.\d+\.\d+$') {
+          throw "Version must be in format v1.2.3, got $tag"
+        }
+        $version = $tag -replace '^v',''
+        $assemblyVersion = "$($version).0"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "VERSION=$version"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "ASSEMBLY_VERSION=$assemblyVersion"
+        Write-Host "Version: $version"
+        Write-Host "Assembly version: $assemblyVersion"
+
+    - name: Install wix
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = "Stop"
+        & dotnet.exe tool install --global wix --version 5.0.2
+        if ($LASTEXITCODE -ne 0) { throw "Failed to install wix" }
+        foreach ($ext in @("WixToolset.Bal.wixext/5.0.2", "WixToolset.Netfx.wixext/5.0.2", "WixToolset.UI.wixext/5.0.2", "WixToolset.Util.wixext/5.0.2")) {
+          & wix.exe extension add -g $ext
+          if ($LASTEXITCODE -ne 0) { throw "Failed to add wix extension $ext" }
+        }
+
+    - name: Download mutagen agents
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: mutagen-agents
+        path: ${{ runner.temp }}/mutagen-agents
+
+    # The access token is for jsign.
+    - name: Authenticate to Google Cloud
+      id: gcloud_auth
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_ID_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        token_format: "access_token"
+
+    - name: scripts/Release.ps1
+      id: release
+      shell: pwsh
+      env:
+        VERSION: ${{ steps.version.outputs.VERSION }}
+        ASSEMBLY_VERSION: ${{ steps.version.outputs.ASSEMBLY_VERSION }}
+        MUTAGEN_AGENTS_SHA256: ${{ needs.sign-agents.outputs.sha256 }}
+        EV_SIGNING_CERT: ${{ secrets.EV_SIGNING_CERT }}
+        EV_KEYSTORE: ${{ secrets.EV_KEYSTORE }}
+        EV_KEY: ${{ secrets.EV_KEY }}
+        EV_TSA_URL: ${{ secrets.EV_TSA_URL }}
+        GCLOUD_ACCESS_TOKEN: ${{ steps.gcloud_auth.outputs.access_token }}
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        $mutagenAgentsPath = Join-Path $env:RUNNER_TEMP "mutagen-agents\mutagen-agents.tar.gz"
+        if ($env:MUTAGEN_AGENTS_SHA256 -notmatch '^[0-9a-f]{64}$') {
+          throw "No checksum from the sign-agents job"
+        }
+        $mutagenAgentsHash = (Get-FileHash -Algorithm SHA256 -Path $mutagenAgentsPath).Hash
+        if ($mutagenAgentsHash -ne $env:MUTAGEN_AGENTS_SHA256) {
+          throw "mutagen-agents.tar.gz checksum mismatch: $mutagenAgentsHash"
+        }
+
+        $env:EV_CERTIFICATE_PATH = Join-Path $env:TEMP "ev_cert.pem"
+        Set-Content -Path $env:EV_CERTIFICATE_PATH -Value $env:EV_SIGNING_CERT
+        $env:JSIGN_PATH = Join-Path $env:TEMP "jsign-6.0.jar"
+        Invoke-WebRequest -Uri "https://github.com/ebourg/jsign/releases/download/6.0/jsign-6.0.jar" -OutFile $env:JSIGN_PATH
+        $jsignHash = (Get-FileHash -Algorithm SHA256 -Path $env:JSIGN_PATH).Hash
+        if ($jsignHash -ne "05CA18D4AB7B8C2183289B5378D32860F0EA0F3BDAB1F1B8CAE5894FB225FA8A") {
+          throw "jsign-6.0.jar checksum mismatch: $jsignHash"
+        }
+
+        & ./scripts/Release.ps1 `
+          -version $env:VERSION `
+          -assemblyVersion $env:ASSEMBLY_VERSION `
+          -mutagenAgentsPath $mutagenAgentsPath
+        if ($LASTEXITCODE -ne 0) { throw "Failed to publish" }
+
+    - name: Record checksums
+      id: checksums
+      shell: pwsh
+      env:
+        X64_OUTPUT_PATH: ${{ steps.release.outputs.X64_OUTPUT_PATH }}
+        ARM64_OUTPUT_PATH: ${{ steps.release.outputs.ARM64_OUTPUT_PATH }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $x64 = (Get-FileHash -Algorithm SHA256 -Path $env:X64_OUTPUT_PATH).Hash.ToLower()
+        $arm64 = (Get-FileHash -Algorithm SHA256 -Path $env:ARM64_OUTPUT_PATH).Hash.ToLower()
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "x64=$x64"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "arm64=$arm64"
+
+    # We currently only release the bootstrappers, not the MSIs.
+    - name: Upload installers
+      uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+      with:
+        name: installers
+        path: |
+          ${{ steps.release.outputs.X64_OUTPUT_PATH }}
+          ${{ steps.release.outputs.ARM64_OUTPUT_PATH }}
+        if-no-files-found: error
+        retention-days: 7
+
+  # Publishes the GitHub release and the appcast. Releases only.
+  publish:
+    name: Publish
+    needs: [approve, build]
+    if: >-
+      ${{ !cancelled() && inputs.version != '' && !inputs.dryrun &&
+      needs.approve.result == 'success' && needs.build.result == 'success' }}
+    # windows-2025 has the version of OpenSSL that the appcast generation needs.
+    runs-on: windows-2025
+    timeout-minutes: 15
+    environment: publish
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+    # With tags, for the tag check.
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.commit || github.sha }}
+        fetch-depth: 0
+        fetch-tags: true
+        persist-credentials: false
+
+    - name: Get the version
+      id: version
+      shell: pwsh
+      env:
+        TAG: ${{ inputs.version }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        if ($env:TAG -notmatch '^v\d+\.\d+\.\d+$') {
+          throw "Version must be in format v1.2.3, got $env:TAG"
+        }
+        $version = $env:TAG -replace '^v',''
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "VERSION=$version"
+
+    - name: Check the tag
+      shell: pwsh
+      env:
+        TAG: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $tagged = & git rev-parse --verify --quiet "refs/tags/$($env:TAG)^{commit}"
+        if ($LASTEXITCODE -ne 0 -or $tagged -ne $env:COMMIT) {
+          throw "Tag $env:TAG is not at $env:COMMIT"
+        }
+
+    - name: Download installers
+      uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      with:
+        name: installers
+        path: publish
+
+    - name: Check installers
+      shell: pwsh
+      env:
+        VERSION: ${{ steps.version.outputs.VERSION }}
+        X64_SHA256: ${{ needs.build.outputs.x64-sha256 }}
+        ARM64_SHA256: ${{ needs.build.outputs.arm64-sha256 }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        $installers = @(
+          @{ arch = "x64"; sha256 = $env:X64_SHA256 },
+          @{ arch = "arm64"; sha256 = $env:ARM64_SHA256 }
+        )
+        foreach ($installer in $installers) {
+          if ($installer.sha256 -notmatch '^[0-9a-f]{64}$') {
+            throw "No checksum from the build job"
+          }
+          $path = Join-Path "publish" "CoderDesktop-$($env:VERSION)-$($installer.arch).exe"
+          $hash = (Get-FileHash -Algorithm SHA256 -Path $path).Hash
+          if ($hash -ne $installer.sha256) {
+            throw "$path checksum mismatch: $hash"
+          }
+        }
+
+    - name: Create release
+      uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+      with:
+        tag_name: ${{ inputs.version }}
+        name: Release ${{ steps.version.outputs.VERSION }}
+        generate_release_notes: true
+        files: |
+          publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-x64.exe
+          publish/CoderDesktop-${{ steps.version.outputs.VERSION }}-arm64.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ secrets.GCP_RELEASE_ARTIFACTS_WORKLOAD_ID_PROVIDER }}
+        service_account: ${{ secrets.GCP_RELEASE_ARTIFACTS_SERVICE_ACCOUNT }}
+
+    - name: Install gcloud
+      uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # 2.1.4
+
+    - name: Update appcast
+      shell: pwsh
+      env:
+        TAG: ${{ inputs.version }}
+        VERSION: ${{ steps.version.outputs.VERSION }}
+        APPCAST_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml
+        APPCAST_SIGNATURE_GCS_URI: gs://releases.coder.com/coder-desktop/windows/appcast.xml.signature
+        APPCAST_SIGNATURE_KEY_BASE64: ${{ secrets.APPCAST_SIGNATURE_KEY_BASE64 }}
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        $ErrorActionPreference = "Stop"
+
+        # The Update-AppCast.ps1 script fetches the release notes from GitHub,
+        # which might take a few seconds to be ready.
+        Start-Sleep -Seconds 10
+
+        # Save the appcast signing key to a temporary file.
+        $keyPath = Join-Path $env:TEMP "appcast-key.pem"
+        $key = [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($env:APPCAST_SIGNATURE_KEY_BASE64))
+        Set-Content -Path $keyPath -Value $key
+
+        # Generate the new appcast and signature.
+        $newAppCastPath = Join-Path $env:TEMP "appcast.new.xml"
+        $newAppCastSignaturePath = $newAppCastPath + ".signature"
+        & ./scripts/Update-AppCast.ps1 `
+          -tag $env:TAG `
+          -channel stable `
+          -x64Path "publish/CoderDesktop-$($env:VERSION)-x64.exe" `
+          -arm64Path "publish/CoderDesktop-$($env:VERSION)-arm64.exe" `
+          -keyPath $keyPath `
+          -outputAppCastPath $newAppCastPath `
+          -outputAppCastSignaturePath $newAppCastSignaturePath
+        if ($LASTEXITCODE -ne 0) { throw "Failed to generate new appcast" }
+
+        # Upload the new appcast and signature to GCS.
+        & gsutil -h "Cache-Control:no-cache,max-age=0" cp $newAppCastPath $env:APPCAST_GCS_URI
+        if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast" }
+        & gsutil -h "Cache-Control:no-cache,max-age=0" cp $newAppCastSignaturePath $env:APPCAST_SIGNATURE_GCS_URI
+        if ($LASTEXITCODE -ne 0) { throw "Failed to upload new appcast signature" }
+
+    - name: Delete the appcast key
+      if: always()
+      shell: pwsh
+      run: Remove-Item -Force -ErrorAction SilentlyContinue (Join-Path $env:TEMP "appcast-key.pem")
+
+  # Submits the release to winget. Releases only.
+  winget:
+    name: Submit to winget
+    needs: publish
+    if: ${{ !cancelled() && inputs.version != '' && needs.publish.result == 'success' }}
+    runs-on: windows-2025
+    timeout-minutes: 15
+    environment: winget
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        ref: ${{ inputs.commit || github.sha }}
+        persist-credentials: false
+
+    - name: Get the version
+      id: version
+      shell: pwsh
+      env:
+        TAG: ${{ inputs.version }}
+      run: |
+        $ErrorActionPreference = "Stop"
+        if ($env:TAG -notmatch '^v\d+\.\d+\.\d+$') {
+          throw "Version must be in format v1.2.3, got $env:TAG"
+        }
+        $version = $env:TAG -replace '^v',''
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "VERSION=$version"
+
+    - name: Submit to winget
+      uses: ./.github/actions/winget
+      with:
+        version: ${{ steps.version.outputs.VERSION }}
+        winget-token: ${{ secrets.CDRCI_GITHUB_TOKEN }}
