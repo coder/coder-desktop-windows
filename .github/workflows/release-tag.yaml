@@ -1,0 +1,130 @@
+name: Release tag
+run-name: Release tag ${{ inputs.version }} at ${{ inputs.commit }}
+
+# Creates the vX.Y.Z tag of a release. The Release workflow starts from the tag.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, e.g. v1.2.3
+        required: true
+        type: string
+      commit:
+        description: Full SHA of the commit on main to release
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  # Checks the inputs.
+  validate:
+    name: Check the request
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Check the request
+      env:
+        VERSION: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+
+        [[ "$GITHUB_REF" == "refs/heads/main" ]] || fail "This workflow only runs on main, not on $GITHUB_REF."
+        [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "version must look like v1.2.3."
+        [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "commit must be a full 40-character SHA."
+        [[ "$(git rev-parse --verify --quiet "$COMMIT^{commit}")" == "$COMMIT" ]] || fail "$COMMIT is not a commit."
+        git merge-base --is-ancestor "$COMMIT" "$GITHUB_SHA" || fail "$COMMIT is not on main."
+
+  # Creates the tag as the coder-release-publisher App, once the run is approved
+  # in the release-approval environment.
+  approve:
+    name: Approve and tag the release
+    needs: validate
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment: release-approval
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    # For the tags and the history of main.
+    - name: Checkout
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        fetch-depth: 0
+        fetch-tags: true
+        persist-credentials: false
+
+    - name: Check the tag
+      id: check
+      env:
+        VERSION: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        fail() { echo "::error::$*"; exit 1; }
+
+        [[ "$GITHUB_REF" == "refs/heads/main" ]] || fail "This workflow only runs on main, not on $GITHUB_REF."
+        [[ "$VERSION" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail "version must look like v1.2.3."
+        [[ "$COMMIT" =~ ^[0-9a-f]{40}$ ]] || fail "commit must be a full 40-character SHA."
+        [[ "$(git rev-parse --verify --quiet "$COMMIT^{commit}")" == "$COMMIT" ]] || fail "$COMMIT is not a commit."
+        git merge-base --is-ancestor "$COMMIT" "$GITHUB_SHA" || fail "$COMMIT is not on main."
+
+        # A re-run finds the tag that the first attempt created.
+        if existing="$(git rev-parse --verify --quiet "refs/tags/$VERSION^{commit}")"; then
+          [[ "$existing" == "$COMMIT" ]] || fail "Tag $VERSION already exists at $existing, not at $COMMIT."
+          echo "Tag $VERSION already exists at $COMMIT."
+          echo "create=false" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # The version is higher than the latest release, and the commit is not
+        # older than it.
+        tags="$(git tag --list 'v*' --sort=-version:refname)"
+        latest="$(grep -E -m 1 '^v[0-9]+\.[0-9]+\.[0-9]+$' <<<"$tags" || true)"
+        if [[ -n "$latest" ]]; then
+          printf '%s\n' "$latest" "$VERSION" | sort -V -C || fail "$VERSION is not newer than $latest, the latest release."
+          git merge-base --is-ancestor "refs/tags/$latest" "$COMMIT" || fail "$COMMIT is older than the commit released as $latest."
+        fi
+
+        echo "create=true" >> "$GITHUB_OUTPUT"
+
+    - name: Generate release App token
+      id: app_token
+      if: ${{ steps.check.outputs.create == 'true' }}
+      uses: coder/github-app-token-action@6e522647a301a860cee724d573b03a59754f84b2 # main 2026-11-17
+      with:
+        client-id: ${{ secrets.CODER_RELEASE_PUBLISHER_APP_ID }}
+        kms-key: ${{ secrets.CODER_RELEASE_PUBLISHER_APP_KMS_KEY }}
+        workload-identity-provider: ${{ secrets.APP_KEYS_WORKLOAD_ID_PROVIDER }}
+        owner: coder
+        repositories: coder-desktop-windows
+        permissions: |
+          contents: write
+          workflows: write
+
+    # An annotated tag, through the API.
+    - name: Create the tag
+      if: ${{ steps.check.outputs.create == 'true' }}
+      env:
+        GH_TOKEN: ${{ steps.app_token.outputs.token }}
+        VERSION: ${{ inputs.version }}
+        COMMIT: ${{ inputs.commit }}
+      run: |
+        set -euo pipefail
+        tag_object="$(gh api "repos/$GITHUB_REPOSITORY/git/tags" \
+          -f tag="$VERSION" -f message="Release $VERSION" -f object="$COMMIT" -f type=commit \
+          --jq .sha)"
+        gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$VERSION" -f sha="$tag_object" >/dev/null
+        echo "Created tag $VERSION at $COMMIT."

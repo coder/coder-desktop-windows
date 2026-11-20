@@ -25,6 +25,19 @@ You will need:
 
 It's also recommended to use JetBrains Rider (or VS + ReSharper) for a better experience.
 
+### Releasing
+
+To start a release, run the `release-tag.yaml` workflow on `main` with the
+version and the commit to release:
+
+```sh
+gh workflow run release-tag.yaml --repo coder/coder-desktop-windows --ref main \
+  -f version=v1.2.3 -f commit="$(git rev-parse origin/main)"
+```
+
+Once another desktop release manager approves the run, it creates the tag and
+the Release workflow starts from it.
+
 ### License
 
 The Coder Desktop for Windows source is licensed under the GNU Affero General
